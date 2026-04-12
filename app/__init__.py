@@ -11,6 +11,8 @@ from app.blueprints.ingestion import ingestion_bp
 from app.blueprints.processing import processing_bp
 from app.blueprints.extraction import extraction_bp
 from app.blueprints.clustering import clustering_bp
+from app.blueprints.enrichment import enrichment_bp
+from app.blueprints.scoring import scoring_bp
 
 def create_app():
     app = Flask(__name__)
@@ -28,6 +30,8 @@ def create_app():
     app.register_blueprint(processing_bp)
     app.register_blueprint(extraction_bp)
     app.register_blueprint(clustering_bp)
+    app.register_blueprint(enrichment_bp)
+    app.register_blueprint(scoring_bp)
 
     @app.route("/")
     def home():
