@@ -6,6 +6,7 @@ from config import Config
 from app.extensions import db, migrate
 from app.blueprints.events import events_bp
 from app.blueprints.summary import summary_bp
+from app.blueprints.filters import filters_bp
 
 def create_app():
     app = Flask(__name__)
@@ -18,6 +19,7 @@ def create_app():
 
     app.register_blueprint(events_bp)
     app.register_blueprint(summary_bp)
+    app.register_blueprint(filters_bp)
 
     @app.route("/")
     def home():
