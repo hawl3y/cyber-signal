@@ -14,3 +14,7 @@ class EventCVELink(db.Model):
 
     cve_id = db.Column(db.String(50), nullable=False)
     is_primary = db.Column(db.Boolean, default=False)
+
+    cyber_event = db.relationship(
+    "CyberEvent",
+    back_populates="event_cves")

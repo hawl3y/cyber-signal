@@ -37,7 +37,12 @@ class RawArticle(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    event_links = db.relationship(
+    "EventSourceLink",
+    backref="raw_article",
+    lazy=True)
+
     extractions = db.relationship(
     "ArticleExtraction",
-    backref="raw_article",
+    back_populates="raw_article",
     lazy=True)

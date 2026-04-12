@@ -56,3 +56,13 @@ class CyberEvent(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    event_sources = db.relationship(
+    "EventSourceLink",
+    back_populates="cyber_event",
+    lazy=True)
+
+    event_cves = db.relationship(
+    "EventCVELink",
+    back_populates="cyber_event",
+    lazy=True)

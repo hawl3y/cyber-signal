@@ -38,3 +38,7 @@ class ArticleExtraction(db.Model):
     extraction_confidence = db.Column(db.Float)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    raw_article = db.relationship(
+    "RawArticle",
+    back_populates="extractions")

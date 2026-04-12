@@ -23,3 +23,7 @@ class EventSourceLink(db.Model):
     match_score = db.Column(db.Float)
     is_primary_source = db.Column(db.Boolean, default=False)
     linked_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    cyber_event = db.relationship(
+    "CyberEvent",
+    back_populates="event_sources")
