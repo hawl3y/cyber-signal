@@ -7,6 +7,10 @@ from app.extensions import db, migrate
 from app.blueprints.events import events_bp
 from app.blueprints.summary import summary_bp
 from app.blueprints.filters import filters_bp
+from app.blueprints.ingestion import ingestion_bp
+from app.blueprints.processing import processing_bp
+from app.blueprints.extraction import extraction_bp
+from app.blueprints.clustering import clustering_bp
 
 def create_app():
     app = Flask(__name__)
@@ -20,6 +24,10 @@ def create_app():
     app.register_blueprint(events_bp)
     app.register_blueprint(summary_bp)
     app.register_blueprint(filters_bp)
+    app.register_blueprint(ingestion_bp)
+    app.register_blueprint(processing_bp)
+    app.register_blueprint(extraction_bp)
+    app.register_blueprint(clustering_bp)
 
     @app.route("/")
     def home():

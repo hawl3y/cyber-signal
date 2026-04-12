@@ -36,8 +36,16 @@ def find_best_match(extraction, candidates):
 
 def attach_to_event(article, event):
     """
-    Link article to event.
+    Link article to event if not already linked.
     """
+    existing_link = EventSourceLink.query.filter_by(
+        cyber_event_id=event.id,
+        raw_article_id=article.id,
+    ).first()
+
+    if existing_link:
+        return existing_link
+
     link = EventSourceLink(
         cyber_event_id=event.id,
         raw_article_id=article.id,
@@ -52,11 +60,18 @@ def attach_to_event(article, event):
 
 def create_event(article, extraction):
     """
-    Create a new cyber event from article + extraction.
+    Create a new cyber event from article + extraction, or return the
+    existing event for this article slug if it already exists.
     """
+    slug = f"event-{article.id}"
+
+    existing_event = CyberEvent.query.filter_by(slug=slug).first()
+    if existing_event:
+        return existing_event
+
     event = CyberEvent(
         canonical_title=article.title or "Untitled Event",
-        slug=f"event-{article.id}",
+        slug=slug,
         event_status="open",
         victim_org_name=extraction.victim_org_name if extraction else None,
         industry=extraction.industry if extraction else None,
@@ -66,6 +81,10 @@ def create_event(article, extraction):
 
     db.session.add(event)
     db.session.commit()
+
+    article.processing_status = "clustered"
+    db.session.commit()
+
     return event
 
 
