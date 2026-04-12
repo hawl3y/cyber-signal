@@ -29,7 +29,6 @@ def create_app():
     def not_found(error):
         return {"error": "Not found"}, 404
 
-
     @app.errorhandler(500)
     def server_error(error):
         return {"error": "Internal server error"}, 500
