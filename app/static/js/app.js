@@ -18,7 +18,6 @@ async function loadSummary() {
         } else {
             impactEl.textContent = "—";
         }
-
     } catch (err) {
         console.error("Failed to load summary:", err);
     }
@@ -69,7 +68,6 @@ async function loadEvents() {
 
             container.appendChild(el);
         });
-
     } catch (err) {
         console.error("Failed to load events:", err);
     }
@@ -111,7 +109,6 @@ async function loadFilters() {
         document.getElementById("filter-city").value = current.city;
         document.getElementById("filter-attack-type").value = current.attack_type;
         document.getElementById("filter-event-status").value = current.event_status;
-
     } catch (err) {
         console.error("Failed to load filters:", err);
     }
@@ -168,8 +165,8 @@ async function handleFilterChange() {
 
     await loadFilters();
     await loadSummary();
-    await loadEvents();
     await loadMapPoints();
+    await loadEvents();
 
     setLoading(false);
 }
@@ -191,6 +188,38 @@ async function handleFilterChange() {
 let map;
 let markersLayer;
 
+function getConfidenceMarkerStyle(confidenceLevel) {
+    const level = (confidenceLevel || "").toLowerCase();
+
+    if (level === "high") {
+        return {
+            radius: 9,
+            color: "#ffffff",
+            weight: 2,
+            fillColor: "#b91c1c",
+            fillOpacity: 0.9,
+        };
+    }
+
+    if (level === "medium") {
+        return {
+            radius: 8,
+            color: "#ffffff",
+            weight: 2,
+            fillColor: "#f59e0b",
+            fillOpacity: 0.9,
+        };
+    }
+
+    return {
+        radius: 7,
+        color: "#ffffff",
+        weight: 2,
+        fillColor: "#2563eb",
+        fillOpacity: 0.8,
+    };
+}
+
 async function loadMapPoints() {
     try {
         const query = buildQueryString(getCurrentFilters());
@@ -198,22 +227,33 @@ async function loadMapPoints() {
         const points = await response.json();
 
         if (!map) {
-            map = L.map("map").setView([20, 0], 2);
+            map = L.map("map", {
+                zoomControl: true,
+                scrollWheelZoom: true,
+            }).setView([20, 0], 2);
 
-            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                attribution: "&copy; OpenStreetMap contributors",
+            L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
+                attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+                subdomains: "abcd",
+                maxZoom: 19,
             }).addTo(map);
 
-            markersLayer = L.markerClusterGroup();
-            map.addLayer(markersLayer);
+            markersLayer = L.layerGroup().addTo(map);
         }
 
         markersLayer.clearLayers();
 
-        if (!points.length) return;
+        if (!points.length) {
+            return;
+        }
+
+        const bounds = [];
 
         points.forEach(point => {
-            const marker = L.marker([point.lat, point.lng]);
+            const marker = L.circleMarker(
+                [point.lat, point.lng],
+                getConfidenceMarkerStyle(point.confidence_level)
+            );
 
             marker.bindPopup(`
                 <strong>${point.title || "Untitled"}</strong><br>
@@ -222,8 +262,14 @@ async function loadMapPoints() {
             `);
 
             markersLayer.addLayer(marker);
+            bounds.push([point.lat, point.lng]);
         });
 
+        if (bounds.length === 1) {
+            map.setView(bounds[0], 3);
+        } else {
+            map.fitBounds(bounds, { padding: [30, 30] });
+        }
     } catch (err) {
         console.error("Failed to load map:", err);
     }
@@ -232,7 +278,7 @@ async function loadMapPoints() {
 function setLoading(isLoading) {
     const sections = [
         document.getElementById("event-feed"),
-        document.getElementById("map-points"),
+        document.getElementById("map"),
     ];
 
     sections.forEach(section => {
@@ -249,7 +295,7 @@ setLoading(true);
 
 loadFilters().then(async () => {
     await loadSummary();
-    await loadEvents();
     await loadMapPoints();
+    await loadEvents();
     setLoading(false);
 });

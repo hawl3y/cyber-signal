@@ -6,8 +6,6 @@
     <title>Cyber Signal</title>
     <link rel="stylesheet" href="/static/css/main.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 </head>
 <body>
     <div class="page">
@@ -21,45 +19,45 @@
                 <div class="sidebar-section">
                     <h2>Filters</h2>
 
-                    <div style="display:grid; gap:12px;">
+                    <div class="filter-grid">
                         <div>
                             <label for="filter-industry">Industry</label><br>
-                            <select id="filter-industry" style="width:100%; margin-top:4px;">
+                            <select id="filter-industry" class="filter-select">
                                 <option value="">All</option>
                             </select>
                         </div>
 
                         <div>
                             <label for="filter-region">Region</label><br>
-                            <select id="filter-region" style="width:100%; margin-top:4px;">
+                            <select id="filter-region" class="filter-select">
                                 <option value="">All</option>
                             </select>
                         </div>
 
                         <div>
                             <label for="filter-country">Country</label><br>
-                            <select id="filter-country" style="width:100%; margin-top:4px;">
+                            <select id="filter-country" class="filter-select">
                                 <option value="">All</option>
                             </select>
                         </div>
 
                         <div>
                             <label for="filter-city">City</label><br>
-                            <select id="filter-city" style="width:100%; margin-top:4px;">
+                            <select id="filter-city" class="filter-select">
                                 <option value="">All</option>
                             </select>
                         </div>
 
                         <div>
                             <label for="filter-attack-type">Attack Type</label><br>
-                            <select id="filter-attack-type" style="width:100%; margin-top:4px;">
+                            <select id="filter-attack-type" class="filter-select">
                                 <option value="">All</option>
                             </select>
                         </div>
 
                         <div>
                             <label for="filter-event-status">Event Status</label><br>
-                            <select id="filter-event-status" style="width:100%; margin-top:4px;">
+                            <select id="filter-event-status" class="filter-select">
                                 <option value="">All</option>
                             </select>
                         </div>
@@ -87,20 +85,36 @@
                     </div>
                 </section>
 
+                <section class="panel map-placeholder">
+                    <div class="panel-header">
+                        <h2>Map</h2>
+                        <div class="map-legend">
+                            <span class="legend-item">
+                                <span class="legend-dot legend-dot-high"></span>
+                                High
+                            </span>
+                            <span class="legend-item">
+                                <span class="legend-dot legend-dot-medium"></span>
+                                Medium
+                            </span>
+                            <span class="legend-item">
+                                <span class="legend-dot legend-dot-low"></span>
+                                Low
+                            </span>
+                        </div>
+                    </div>
+                    <div id="map"></div>
+                </section>
+
                 <section class="panel feed-placeholder">
                     <h2>Event Feed</h2>
                     <div id="event-feed" class="feed-list"></div>
                 </section>
-
-                <section class="panel map-placeholder">
-                    <h2>Map</h2>
-                    <div id="map" style="height: 320px; border-radius: 12px;"></div>
-                </section>
             </main>
         </div>
     </div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-<script src="/static/js/app.js"></script>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/js/app.js"></script>
 </body>
 </html>
