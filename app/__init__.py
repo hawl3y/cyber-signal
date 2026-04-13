@@ -3,6 +3,8 @@ load_dotenv()
 
 from flask import Flask, render_template
 from config import Config
+
+from app.automation import start_scheduler
 from app.extensions import db, migrate
 from app.blueprints.events import events_bp
 from app.blueprints.summary import summary_bp
@@ -13,6 +15,7 @@ from app.blueprints.extraction import extraction_bp
 from app.blueprints.clustering import clustering_bp
 from app.blueprints.enrichment import enrichment_bp
 from app.blueprints.scoring import scoring_bp
+from app.blueprints.automation import automation_bp
 
 def create_app():
     app = Flask(__name__)
@@ -32,6 +35,7 @@ def create_app():
     app.register_blueprint(clustering_bp)
     app.register_blueprint(enrichment_bp)
     app.register_blueprint(scoring_bp)
+    app.register_blueprint(automation_bp)
 
     @app.route("/")
     def home():
@@ -45,4 +49,6 @@ def create_app():
     def server_error(error):
         return {"error": "Internal server error"}, 500
 
+    start_scheduler(app)
+    
     return app

@@ -15,12 +15,13 @@ def _combined_article_text(article):
 def is_relevant_incident(article):
     """
     Return True only for articles that read like actual cyber incidents,
-    active exploitation, breaches, or concrete victim/attack reporting.
+    active exploitation with concrete malicious impact, breaches, or
+    concrete victim/attack reporting.
 
     Goal:
     - keep real incident reporting
     - reduce advisory / webinar / conference / product / trend noise
-    - push toward >=80% high-signal feed quality
+    - make unattended automation safe for feed quality
     """
     text = _combined_article_text(article)
     title = (article.title or "").strip().lower()
@@ -78,6 +79,10 @@ def is_relevant_incident(article):
         "take down",
         "takedown",
         "phishing tool",
+        "emergency fix",
+        "fix for",
+        "zero-day flaw",
+        "security update for",
     ]
 
     if any(pattern in title_and_summary for pattern in negative_title_patterns):
@@ -95,6 +100,10 @@ def is_relevant_incident(article):
         "phishing tool",
         "take down",
         "takedown",
+        "device bound session credentials",
+        "block info-stealing malware",
+        "security update for",
+        "released an emergency security update",
     ]
 
     if any(phrase in text for phrase in early_exclusion_phrases):
@@ -103,14 +112,12 @@ def is_relevant_incident(article):
     strong_incident_phrases = [
         "hit by ransomware",
         "ransomware attack",
-        "phishing attack",
         "data breach",
         "security breach",
         "forced offline",
         "taken offline",
         "service disruption",
         "operational disruption",
-        "under attack",
         "compromised",
         "breached",
         "hacked",
@@ -161,6 +168,8 @@ def is_relevant_incident(article):
         "internet-exposed programmable logic controllers",
         "fake websites that looked like legitimate login portals",
         "widely used phishing tool",
+        "non-governmental organizations and universities",
+        "targeted attacks on ngos",
     ]
 
     if any(phrase in text for phrase in abstract_attack_only_phrases):
@@ -186,6 +195,7 @@ def is_relevant_incident(article):
         "malicious executables",
         "backdoor",
         "infostealer",
+        "exploitation",
     ]
 
     concrete_victim_terms = [
@@ -231,6 +241,8 @@ def is_relevant_incident(article):
         "forced offline",
         "taken offline",
         "release stolen data",
+        "credential theft",
+        "stolen credentials",
     ]
 
     advisory_only_terms = [
@@ -246,6 +258,7 @@ def is_relevant_incident(article):
         "conference",
         "toolkit",
         "news release",
+        "emergency security update",
     ]
 
     concrete_named_org_signals = [

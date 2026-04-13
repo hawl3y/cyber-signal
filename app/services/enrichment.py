@@ -1,3 +1,4 @@
+import re
 from collections import Counter
 from datetime import datetime, UTC
 
@@ -120,6 +121,106 @@ def _infer_geography_from_articles(linked_articles):
 
     return {"country": None, "region": None, "city": None}
 
+def _infer_org_geography_from_articles(linked_articles, victim_org_name):
+    """
+    Infer organization home geography dynamically from article text when
+    explicit incident geography is missing.
+
+    This is a fallback only. It looks for patterns such as:
+    - U.S.-based Rockstar Games
+    - France-based CPUID
+    - Rockstar Games, a U.S. company
+    - CPUID, a French company
+
+    It does not hard-code organization names.
+    """
+    if not linked_articles or not victim_org_name:
+        return {"country": None, "region": None, "city": None}
+
+    org = re.escape(victim_org_name.strip())
+    if not org:
+        return {"country": None, "region": None, "city": None}
+
+    text = " ".join(
+        [
+            (article.title or "").strip()
+            + " "
+            + (article.summary or "").strip()
+            + " "
+            + (article.content or "").strip()
+            for article in linked_articles
+            if article
+        ]
+    )
+
+    country_patterns = [
+        (
+            [
+                rf"\b(?:u\.s\.|u\.s\.a\.|united states|american)-based\s+{org}\b",
+                rf"\b{org},?\s+(?:an?|the)\s+(?:u\.s\.|u\.s\.a\.|united states|american)\s+(?:company|firm|developer|vendor|provider|maker)\b",
+                rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+(?:the\s+)?(?:u\.s\.|u\.s\.a\.|united states)\b",
+            ],
+            "United States",
+            "North America",
+        ),
+        (
+            [
+                rf"\bcanadian-based\s+{org}\b",
+                rf"\b{org},?\s+(?:an?|the)\s+canadian\s+(?:company|firm|developer|vendor|provider|maker)\b",
+                rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+canada\b",
+            ],
+            "Canada",
+            "North America",
+        ),
+        (
+            [
+                rf"\bdutch\s+{org}\b",
+                rf"\bnetherlands-based\s+{org}\b",
+                rf"\b{org},?\s+(?:a|the)\s+dutch\s+(?:company|firm|developer|vendor|provider|maker|chain)\b",
+                rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+the\s+netherlands\b",
+            ],
+            "Netherlands",
+            "Europe",
+        ),
+        (
+            [
+                rf"\bfrench\s+{org}\b",
+                rf"\bfrance-based\s+{org}\b",
+                rf"\b{org},?\s+(?:a|the)\s+french\s+(?:company|firm|developer|vendor|provider|maker)\b",
+                rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+france\b",
+            ],
+            "France",
+            "Europe",
+        ),
+        (
+            [
+                rf"\bgerman\s+{org}\b",
+                rf"\bgermany-based\s+{org}\b",
+                rf"\b{org},?\s+(?:a|the)\s+german\s+(?:company|firm|developer|vendor|provider|maker)\b",
+                rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+germany\b",
+            ],
+            "Germany",
+            "Europe",
+        ),
+        (
+            [
+                rf"\bbritish\s+{org}\b",
+                rf"\buk-based\s+{org}\b",
+                rf"\bunited kingdom-based\s+{org}\b",
+                rf"\b{org},?\s+(?:a|the)\s+british\s+(?:company|firm|developer|vendor|provider|maker)\b",
+                rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+(?:the\s+)?united kingdom\b",
+            ],
+            "United Kingdom",
+            "Europe",
+        ),
+    ]
+
+    for patterns, country, region in country_patterns:
+        for pattern in patterns:
+            if re.search(pattern, text, flags=re.IGNORECASE):
+                return {"country": country, "region": region, "city": None}
+
+    return {"country": None, "region": None, "city": None}
 
 def _coordinates_for_location(city=None, country=None, region=None):
     """
@@ -250,6 +351,15 @@ def aggregate_event_data(linked_articles, extractions, source_count):
         country = fallback_geo["country"]
         region = fallback_geo["region"]
         city = fallback_geo["city"]
+
+    if not country and not region and not city and victim_org_name:
+        org_fallback_geo = _infer_org_geography_from_articles(
+            linked_articles,
+            victim_org_name,
+        )
+        country = org_fallback_geo["country"]
+        region = org_fallback_geo["region"]
+        city = org_fallback_geo["city"]
 
     if city:
         geography_type = "city"
