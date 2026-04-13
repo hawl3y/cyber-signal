@@ -220,6 +220,24 @@ function getConfidenceMarkerStyle(confidenceLevel) {
     };
 }
 
+function getCoordinateKey(lat, lng) {
+    return `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`;
+}
+
+function getJitteredLatLng(lat, lng, occurrenceIndex) {
+    if (!occurrenceIndex) {
+        return [lat, lng];
+    }
+
+    const angle = occurrenceIndex * 0.9;
+    const distance = 0.18 * Math.ceil(occurrenceIndex / 2);
+
+    const latOffset = Math.sin(angle) * distance;
+    const lngOffset = Math.cos(angle) * distance;
+
+    return [lat + latOffset, lng + lngOffset];
+}
+
 async function loadMapPoints() {
     try {
         const query = buildQueryString(getCurrentFilters());
@@ -244,31 +262,54 @@ async function loadMapPoints() {
         markersLayer.clearLayers();
 
         if (!points.length) {
+            map.setView([20, 0], 2);
             return;
         }
 
         const bounds = [];
+        const coordinateCounts = {};
 
         points.forEach(point => {
+            const key = getCoordinateKey(point.lat, point.lng);
+            const occurrenceIndex = coordinateCounts[key] || 0;
+            coordinateCounts[key] = occurrenceIndex + 1;
+
+            const [displayLat, displayLng] = getJitteredLatLng(
+                Number(point.lat),
+                Number(point.lng),
+                occurrenceIndex
+            );
+
             const marker = L.circleMarker(
-                [point.lat, point.lng],
+                [displayLat, displayLng],
                 getConfidenceMarkerStyle(point.confidence_level)
             );
+
+            const locationLabel =
+                point.city ||
+                point.country ||
+                point.region ||
+                "Unknown location";
 
             marker.bindPopup(`
                 <strong>${point.title || "Untitled"}</strong><br>
                 ${point.attack_type || "Unknown"}<br>
-                ${point.event_status || "unknown"} | ${point.confidence_level || "unknown"}
+                ${locationLabel}<br>
+                ${point.event_status || "unknown"} | ${point.confidence_level || "unknown"} | Sources: ${point.source_count ?? 0}
             `);
 
             markersLayer.addLayer(marker);
-            bounds.push([point.lat, point.lng]);
+            bounds.push([displayLat, displayLng]);
         });
 
         if (bounds.length === 1) {
-            map.setView(bounds[0], 3);
+            map.setView(bounds[0], 4);
         } else {
             map.fitBounds(bounds, { padding: [30, 30] });
+
+            if (map.getZoom() > 5) {
+                map.setZoom(5);
+            }
         }
     } catch (err) {
         console.error("Failed to load map:", err);

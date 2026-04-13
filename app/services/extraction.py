@@ -262,6 +262,26 @@ def _extract_victim_org_name(article):
 
     return None
 
+def _extract_exploitation_subject(article):
+    title = (article.title or "").strip()
+
+    if not title:
+        return None
+
+    patterns = [
+        r"^(?:Critical|High-severity|High severity|Severe|New)\s+([A-Z][A-Za-z0-9._-]*(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+.*\bflaw\b",
+        r"^([A-Z][A-Za-z0-9._-]*(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+.*\bflaw\b",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, title)
+        if match:
+            candidate = _clean_org_name(match.group(1))
+            if candidate:
+                return candidate
+
+    return None
+
 def _extract_industry(text):
     if any(keyword in text for keyword in [
         "hospital",
@@ -330,8 +350,26 @@ def _extract_industry(text):
         "msp",
         "it services",
         "data center",
+        "software",
+        "plugin",
+        "browser",
+        "developer tool",
+        "video game developer",
+        "cpu-z",
+        "hwmonitor",
+        "marimo",
+        "project",
+        "application framework",
     ]):
         return "Technology"
+
+    if any(keyword in text for keyword in [
+        "gym",
+        "fitness",
+        "health club",
+        "members across several countries",
+    ]):
+        return "Consumer Services"
 
     if any(keyword in text for keyword in [
         "retail",
@@ -407,7 +445,6 @@ def _extract_industry(text):
         return "Media"
 
     return None
-
 
 def _extract_geography(text):
     country = None
@@ -654,6 +691,8 @@ def run_rule_extraction(article):
     access_text = original_text.lower()
 
     victim_org_name = _extract_victim_org_name(article)
+    if victim_org_name is None and _has_exploitation_signal(text):
+        victim_org_name = _extract_exploitation_subject(article)
     victim_org_normalized = victim_org_name.lower() if victim_org_name else None
     industry = _extract_industry(text)
     geography = _extract_geography(text)
@@ -713,6 +752,8 @@ def run_rule_extraction(article):
         "malicious executables",
     ]):
         attack_type = "Malware"
+    elif _has_exploitation_signal(text):
+        attack_type = "Exploitation"
     elif any(keyword in text for keyword in [
         "credential theft",
         "stolen credentials",
@@ -770,6 +811,8 @@ def run_rule_extraction(article):
         "externally exposed service",
     ]):
         access_vector = "Remote Access"
+    elif _has_exploitation_signal(access_text):
+        access_vector = "Exploitation"
     elif any(keyword in access_text for keyword in [
         "credential",
         "credentials",
@@ -786,8 +829,6 @@ def run_rule_extraction(article):
         "credential stuffing",
     ]):
         access_vector = "Credential Abuse"
-    elif _has_exploitation_signal(access_text):
-        access_vector = "Exploitation"
     elif any(keyword in access_text for keyword in [
         "router",
         "routers",
