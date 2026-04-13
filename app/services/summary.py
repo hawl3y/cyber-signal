@@ -42,12 +42,7 @@ def _most_common_non_empty(values):
     if not cleaned:
         return None
 
-    most_common = Counter(cleaned).most_common(1)[0]
-
-    if most_common[1] < 2:
-        return None
-
-    return most_common[0]
+    return Counter(cleaned).most_common(1)[0][0]
 
 
 def build_summary(

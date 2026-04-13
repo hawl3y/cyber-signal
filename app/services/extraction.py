@@ -155,19 +155,73 @@ def run_rule_extraction(article):
     geography = _extract_geography(text)
 
     attack_type = "Unknown"
-    if "ransomware" in text or "extortion" in text:
+    if any(keyword in text for keyword in [
+        "ransomware",
+        "ransom note",
+        "ransom demand",
+        "double extortion",
+        "extortion gang",
+    ]):
         attack_type = "Ransomware"
-    elif "phishing" in text or "phishing-as-a-service" in text or "credential harvesting" in text:
+    elif any(keyword in text for keyword in [
+        "phishing",
+        "phishing-as-a-service",
+        "credential harvesting",
+        "spear-phishing",
+        "malicious email",
+    ]):
         attack_type = "Phishing"
-    elif "ddos" in text or "denial of service" in text or "botnet" in text:
+    elif any(keyword in text for keyword in [
+        "ddos",
+        "denial of service",
+        "distributed denial of service",
+        "botnet",
+        "traffic flood",
+    ]):
         attack_type = "DDoS"
-    elif "data breach" in text or "security breach" in text or "breached" in text:
+    elif any(keyword in text for keyword in [
+        "data breach",
+        "security breach",
+        "breached",
+        "exposed data",
+        "data exposed",
+        "unauthorized access to data",
+        "customer data was accessed",
+        "records were accessed",
+    ]):
         attack_type = "Data Breach"
-    elif "malware" in text or "trojan" in text or "infostealer" in text or "backdoor" in text:
+    elif any(keyword in text for keyword in [
+        "malware",
+        "trojan",
+        "infostealer",
+        "backdoor",
+        "loader",
+        "spyware",
+        "wiper",
+    ]):
         attack_type = "Malware"
-    elif "credential theft" in text or "stolen credentials" in text or "accounts" in text and "obtained control" in text:
+    elif any(keyword in text for keyword in [
+        "credential theft",
+        "stolen credentials",
+        "account takeover",
+        "compromised account",
+        "hijacked account",
+        "accounts were compromised",
+        "obtained control of credentials",
+    ]):
         attack_type = "Account Compromise"
-    elif "vulnerability" in text or "cve-" in text or "actively exploited" in text or "under active exploitation" in text:
+    elif any(keyword in text for keyword in [
+        "cve-",
+        "vulnerability",
+        "exploit",
+        "exploitation",
+        "actively exploited",
+        "under active exploitation",
+        "known exploited vulnerability",
+        "pre-auth",
+        "remote code execution",
+        "rce",
+    ]):
         attack_type = "Exploitation"
 
     access_vector = None
@@ -177,14 +231,17 @@ def run_rule_extraction(article):
         "phishing email",
         "phishing campaign",
         "phishing message",
+        "malicious email",
     ]):
         access_vector = "Phishing"
     elif any(keyword in text for keyword in [
+        "business email compromise",
+        "bec ",
         "email",
         "mailbox",
         "gmail",
         "inbox",
-        "message",
+        "email account",
     ]):
         access_vector = "Email"
     elif any(keyword in text for keyword in [
@@ -193,6 +250,8 @@ def run_rule_extraction(article):
         "rdp",
         "remote desktop",
         "citrix",
+        "remote management",
+        "externally exposed service",
     ]):
         access_vector = "Remote Access"
     elif any(keyword in text for keyword in [
@@ -205,7 +264,10 @@ def run_rule_extraction(article):
         "stolen credentials",
         "compromised account",
         "hijacked account",
-        "settlement accounts",
+        "password reset",
+        "valid account",
+        "valid accounts",
+        "credential stuffing",
     ]):
         access_vector = "Credential Abuse"
     elif any(keyword in text for keyword in [
@@ -215,7 +277,9 @@ def run_rule_extraction(article):
         "exploitation",
         "actively exploited",
         "under active exploitation",
+        "known exploited vulnerability",
         "pre-auth",
+        "remote code execution",
         "rce",
     ]):
         access_vector = "Exploitation"
@@ -228,6 +292,8 @@ def run_rule_extraction(article):
         "gateway",
         "plc",
         "industrial device",
+        "edge device",
+        "vpn appliance",
     ]):
         access_vector = "Network Device"
     elif any(keyword in text for keyword in [
@@ -238,6 +304,8 @@ def run_rule_extraction(article):
         "download link",
         "official website",
         "web app",
+        "web application",
+        "internet-facing application",
     ]):
         access_vector = "Web"
     elif attack_type == "Phishing":
@@ -250,16 +318,61 @@ def run_rule_extraction(article):
         access_vector = "Unknown Initial Access"
 
     impact_type = None
-    if "disruption" in text or "outage" in text or "downtime" in text or "forced offline" in text or "taken offline" in text:
+    if any(keyword in text for keyword in [
+        "disruption",
+        "service disruption",
+        "outage",
+        "downtime",
+        "forced offline",
+        "taken offline",
+        "operations were disrupted",
+        "shutdown",
+    ]):
         impact_type = "Operational Disruption"
-    elif "stolen" in text or "exfiltrat" in text or "data leak" in text or "credential theft" in text:
+    elif any(keyword in text for keyword in [
+        "stolen",
+        "exfiltrat",
+        "data leak",
+        "data leaked",
+        "data was accessed",
+        "records were accessed",
+        "information was stolen",
+        "credential theft",
+    ]):
         impact_type = "Data Theft"
-    elif "extortion" in text or "ransom demand" in text:
+    elif any(keyword in text for keyword in [
+        "extortion",
+        "ransom demand",
+        "blackmail",
+        "double extortion",
+    ]):
         impact_type = "Extortion"
-    elif "fraud" in text or "stolen" in text and "$" in text:
+    elif any(keyword in text for keyword in [
+        "fraud",
+        "wire fraud",
+        "payment diversion",
+        "financial losses",
+        "funds were stolen",
+    ]) or ("stolen" in text and "$" in text):
         impact_type = "Financial Loss"
-    elif "obtained control of credentials" in text or "account takeover" in text:
+    elif any(keyword in text for keyword in [
+        "obtained control of credentials",
+        "account takeover",
+        "compromised account",
+        "hijacked account",
+        "accounts were compromised",
+    ]):
         impact_type = "Account Compromise"
+
+    if impact_type is None:
+        if attack_type == "Ransomware":
+            impact_type = "Extortion"
+        elif attack_type == "DDoS":
+            impact_type = "Operational Disruption"
+        elif attack_type == "Data Breach":
+            impact_type = "Data Theft"
+        elif attack_type == "Account Compromise":
+            impact_type = "Account Compromise"
 
     vuln_status = "unknown"
     if (
