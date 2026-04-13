@@ -1,3 +1,4 @@
+import re
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction
 
@@ -136,18 +137,42 @@ def _extract_geography(text):
         "city": None,
     }
 
+def _has_exploitation_signal(text):
+    if not text:
+        return False
+
+    patterns = [
+        r"\bcve-\d{4}-\d+\b",
+        r"\bexploit\b",
+        r"\bexploited\b",
+        r"\bexploitation\b",
+        r"\bactively exploited\b",
+        r"\bunder active exploitation\b",
+        r"\bknown exploited vulnerability\b",
+        r"\bpre-auth\b",
+        r"\bremote code execution\b",
+        r"\brce\b",
+    ]
+
+    return any(re.search(pattern, text) for pattern in patterns)
+
 def get_ready_for_extraction():
     """
     Fetch articles ready for extraction.
     """
     return RawArticle.query.filter_by(processing_status="ready_for_extraction").all()
 
-
 def run_rule_extraction(article):
     """
     First-pass deterministic extraction from article text.
     """
     text = _combined_article_text(article)
+    access_text = " ".join(
+        [
+            (article.title or "").strip(),
+            (article.summary or "").strip(),
+        ]
+    ).lower()
 
     victim_org_name = _extract_victim_org_name(article)
     victim_org_normalized = victim_org_name.lower() if victim_org_name else None
@@ -210,22 +235,11 @@ def run_rule_extraction(article):
         "obtained control of credentials",
     ]):
         attack_type = "Account Compromise"
-    elif any(keyword in text for keyword in [
-        "cve-",
-        "vulnerability",
-        "exploit",
-        "exploitation",
-        "actively exploited",
-        "under active exploitation",
-        "known exploited vulnerability",
-        "pre-auth",
-        "remote code execution",
-        "rce",
-    ]):
+    elif _has_exploitation_signal(text):
         attack_type = "Exploitation"
 
     access_vector = None
-    if any(keyword in text for keyword in [
+    if any(keyword in access_text for keyword in [
         "phishing",
         "spear-phishing",
         "phishing email",
@@ -234,7 +248,7 @@ def run_rule_extraction(article):
         "malicious email",
     ]):
         access_vector = "Phishing"
-    elif any(keyword in text for keyword in [
+    elif any(keyword in access_text for keyword in [
         "business email compromise",
         "bec ",
         "email",
@@ -244,7 +258,7 @@ def run_rule_extraction(article):
         "email account",
     ]):
         access_vector = "Email"
-    elif any(keyword in text for keyword in [
+    elif any(keyword in access_text for keyword in [
         "vpn",
         "remote access",
         "rdp",
@@ -254,7 +268,7 @@ def run_rule_extraction(article):
         "externally exposed service",
     ]):
         access_vector = "Remote Access"
-    elif any(keyword in text for keyword in [
+    elif any(keyword in access_text for keyword in [
         "credential",
         "credentials",
         "login",
@@ -270,20 +284,9 @@ def run_rule_extraction(article):
         "credential stuffing",
     ]):
         access_vector = "Credential Abuse"
-    elif any(keyword in text for keyword in [
-        "cve-",
-        "vulnerability",
-        "exploit",
-        "exploitation",
-        "actively exploited",
-        "under active exploitation",
-        "known exploited vulnerability",
-        "pre-auth",
-        "remote code execution",
-        "rce",
-    ]):
+    elif _has_exploitation_signal(access_text):
         access_vector = "Exploitation"
-    elif any(keyword in text for keyword in [
+    elif any(keyword in access_text for keyword in [
         "router",
         "routers",
         "network device",
@@ -296,7 +299,7 @@ def run_rule_extraction(article):
         "vpn appliance",
     ]):
         access_vector = "Network Device"
-    elif any(keyword in text for keyword in [
+    elif any(keyword in access_text for keyword in [
         "website",
         "web site",
         "web portal",

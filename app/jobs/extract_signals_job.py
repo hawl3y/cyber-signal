@@ -1,3 +1,4 @@
+from app.models import RawArticle
 from app.services.extraction import (
     get_ready_for_extraction,
     run_rule_extraction,
@@ -8,11 +9,14 @@ from app.services.extraction import (
 )
 
 
-def extract_signals_job():
+def extract_signals_job(force=False):
     """
     Entry point for extraction stage.
     """
-    articles = get_ready_for_extraction()
+    if force:
+        articles = RawArticle.query.filter_by(is_duplicate=False).all()
+    else:
+        articles = get_ready_for_extraction()
 
     for article in articles:
         rule_signals = run_rule_extraction(article)
