@@ -72,7 +72,9 @@ def _extract_victim_org_name(article):
         idx = lowered.find(" on ")
         right_side = title[idx + 4:].strip()
         if right_side:
-            candidate = _clean_org_name(right_side.split(" after ")[0].split(" by ")[0])
+            candidate = _clean_org_name(
+                right_side.split(" after ")[0].split(" by ")[0]
+            )
             if candidate and len(candidate.split()) <= 8:
                 return candidate
 
@@ -85,24 +87,149 @@ def _extract_victim_org_name(article):
 
 
 def _extract_industry(text):
-    if any(keyword in text for keyword in ["hospital", "healthcare", "patient", "medical", "clinic"]):
+    if any(keyword in text for keyword in [
+        "hospital",
+        "healthcare",
+        "patient",
+        "medical",
+        "clinic",
+        "health system",
+        "health service",
+    ]):
         return "Healthcare"
-    if any(keyword in text for keyword in ["bank", "banking", "financial", "atm", "cryptocurrency", "exchange", "fintech"]):
+
+    if any(keyword in text for keyword in [
+        "bank",
+        "banking",
+        "financial",
+        "atm",
+        "cryptocurrency",
+        "exchange",
+        "fintech",
+        "payment processor",
+        "credit union",
+        "brokerage",
+        "insurance",
+    ]):
         return "Financial Services"
-    if any(keyword in text for keyword in ["school", "university", "college", "education", "student"]):
+
+    if any(keyword in text for keyword in [
+        "school",
+        "university",
+        "college",
+        "education",
+        "student",
+        "campus",
+        "district",
+    ]):
         return "Education"
-    if any(keyword in text for keyword in ["government", "agency", "ministry", "public sector", "municipal"]):
+
+    if any(keyword in text for keyword in [
+        "government",
+        "agency",
+        "ministry",
+        "public sector",
+        "municipal",
+        "city of ",
+        "county",
+        "state government",
+        "federal",
+        "department of",
+        "public service",
+        "township",
+        "parish",
+    ]):
         return "Government"
-    if any(keyword in text for keyword in ["software provider", "software vendor", "technology", "tech company", "it provider", "cloud"]):
+
+    if any(keyword in text for keyword in [
+        "software provider",
+        "software vendor",
+        "technology",
+        "tech company",
+        "it provider",
+        "cloud",
+        "saas",
+        "hosting provider",
+        "managed service provider",
+        "msp",
+        "it services",
+        "data center",
+    ]):
         return "Technology"
-    if any(keyword in text for keyword in ["retail", "store", "merchant", "e-commerce"]):
+
+    if any(keyword in text for keyword in [
+        "retail",
+        "store",
+        "merchant",
+        "e-commerce",
+        "shopping",
+        "supermarket",
+        "grocery",
+    ]):
         return "Retail"
-    if any(keyword in text for keyword in ["manufacturer", "manufacturing", "industrial", "factory", "plc"]):
+
+    if any(keyword in text for keyword in [
+        "manufacturer",
+        "manufacturing",
+        "industrial",
+        "factory",
+        "plc",
+        "assembly plant",
+        "production facility",
+    ]):
         return "Manufacturing"
-    if any(keyword in text for keyword in ["telecom", "telecommunications", "carrier"]):
+
+    if any(keyword in text for keyword in [
+        "telecom",
+        "telecommunications",
+        "carrier",
+        "mobile network",
+        "broadband",
+        "internet provider",
+        "internet service provider",
+        "isp",
+    ]):
         return "Telecommunications"
-    if any(keyword in text for keyword in ["energy", "utility", "power grid", "electric"]):
+
+    if any(keyword in text for keyword in [
+        "energy",
+        "utility",
+        "power grid",
+        "electric",
+        "substation",
+        "water utility",
+        "water treatment",
+        "gas utility",
+        "pipeline",
+    ]):
         return "Energy"
+
+    if any(keyword in text for keyword in [
+        "airport",
+        "airline",
+        "aviation",
+        "rail",
+        "railway",
+        "transit",
+        "metro",
+        "port authority",
+        "shipping",
+        "logistics",
+        "freight",
+    ]):
+        return "Transportation"
+
+    if any(keyword in text for keyword in [
+        "newspaper",
+        "news outlet",
+        "media company",
+        "broadcaster",
+        "television network",
+        "radio station",
+        "publisher",
+    ]):
+        return "Media"
+
     return None
 
 
@@ -111,22 +238,63 @@ def _extract_geography(text):
     region = None
 
     geography_map = [
+        (["united states", "u.s.", "u.s.a.", "usa", "american"], "United States", "North America"),
+        (["canada", "canadian"], "Canada", "North America"),
+        (["mexico", "mexican"], "Mexico", "North America"),
+
+        (["united kingdom", "uk ", " uk", "britain", "british", "england"], "United Kingdom", "Europe"),
         (["netherlands", "dutch"], "Netherlands", "Europe"),
-        (["united states", "u.s.", "american"], "United States", "North America"),
-        (["canada"], "Canada", "North America"),
-        (["mexico"], "Mexico", "North America"),
-        (["united kingdom", "uk ", "britain", "british", "england"], "United Kingdom", "Europe"),
         (["germany", "german"], "Germany", "Europe"),
         (["france", "french"], "France", "Europe"),
         (["italy", "italian"], "Italy", "Europe"),
         (["spain", "spanish"], "Spain", "Europe"),
-        (["ukraine"], "Ukraine", "Europe"),
+        (["portugal", "portuguese"], "Portugal", "Europe"),
+        (["belgium", "belgian"], "Belgium", "Europe"),
+        (["switzerland", "swiss"], "Switzerland", "Europe"),
+        (["austria", "austrian"], "Austria", "Europe"),
+        (["poland", "polish"], "Poland", "Europe"),
+        (["sweden", "swedish"], "Sweden", "Europe"),
+        (["norway", "norwegian"], "Norway", "Europe"),
+        (["finland", "finnish"], "Finland", "Europe"),
+        (["denmark", "danish"], "Denmark", "Europe"),
+        (["ireland", "irish"], "Ireland", "Europe"),
+        (["romania", "romanian"], "Romania", "Europe"),
+        (["czech republic", "czechia", "czech"], "Czech Republic", "Europe"),
+        (["ukraine", "ukrainian"], "Ukraine", "Europe"),
         (["russia", "russian"], "Russia", "Europe"),
-        (["taiwan"], "Taiwan", "Asia"),
+
         (["china", "chinese"], "China", "Asia"),
+        (["taiwan", "taiwanese"], "Taiwan", "Asia"),
         (["japan", "japanese"], "Japan", "Asia"),
         (["india", "indian"], "India", "Asia"),
+        (["singapore"], "Singapore", "Asia"),
+        (["south korea", "korea", "korean"], "South Korea", "Asia"),
+        (["hong kong"], "Hong Kong", "Asia"),
+        (["thailand", "thai"], "Thailand", "Asia"),
+        (["vietnam", "vietnamese"], "Vietnam", "Asia"),
+        (["indonesia", "indonesian"], "Indonesia", "Asia"),
+        (["philippines", "philippine"], "Philippines", "Asia"),
+        (["malaysia", "malaysian"], "Malaysia", "Asia"),
+
         (["australia", "australian"], "Australia", "Oceania"),
+        (["new zealand"], "New Zealand", "Oceania"),
+
+        (["brazil", "brazilian"], "Brazil", "South America"),
+        (["argentina", "argentinian", "argentine"], "Argentina", "South America"),
+        (["chile", "chilean"], "Chile", "South America"),
+        (["colombia", "colombian"], "Colombia", "South America"),
+        (["peru", "peruvian"], "Peru", "South America"),
+
+        (["south africa"], "South Africa", "Africa"),
+        (["nigeria", "nigerian"], "Nigeria", "Africa"),
+        (["kenya", "kenyan"], "Kenya", "Africa"),
+        (["egypt", "egyptian"], "Egypt", "Africa"),
+
+        (["israel", "israeli"], "Israel", "Middle East"),
+        (["uae", "united arab emirates"], "United Arab Emirates", "Middle East"),
+        (["saudi arabia", "saudi"], "Saudi Arabia", "Middle East"),
+        (["qatar"], "Qatar", "Middle East"),
+        (["turkey", "turkish"], "Turkey", "Middle East"),
     ]
 
     for keywords, mapped_country, mapped_region in geography_map:
@@ -134,6 +302,23 @@ def _extract_geography(text):
             country = mapped_country
             region = mapped_region
             break
+
+    if country is None:
+        region_map = [
+            (["north america"], "North America"),
+            (["south america", "latin america"], "South America"),
+            (["europe", "european"], "Europe"),
+            (["asia", "asia-pacific", "apac"], "Asia"),
+            (["middle east"], "Middle East"),
+            (["africa"], "Africa"),
+            (["oceania"], "Oceania"),
+            (["global", "worldwide", "international"], "Global"),
+        ]
+
+        for keywords, mapped_region in region_map:
+            if any(keyword in text for keyword in keywords):
+                region = mapped_region
+                break
 
     return {
         "country": country,
@@ -193,6 +378,7 @@ def run_rule_extraction(article):
         "ransom demand",
         "double extortion",
         "extortion gang",
+        "encryptor",
     ]):
         attack_type = "Ransomware"
     elif any(keyword in text for keyword in [
@@ -201,6 +387,8 @@ def run_rule_extraction(article):
         "credential harvesting",
         "spear-phishing",
         "malicious email",
+        "business email compromise",
+        "bec ",
     ]):
         attack_type = "Phishing"
     elif any(keyword in text for keyword in [
@@ -427,6 +615,7 @@ def run_rule_extraction(article):
         "short_event_summary": short_event_summary,
         "extraction_confidence": 0.5,
     }
+
 
 def run_ai_extraction(article):
     """
