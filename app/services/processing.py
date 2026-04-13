@@ -25,68 +25,80 @@ def is_relevant_incident(article):
     text = _combined_article_text(article)
     title = (article.title or "").strip().lower()
     summary = (article.summary or "").strip().lower()
+    title_and_summary = " ".join([title, summary]).strip()
 
-    negative_keywords = [
+    negative_title_patterns = [
         "webinar",
         "podcast",
         "sponsored",
         "subscription",
         "pricing",
-        "product update",
-        "product launch",
-        "feature release",
-        "new feature",
-        "available now",
-        "now available",
         "rolls out",
         "rolled out",
         "introduces",
         "launches",
         "announces",
         "announcement",
-        "upcoming webinar",
-        "join our upcoming webinar",
-        "learn how to",
-        "how to",
-        "guide",
-        "opinion",
-        "tips",
-        "best practices",
-        "patch tuesday",
+        "initiative",
+        "threat sharing",
+        "end-to-end encryption",
+        "adds infostealer protection",
+        "protection against",
+        "designed to block",
+        "available now",
+        "now available",
+        "feature release",
+        "product update",
+        "product launch",
         "security update",
         "software update",
         "firmware update",
-        "update fixes",
-        "release notes",
-        "researchers found",
-        "study shows",
-        "report finds",
-        "analysis of",
-        "analysis reveals",
-        "roundup",
+        "guide",
+        "best practices",
+        "tips",
         "review",
         "forecast",
         "prediction",
+        "analysis of",
+        "analysis reveals",
+        "report finds",
+        "study shows",
         "conference",
-        "cyberuk",
         "annual review",
         "toolkit",
-        "small businesses to receive",
-        "statement following",
-        "raises alert",
-        "warns of",
-        "warns",
         "advisory",
         "alert",
         "guidance",
         "recommendations",
         "mitigation",
-        "new government cyber tool",
-        "security boost",
-        "blocked by new government cyber tool",
-        "chatgpt rolls out",
-        "google chrome adds",
+        "international crackdown",
+        "victims identified",
+        "news release",
+        "statement",
+        "take down",
+        "takedown",
+        "phishing tool",
     ]
+
+    if any(pattern in title_and_summary for pattern in negative_title_patterns):
+        return False
+
+    early_exclusion_phrases = [
+        "targeting credentials",
+        "targeting c-suite executives",
+        "targeting executives",
+        "senior executives' microsoft logins",
+        "industrial devices exposed",
+        "attack surface targeted",
+        "internet-exposed programmable logic controllers",
+        "widely used phishing tool",
+        "phishing tool",
+        "take down",
+        "takedown",
+    ]
+
+    if any(phrase in text for phrase in early_exclusion_phrases):
+        return False
 
     strong_incident_phrases = [
         "hit by ransomware",
@@ -94,8 +106,6 @@ def is_relevant_incident(article):
         "phishing attack",
         "data breach",
         "security breach",
-        "cyberattack",
-        "cyber attack",
         "forced offline",
         "taken offline",
         "service disruption",
@@ -121,57 +131,87 @@ def is_relevant_incident(article):
         "downloaded personal data",
         "personal data belonging to members",
         "obtained control of credentials",
-        "millions stolen in cyberattack",
+        "serve malicious executables",
+        "download links on the official website to serve malicious",
+        "gained access to an api",
+        "threatening to release stolen data",
     ]
 
-    incident_entities = [
+    if any(phrase in text for phrase in strong_incident_phrases):
+        return True
+
+    abstract_attack_only_phrases = [
+        "targeting credentials",
+        "targeting c-suite executives",
+        "targeting executives",
+        "targeting certain devices",
+        "helps organisations detect",
+        "helps organizations detect",
+        "take immediate action",
+        "threats facing",
+        "continue to escalate",
+        "latest annual review reveals",
+        "phishing-as-a-service platform",
+        "wearable biometric authentication",
+        "blocking phishing relays",
+        "not the session",
+        "senior executives' microsoft logins",
+        "industrial devices exposed",
+        "attack surface targeted",
+        "internet-exposed programmable logic controllers",
+        "fake websites that looked like legitimate login portals",
+        "widely used phishing tool",
+    ]
+
+    if any(phrase in text for phrase in abstract_attack_only_phrases):
+        return False
+
+    attack_terms = [
+        "ransomware",
+        "phishing",
+        "malware",
+        "breach",
+        "attack",
+        "attacks",
+        "compromised",
+        "breached",
+        "hacked",
+        "intrusion",
+        "stolen credentials",
+        "data leak",
+        "unauthorized access",
+        "extortion",
+        "disruption",
+        "outage",
+        "malicious executables",
+        "backdoor",
+        "infostealer",
+    ]
+
+    concrete_victim_terms = [
         "hospital",
-        "healthcare",
-        "provider",
-        "school",
-        "university",
-        "government agency",
+        "healthcare provider",
+        "software provider",
+        "software vendor",
         "company",
         "vendor",
         "organization",
-        "employees",
         "customers",
-        "network",
-        "infrastructure",
-        "routers",
-        "devices",
-        "plc",
-        "systems",
         "patients",
-        "retailer",
+        "members",
         "bank",
         "manufacturer",
-        "airline",
-        "airport",
         "utility",
         "municipality",
         "county",
         "city",
         "gym chain",
-        "chain",
-    ]
-
-    advisory_only_terms = [
-        "advisory",
-        "alert",
-        "warning",
-        "guidance",
-        "mitigation",
-        "recommendations",
-        "tracked as cve",
-        "cve-",
-        "known exploited vulnerability",
-        "known exploited vulnerabilities catalog",
-        "kev catalog",
-        "annual review",
-        "conference",
-        "toolkit",
-        "news release",
+        "website",
+        "official website",
+        "downloads",
+        "api",
+        "systems",
+        "network",
     ]
 
     concrete_impact_terms = [
@@ -182,83 +222,96 @@ def is_relevant_incident(article):
         "compromised",
         "downloaded personal data",
         "customer data",
-        "victims",
-        "fraud victims",
         "affected members",
         "outage",
         "extortion",
+        "malicious executables",
+        "serve malicious",
+        "gained access",
+        "forced offline",
+        "taken offline",
+        "release stolen data",
     ]
 
-    # Hard drop obvious noise first
-    if any(keyword in text for keyword in negative_keywords):
-        return False
+    advisory_only_terms = [
+        "advisory",
+        "alert",
+        "warning",
+        "guidance",
+        "mitigation",
+        "recommendations",
+        "cve-",
+        "known exploited vulnerability",
+        "kev catalog",
+        "conference",
+        "toolkit",
+        "news release",
+    ]
 
-    # Strong direct incident phrases
-    if any(phrase in text for phrase in strong_incident_phrases):
-        return True
+    concrete_named_org_signals = [
+        "official website",
+        "download links",
+        "cloud analytics platform",
+        "software provider",
+        "software vendor",
+        "gym chain",
+        "members",
+        "customers",
+        "patients",
+        "api for the",
+    ]
 
-    has_attack_word = any(
-        word in text
-        for word in [
-            "ransomware",
-            "phishing",
-            "malware",
-            "breach",
-            "attack",
-            "attacks",
-            "attacker",
-            "compromised",
-            "breached",
-            "hacked",
-            "intrusion",
-            "stolen credentials",
-            "data leak",
-            "unauthorized access",
-            "extortion",
-            "disruption",
-            "outage",
-            "fraud victims",
-        ]
-    )
+    exposure_only_phrases = [
+        "devices exposed",
+        "industrial devices exposed",
+        "internet-exposed",
+        "attack surface",
+        "targeted by iranian-linked hackers",
+    ]
 
-    has_victim_context = any(entity in text for entity in incident_entities)
+    tool_or_service_reporting_phrases = [
+        "phishing tool",
+        "phishing-as-a-service",
+        "widely used phishing tool",
+        "create fake websites",
+        "login portals for just $500",
+        "was disrupted by the fbi",
+        "law enforcement agencies",
+    ]
+
+    has_attack = any(term in text for term in attack_terms)
+    has_concrete_victim = any(term in text for term in concrete_victim_terms)
     has_concrete_impact = any(term in text for term in concrete_impact_terms)
     has_advisory_only_context = any(term in text for term in advisory_only_terms)
+    has_named_org_signal = any(term in text for term in concrete_named_org_signals)
+    has_exposure_only = any(term in text for term in exposure_only_phrases)
+    has_tool_or_service_reporting = any(term in text for term in tool_or_service_reporting_phrases)
 
-    # Keep concrete real-world incidents
-    if has_attack_word and has_victim_context and has_concrete_impact:
+    if has_advisory_only_context and not has_concrete_impact:
+        return False
+
+    if has_exposure_only and not has_named_org_signal:
+        return False
+
+    if has_tool_or_service_reporting and not has_named_org_signal:
+        return False
+
+    if "phishing" in text and "targeting" in text and not has_named_org_signal:
+        return False
+
+    if has_attack and has_concrete_victim and has_concrete_impact:
         return True
 
-    # Allow narrowly if title itself clearly reads like a real incident
     if (
-        has_attack_word
-        and has_victim_context
-        and any(term in title for term in ["hack", "breach", "ransomware", "cyberattack", "stolen", "exposes"])
+        has_attack
+        and has_concrete_impact
+        and has_named_org_signal
+        and any(term in title for term in ["hack", "breach", "ransomware", "malware", "exposes"])
+        and not any(term in title for term in ["analysis", "review", "statement", "warns", "announces"])
     ):
         return True
-
-    # Drop advisory/trend content unless it has a clearly identified victim + impact
-    if has_advisory_only_context:
-        return False
-
-    # Drop broad trend/statistics pieces
-    if any(
-        phrase in summary
-        for phrase in [
-            "threats facing",
-            "continue to escalate",
-            "targeting certain devices",
-            "take immediate action",
-            "helps organisations detect",
-            "helps organizations detect",
-            "reveals that",
-            "raises alert",
-        ]
-    ):
-        return False
 
     return False
-
 
 def get_pending_articles():
     """
