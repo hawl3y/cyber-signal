@@ -11,12 +11,20 @@ def _combined_article_text(article):
         ]
     ).lower()
 
+
 def is_relevant_incident(article):
     """
     Return True only for articles that read like actual cyber incidents,
     active exploitation, breaches, or concrete victim/attack reporting.
+
+    Goal:
+    - keep real incident reporting
+    - reduce advisory / webinar / conference / product / trend noise
+    - push toward >=80% high-signal feed quality
     """
     text = _combined_article_text(article)
+    title = (article.title or "").strip().lower()
+    summary = (article.summary or "").strip().lower()
 
     negative_keywords = [
         "webinar",
@@ -32,10 +40,10 @@ def is_relevant_incident(article):
         "now available",
         "rolls out",
         "rolled out",
-        "adds",
         "introduces",
         "launches",
         "announces",
+        "announcement",
         "upcoming webinar",
         "join our upcoming webinar",
         "learn how to",
@@ -44,18 +52,40 @@ def is_relevant_incident(article):
         "opinion",
         "tips",
         "best practices",
-        "security goalposts",
-        "accuses",
-        "accused of",
-        "charged with",
-        "indicted",
-        "arrested",
-        "sentenced",
-        "pleaded guilty",
-        "pleads guilty",
-        "extradited",
-        "former journalist",
-        "state-owned media",
+        "patch tuesday",
+        "security update",
+        "software update",
+        "firmware update",
+        "update fixes",
+        "release notes",
+        "researchers found",
+        "study shows",
+        "report finds",
+        "analysis of",
+        "analysis reveals",
+        "roundup",
+        "review",
+        "forecast",
+        "prediction",
+        "conference",
+        "cyberuk",
+        "annual review",
+        "toolkit",
+        "small businesses to receive",
+        "statement following",
+        "raises alert",
+        "warns of",
+        "warns",
+        "advisory",
+        "alert",
+        "guidance",
+        "recommendations",
+        "mitigation",
+        "new government cyber tool",
+        "security boost",
+        "blocked by new government cyber tool",
+        "chatgpt rolls out",
+        "google chrome adds",
     ]
 
     strong_incident_phrases = [
@@ -66,30 +96,32 @@ def is_relevant_incident(article):
         "security breach",
         "cyberattack",
         "cyber attack",
-        "actively exploited",
-        "under active exploitation",
         "forced offline",
         "taken offline",
         "service disruption",
         "operational disruption",
-        "targeted in attacks",
         "under attack",
         "compromised",
         "breached",
         "hacked",
-        "malware campaign",
-        "phishing campaign",
-        "ddos attack",
-        "denial-of-service attack",
         "credential theft",
         "stolen credentials",
         "data leak",
-        "intrusion",
-        "backdoor",
-        "extortion",
-        "victims of",
-        "victim of",
-        "exposed to cyberattacks",
+        "unauthorized access",
+        "customer data was accessed",
+        "records were accessed",
+        "systems were compromised",
+        "network was compromised",
+        "operations were disrupted",
+        "disclosed a breach",
+        "reported a breach",
+        "confirmed a breach",
+        "confirmed a cyberattack",
+        "confirmed a ransomware attack",
+        "downloaded personal data",
+        "personal data belonging to members",
+        "obtained control of credentials",
+        "millions stolen in cyberattack",
     ]
 
     incident_entities = [
@@ -98,8 +130,7 @@ def is_relevant_incident(article):
         "provider",
         "school",
         "university",
-        "government",
-        "agency",
+        "government agency",
         "company",
         "vendor",
         "organization",
@@ -111,11 +142,58 @@ def is_relevant_incident(article):
         "devices",
         "plc",
         "systems",
+        "patients",
+        "retailer",
+        "bank",
+        "manufacturer",
+        "airline",
+        "airport",
+        "utility",
+        "municipality",
+        "county",
+        "city",
+        "gym chain",
+        "chain",
     ]
 
+    advisory_only_terms = [
+        "advisory",
+        "alert",
+        "warning",
+        "guidance",
+        "mitigation",
+        "recommendations",
+        "tracked as cve",
+        "cve-",
+        "known exploited vulnerability",
+        "known exploited vulnerabilities catalog",
+        "kev catalog",
+        "annual review",
+        "conference",
+        "toolkit",
+        "news release",
+    ]
+
+    concrete_impact_terms = [
+        "stolen",
+        "disrupted",
+        "offline",
+        "breached",
+        "compromised",
+        "downloaded personal data",
+        "customer data",
+        "victims",
+        "fraud victims",
+        "affected members",
+        "outage",
+        "extortion",
+    ]
+
+    # Hard drop obvious noise first
     if any(keyword in text for keyword in negative_keywords):
         return False
 
+    # Strong direct incident phrases
     if any(phrase in text for phrase in strong_incident_phrases):
         return True
 
@@ -129,22 +207,58 @@ def is_relevant_incident(article):
             "attack",
             "attacks",
             "attacker",
-            "exploit",
-            "exploitation",
-            "botnet",
-            "ddos",
             "compromised",
             "breached",
             "hacked",
             "intrusion",
             "stolen credentials",
             "data leak",
+            "unauthorized access",
+            "extortion",
+            "disruption",
+            "outage",
+            "fraud victims",
         ]
     )
 
     has_victim_context = any(entity in text for entity in incident_entities)
+    has_concrete_impact = any(term in text for term in concrete_impact_terms)
+    has_advisory_only_context = any(term in text for term in advisory_only_terms)
 
-    return has_attack_word and has_victim_context
+    # Keep concrete real-world incidents
+    if has_attack_word and has_victim_context and has_concrete_impact:
+        return True
+
+    # Allow narrowly if title itself clearly reads like a real incident
+    if (
+        has_attack_word
+        and has_victim_context
+        and any(term in title for term in ["hack", "breach", "ransomware", "cyberattack", "stolen", "exposes"])
+    ):
+        return True
+
+    # Drop advisory/trend content unless it has a clearly identified victim + impact
+    if has_advisory_only_context:
+        return False
+
+    # Drop broad trend/statistics pieces
+    if any(
+        phrase in summary
+        for phrase in [
+            "threats facing",
+            "continue to escalate",
+            "targeting certain devices",
+            "take immediate action",
+            "helps organisations detect",
+            "helps organizations detect",
+            "reveals that",
+            "raises alert",
+        ]
+    ):
+        return False
+
+    return False
+
 
 def get_pending_articles():
     """
@@ -168,6 +282,7 @@ def mark_duplicate(article):
     article.processing_status = "duplicate"
     db.session.commit()
     return article
+
 
 def mark_irrelevant(article):
     """
@@ -193,6 +308,7 @@ def clean_article(article):
         "content": cleaned_content,
         "is_relevant_incident": is_relevant_incident(article),
     }
+
 
 def update_article(article, cleaned_data):
     """

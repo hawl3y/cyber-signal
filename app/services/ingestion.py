@@ -1,9 +1,24 @@
+import re
 from datetime import datetime
+from html import unescape
 
 import feedparser
 
 from app.extensions import db
 from app.models import RawArticle
+
+
+def _clean_html_text(value):
+    """
+    Strip HTML tags and normalize whitespace from feed content.
+    """
+    if not value:
+        return ""
+
+    text = unescape(value)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
 
 def fetch_source_items(source):
@@ -20,8 +35,8 @@ def fetch_source_items(source):
             entry.get("link")
             or entry.get("id")
         )
-        title = entry.get("title", "").strip()
-        summary = entry.get("summary", "").strip()
+        title = _clean_html_text(entry.get("title", ""))
+        summary = _clean_html_text(entry.get("summary", ""))
 
         if not article_url or not title:
             continue
@@ -35,7 +50,7 @@ def fetch_source_items(source):
                 "source_type": source.get("type"),
                 "source_name": source.get("name"),
                 "source_url": source.get("url"),
-                "publisher": feed.feed.get("title") or source.get("name"),
+                "publisher": _clean_html_text(feed.feed.get("title") or source.get("name")),
                 "article_url": article_url,
                 "title": title,
                 "normalized_title": title.lower().strip(),
@@ -51,6 +66,7 @@ def fetch_source_items(source):
         )
 
     return items
+
 
 def normalize_article(item):
     """
