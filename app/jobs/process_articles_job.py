@@ -3,10 +3,10 @@ from app.services.processing import (
     get_pending_articles,
     is_duplicate,
     mark_duplicate,
+    mark_irrelevant,
     mark_ready_for_extraction,
     update_article,
 )
-
 def process_articles_job():
     """
     Entry point for article processing.
@@ -20,6 +20,11 @@ def process_articles_job():
 
         cleaned_data = clean_article(article)
         update_article(article, cleaned_data)
+
+        if not cleaned_data.get("is_relevant_incident", False):
+            mark_irrelevant(article)
+            continue
+
         mark_ready_for_extraction(article)
 
     return True

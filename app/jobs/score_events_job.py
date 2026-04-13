@@ -1,3 +1,5 @@
+from datetime import datetime, UTC
+
 from app.extensions import db
 from app.models import CyberEvent
 from app.services.scoring import calculate_confidence
@@ -14,6 +16,7 @@ def score_events_job():
 
         event.confidence_score = score
         event.confidence_level = level
+        event.last_confidence_scored_at = datetime.now(UTC)
 
     db.session.commit()
     return True

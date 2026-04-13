@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask
+from flask import Flask, render_template
 from config import Config
 from app.extensions import db, migrate
 from app.blueprints.events import events_bp
@@ -35,7 +35,7 @@ def create_app():
 
     @app.route("/")
     def home():
-        return {"status": "ok"}
+        return render_template("index.html")
 
     @app.errorhandler(404)
     def not_found(error):

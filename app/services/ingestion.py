@@ -1,43 +1,73 @@
+from datetime import datetime
+
+import feedparser
+
 from app.extensions import db
 from app.models import RawArticle
 
+
 def fetch_source_items(source):
     """
-    Placeholder for fetching items from a source.
+    Fetch and normalize raw RSS items from a configured source.
     """
-    return []
+    feed = feedparser.parse(source.get("url"))
+    fetched_at = datetime.utcnow()
+    ingestion_batch_id = fetched_at.strftime("%Y%m%d%H%M%S")
+    items = []
+
+    for entry in feed.entries:
+        article_url = (
+            entry.get("link")
+            or entry.get("id")
+        )
+        title = entry.get("title", "").strip()
+        summary = entry.get("summary", "").strip()
+
+        if not article_url or not title:
+            continue
+
+        published_at = fetched_at
+        if entry.get("published_parsed"):
+            published_at = datetime(*entry.published_parsed[:6])
+
+        items.append(
+            {
+                "source_type": source.get("type"),
+                "source_name": source.get("name"),
+                "source_url": source.get("url"),
+                "publisher": feed.feed.get("title") or source.get("name"),
+                "article_url": article_url,
+                "title": title,
+                "normalized_title": title.lower().strip(),
+                "summary": summary,
+                "content": summary,
+                "normalized_domain": source.get("url", "").replace("https://", "").replace("http://", "").split("/")[0],
+                "ingestion_batch_id": ingestion_batch_id,
+                "published_at": published_at,
+                "fetched_at": fetched_at,
+                "language": "en",
+                "processing_status": "pending",
+            }
+        )
+
+    return items
 
 def normalize_article(item):
     """
-    Placeholder for normalizing raw source data into article structure.
+    Pass-through normalization for now.
     """
-    return {}
+    return item
+
 
 def save_raw_article(article):
     """
-    Save a normalized article to the database.
+    Save a normalized article to the database if it does not already exist.
     """
-    raw_article = RawArticle(
-        source_type=article.get("source_type"),
-        source_name=article.get("source_name"),
-        source_url=article.get("source_url"),
-        publisher=article.get("publisher"),
-        article_url=article.get("article_url"),
-        title=article.get("title"),
-        normalized_title=article.get("normalized_title"),
-        summary=article.get("summary"),
-        content=article.get("content"),
-        normalized_domain=article.get("normalized_domain"),
-        ingestion_batch_id=article.get("ingestion_batch_id"),
-        published_at=article.get("published_at"),
-        fetched_at=article.get("fetched_at"),
-        content_hash=article.get("content_hash"),
-        title_hash=article.get("title_hash"),
-        language=article.get("language"),
-        is_duplicate=article.get("is_duplicate", False),
-        duplicate_of_article_id=article.get("duplicate_of_article_id"),
-        processing_status=article.get("processing_status"),
-    )
+    existing = RawArticle.query.filter_by(article_url=article.get("article_url")).first()
+    if existing:
+        return existing
+
+    raw_article = RawArticle(**article)
 
     db.session.add(raw_article)
     db.session.commit()

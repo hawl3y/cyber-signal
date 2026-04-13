@@ -18,44 +18,69 @@ def get_extraction(article):
 
 def find_candidate_events(extraction):
     """
-    Minimal placeholder: no candidate matching yet.
+    Find candidate events using victim organization as the first
+    deterministic clustering key.
     """
+    if not extraction:
+        return []
+
+    if extraction.victim_org_normalized:
+        return CyberEvent.query.filter_by(
+            victim_org_normalized=extraction.victim_org_normalized
+        ).all()
+
+    if extraction.victim_org_name:
+        return CyberEvent.query.filter_by(
+            victim_org_name=extraction.victim_org_name
+        ).all()
+
     return []
 
 
 def find_best_match(extraction, candidates):
     """
-    Minimal placeholder match result.
+    Return a simple deterministic match result.
     """
     class Result:
-        score = 0
-        event_id = None
+        def __init__(self, score=0, event_id=None):
+            self.score = score
+            self.event_id = event_id
 
-    return Result()
+    if not extraction or not candidates:
+        return Result()
+
+    candidate = candidates[0]
+    return Result(score=1.0, event_id=candidate.id)
 
 
 def attach_to_event(article, event):
     """
-    Link article to event if not already linked.
+    Link article to event if not already linked, mark article as clustered,
+    and keep source_count aligned with actual links.
     """
     existing_link = EventSourceLink.query.filter_by(
         cyber_event_id=event.id,
         raw_article_id=article.id,
     ).first()
 
-    if existing_link:
-        return existing_link
+    if not existing_link:
+        link = EventSourceLink(
+            cyber_event_id=event.id,
+            raw_article_id=article.id,
+            match_score=1.0,
+            is_primary_source=False,
+        )
+        db.session.add(link)
 
-    link = EventSourceLink(
-        cyber_event_id=event.id,
-        raw_article_id=article.id,
-        match_score=1.0,
-        is_primary_source=False,
-    )
+    article.processing_status = "clustered"
+    db.session.flush()
 
-    db.session.add(link)
+    event.source_count = EventSourceLink.query.filter_by(
+        cyber_event_id=event.id
+    ).count()
+
     db.session.commit()
-    return link
+    return existing_link if existing_link else link
 
 
 def create_event(article, extraction):
@@ -74,8 +99,22 @@ def create_event(article, extraction):
         slug=slug,
         event_status="open",
         victim_org_name=extraction.victim_org_name if extraction else None,
+        victim_org_normalized=(
+            extraction.victim_org_normalized if extraction else None
+        ),
         industry=extraction.industry if extraction else None,
         attack_type=extraction.attack_type if extraction else None,
+        access_vector=extraction.access_vector if extraction else None,
+        impact_type=extraction.impact_type if extraction else None,
+        attribution_status=(
+            extraction.attribution_status if extraction else "unattributed"
+        ),
+        vuln_status=extraction.vuln_status if extraction else None,
+        zero_day_flag=extraction.zero_day_flag if extraction else False,
+        region=extraction.region if extraction else None,
+        country=extraction.country if extraction else None,
+        city=extraction.city if extraction else None,
+        summary_short=extraction.short_event_summary if extraction else None,
         source_count=1,
     )
 
