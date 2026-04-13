@@ -1,4 +1,5 @@
 import re
+
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction
 
@@ -11,6 +12,7 @@ def _combined_article_text(article):
             (article.content or "").strip(),
         ]
     ).lower()
+
 
 def _clean_org_name(value):
     if not value:
@@ -36,6 +38,7 @@ def _clean_org_name(value):
             lowered = cleaned.lower()
 
     return cleaned or None
+
 
 def _extract_victim_org_name(article):
     title = (article.title or "").strip()
@@ -79,6 +82,7 @@ def _extract_victim_org_name(article):
             return left
 
     return None
+
 
 def _extract_industry(text):
     if any(keyword in text for keyword in ["hospital", "healthcare", "patient", "medical", "clinic"]):
@@ -137,6 +141,7 @@ def _extract_geography(text):
         "city": None,
     }
 
+
 def _has_exploitation_signal(text):
     if not text:
         return False
@@ -156,11 +161,13 @@ def _has_exploitation_signal(text):
 
     return any(re.search(pattern, text) for pattern in patterns)
 
+
 def get_ready_for_extraction():
     """
     Fetch articles ready for extraction.
     """
     return RawArticle.query.filter_by(processing_status="ready_for_extraction").all()
+
 
 def run_rule_extraction(article):
     """
@@ -322,6 +329,21 @@ def run_rule_extraction(article):
 
     impact_type = None
     if any(keyword in text for keyword in [
+        "fraud",
+        "wire fraud",
+        "payment diversion",
+        "financial losses",
+        "funds were stolen",
+        "money was stolen",
+        "cash was stolen",
+        "bank transfer",
+        "stole $",
+        "stolen $",
+        "$",
+        "million stolen",
+    ]):
+        impact_type = "Financial Loss"
+    elif any(keyword in text for keyword in [
         "disruption",
         "service disruption",
         "outage",
@@ -333,14 +355,17 @@ def run_rule_extraction(article):
     ]):
         impact_type = "Operational Disruption"
     elif any(keyword in text for keyword in [
-        "stolen",
+        "stolen credentials",
+        "credential theft",
         "exfiltrat",
         "data leak",
         "data leaked",
         "data was accessed",
         "records were accessed",
         "information was stolen",
-        "credential theft",
+        "customer data was accessed",
+        "breached",
+        "data breach",
     ]):
         impact_type = "Data Theft"
     elif any(keyword in text for keyword in [
@@ -350,14 +375,6 @@ def run_rule_extraction(article):
         "double extortion",
     ]):
         impact_type = "Extortion"
-    elif any(keyword in text for keyword in [
-        "fraud",
-        "wire fraud",
-        "payment diversion",
-        "financial losses",
-        "funds were stolen",
-    ]) or ("stolen" in text and "$" in text):
-        impact_type = "Financial Loss"
     elif any(keyword in text for keyword in [
         "obtained control of credentials",
         "account takeover",
