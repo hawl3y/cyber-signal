@@ -74,16 +74,10 @@ def build_summary(
     top_country = _most_common_non_empty(countries)
     top_region = _most_common_non_empty(regions)
 
-    known_vuln_events = [
+    high_impact_events = len([
         e for e in events
-        if e.primary_cve_id
-        or (e.vuln_status and e.vuln_status.lower() == "known_vulnerability")
-    ]
-    known_vuln_percent = (
-        round((len(known_vuln_events) / total_events) * 100, 2)
-        if total_events
-        else 0
-    )
+        if e.impact_type in ["Operational Disruption", "Financial Loss", "Extortion"]
+    ])
 
     mapped_event_count = len(
         [
@@ -99,9 +93,8 @@ def build_summary(
         "top_attack_type": top_attack_type,
         "top_country": top_country,
         "top_region": top_region,
-        "known_vuln_percent": known_vuln_percent,
+        "high_impact_events": high_impact_events,
     }
-
 
 def build_map(
     industry=None,

@@ -7,26 +7,16 @@ async function loadSummary() {
         const totalEl = document.getElementById("total-events");
         const industryEl = document.getElementById("top-industry");
         const attackEl = document.getElementById("top-attack-type");
-        const vulnEl = document.getElementById("known-vuln-percent");
+        const impactEl = document.getElementById("high-impact-events");
 
         totalEl.textContent = data.total_events ?? "--";
-
         industryEl.textContent = data.top_industry ?? "—";
         attackEl.textContent = data.top_attack_type ?? "—";
 
-        if (data.known_vuln_percent !== undefined) {
-            vulnEl.textContent = `${data.known_vuln_percent}%`;
-
-            // simple visual signal
-            if (data.known_vuln_percent >= 50) {
-                vulnEl.style.color = "#b91c1c"; // high risk
-            } else if (data.known_vuln_percent >= 20) {
-                vulnEl.style.color = "#92400e"; // medium
-            } else {
-                vulnEl.style.color = "#166534"; // low
-            }
+        if (data.high_impact_events !== undefined) {
+            impactEl.textContent = data.high_impact_events;
         } else {
-            vulnEl.textContent = "—";
+            impactEl.textContent = "—";
         }
 
     } catch (err) {
