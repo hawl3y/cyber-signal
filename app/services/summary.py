@@ -79,16 +79,27 @@ def build_summary(
     attack_types = [e.attack_type for e in events if e.attack_type]
     countries = [e.country for e in events if e.country]
     regions = [e.region for e in events if e.region]
+    statuses = [e.event_status for e in events if e.event_status]
+    verification_levels = [e.verification_level for e in events if e.verification_level]
 
     top_industry = _most_common_non_empty(industries)
     top_attack_type = _most_common_non_empty(attack_types)
     top_country = _most_common_non_empty(countries)
     top_region = _most_common_non_empty(regions)
+    top_event_status = _most_common_non_empty(statuses)
+    top_verification_level = _most_common_non_empty(verification_levels)
 
     high_impact_events = len(
         [
             e for e in events
-            if e.impact_type in ["Operational Disruption", "Financial Loss", "Extortion"]
+            if e.is_high_impact
+        ]
+    )
+
+    confirmed_events = len(
+        [
+            e for e in events
+            if e.event_status == "confirmed"
         ]
     )
 
@@ -106,7 +117,10 @@ def build_summary(
         "top_attack_type": top_attack_type,
         "top_country": top_country,
         "top_region": top_region,
+        "top_event_status": top_event_status,
+        "top_verification_level": top_verification_level,
         "high_impact_events": high_impact_events,
+        "confirmed_events": confirmed_events,
     }
 
 
@@ -135,7 +149,10 @@ def build_map(
             "country": e.country,
             "region": e.region,
             "attack_type": e.attack_type,
+            "event_status": e.event_status,
+            "verification_level": e.verification_level,
             "confidence_level": e.confidence_level,
+            "is_high_impact": e.is_high_impact,
             "source_count": e.source_count,
         }
         for e in events

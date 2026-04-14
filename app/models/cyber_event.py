@@ -11,7 +11,10 @@ class CyberEvent(db.Model):
     canonical_title = db.Column(db.String(500), nullable=False)
     slug = db.Column(db.String(255), unique=True, nullable=False)
 
-    event_status = db.Column(db.String(50))
+    event_status = db.Column(db.String(50), default="candidate")
+    verification_level = db.Column(db.String(50), default="low")
+    record_origin = db.Column(db.String(50), default="live_detection")
+
     confidence_level = db.Column(db.String(50))
     confidence_score = db.Column(db.Float)
 
@@ -34,6 +37,7 @@ class CyberEvent(db.Model):
     vuln_status = db.Column(db.String(100))
     primary_cve_id = db.Column(db.String(50))
     zero_day_flag = db.Column(db.Boolean, default=False)
+    is_high_impact = db.Column(db.Boolean, default=False)
 
     geography_type = db.Column(db.String(50))
     region = db.Column(db.String(100))

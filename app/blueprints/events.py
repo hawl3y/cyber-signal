@@ -44,6 +44,10 @@ def list_events():
         {
             "id": event.id,
             "canonical_title": event.canonical_title,
+            "event_status": event.event_status,
+            "verification_level": event.verification_level,
+            "record_origin": event.record_origin,
+            "is_high_impact": event.is_high_impact,
             "victim_org_name": event.victim_org_name,
             "industry": event.industry,
             "country": event.country,
