@@ -1,5 +1,7 @@
-from flask import Blueprint, jsonify, request
 from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+
 from app.services.summary import get_filtered_events
 
 events_bp = Blueprint("events", __name__, url_prefix="/api/events")
@@ -10,9 +12,8 @@ def list_events():
     industry = request.args.get("industry")
     country = request.args.get("country")
     region = request.args.get("region")
-    city = request.args.get("city")
     attack_type = request.args.get("attack_type")
-    event_status = request.args.get("event_status")
+    time_range = request.args.get("time_range")
     limit = request.args.get("limit", type=int)
     offset = request.args.get("offset", default=0, type=int)
 
@@ -20,9 +21,8 @@ def list_events():
         industry=industry,
         country=country,
         region=region,
-        city=city,
         attack_type=attack_type,
-        event_status=event_status,
+        time_range=time_range,
     )
 
     if offset is None or offset < 0:
@@ -44,12 +44,10 @@ def list_events():
         {
             "id": event.id,
             "canonical_title": event.canonical_title,
-            "event_status": event.event_status,
             "victim_org_name": event.victim_org_name,
             "industry": event.industry,
             "country": event.country,
             "region": event.region,
-            "city": event.city,
             "geography_type": event.geography_type,
             "attack_type": event.attack_type,
             "access_vector": event.access_vector,
@@ -67,11 +65,7 @@ def list_events():
                     if ref and (datetime.utcnow() - ref).days <= 7
                     else "older"
                 )
-            )(
-                event.last_seen_at
-                or event.updated_at
-                or event.created_at
-            ),
+            )(event.last_seen_at or event.updated_at or event.created_at),
             "summary_short": event.summary_short,
             "confidence_score": event.confidence_score,
             "confidence_level": event.confidence_level,

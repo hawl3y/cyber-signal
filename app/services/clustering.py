@@ -18,8 +18,8 @@ def get_extraction(article):
 
 def find_candidate_events(extraction):
     """
-    Find candidate events using victim organization as the first
-    deterministic clustering key.
+    Find candidate events using victim organization as the primary key,
+    with a narrow actor-based fallback only when victim extraction is missing.
     """
     if not extraction:
         return []
@@ -33,6 +33,13 @@ def find_candidate_events(extraction):
         return CyberEvent.query.filter_by(
             victim_org_name=extraction.victim_org_name
         ).all()
+
+    if extraction.actor_name:
+        actor_candidates = CyberEvent.query.filter_by(
+            actor_name=extraction.actor_name
+        ).all()
+        if actor_candidates:
+            return actor_candidates
 
     return []
 
@@ -115,15 +122,28 @@ def create_event(article, extraction):
         country=extraction.country if extraction else None,
         city=extraction.city if extraction else None,
         summary_short=extraction.short_event_summary if extraction else None,
-        source_count=1,
+        source_count=0,  # important: start at 0, not 1
     )
 
     db.session.add(event)
-    db.session.commit()
+    db.session.flush()
+
+    link = EventSourceLink(
+        cyber_event_id=event.id,
+        raw_article_id=article.id,
+        match_score=1.0,
+        is_primary_source=True,
+    )
+    db.session.add(link)
 
     article.processing_status = "clustered"
-    db.session.commit()
+    db.session.flush()
 
+    event.source_count = EventSourceLink.query.filter_by(
+        cyber_event_id=event.id
+    ).count()
+
+    db.session.commit()
     return event
 
 

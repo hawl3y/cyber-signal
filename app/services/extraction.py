@@ -147,8 +147,6 @@ def _extract_victim_org_name(article):
     summary = (article.summary or "").strip()
 
     title_lower = title.lower()
-    summary_lower = summary.lower()
-    combined = " ".join([title, summary]).strip()
 
     if title_lower.startswith("webinar:"):
         return None
@@ -223,6 +221,46 @@ def _extract_victim_org_name(article):
             candidate = _clean_org_name(candidate)
             if candidate:
                 return candidate
+            
+    embedded_data_patterns = [
+        r"^(?:Stolen|Leaked|Exposed)\s+([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+(?:analytics data|customer data|member data|user data|internal data|data|records)\b",
+        r"\b([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+(?:analytics data|customer data|member data|user data|internal data|data|records)\s+(?:leaked|exposed|stolen|posted online)\b",
+    ]
+
+    for pattern in embedded_data_patterns:
+        match = re.search(pattern, title)
+        if match:
+            candidate = _clean_org_name(match.group(1))
+            if candidate:
+                return candidate
+
+    if summary:
+        for pattern in embedded_data_patterns:
+            match = re.search(pattern, summary)
+            if match:
+                candidate = _clean_org_name(match.group(1))
+                if candidate:
+                    return candidate
+                
+    incident_noun_patterns = [
+        r"\b([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+(?:data breach|breach|hack|ransomware attack|cyberattack|cyber attack)\b",
+        r"\b(?:European|Dutch|British|French|German|American|Canadian|Japanese|Australian)\s+[A-Za-z][A-Za-z0-9&._-]*\s+(?:giant|chain|provider|vendor|developer|firm|company)\s+([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+(?:data breach|breach|hack|ransomware attack|cyberattack|cyber attack)\b",
+    ]
+
+    for pattern in incident_noun_patterns:
+        match = re.search(pattern, title)
+        if match:
+            candidate = _clean_org_name(match.group(1))
+            if candidate:
+                return candidate
+
+    if summary:
+        for pattern in incident_noun_patterns:
+            match = re.search(pattern, summary)
+            if match:
+                candidate = _clean_org_name(match.group(1))
+                if candidate:
+                    return candidate
 
     explicit_entity_patterns = [
         r"\b(?:vendor|provider|developer|company|firm|chain|project)\s+([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\b",
@@ -251,6 +289,20 @@ def _extract_victim_org_name(article):
         "the silent",
         "it reads like",
     ]
+
+    summary_incident_patterns = [
+        r"\b([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+has suffered\b",
+        r"\b([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+announced that hackers breached its systems\b",
+        r"\bbelonging to\s+([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\b",
+    ]
+
+    if summary:
+        for pattern in summary_incident_patterns:
+            match = re.search(pattern, summary)
+            if match:
+                candidate = _clean_org_name(match.group(1))
+                if candidate:
+                    return candidate
 
     if ":" in title:
         left_raw = title.split(":", 1)[0].strip()

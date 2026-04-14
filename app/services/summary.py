@@ -1,4 +1,5 @@
 from collections import Counter
+from datetime import datetime, timedelta, UTC
 
 from app.models import CyberEvent
 
@@ -7,9 +8,8 @@ def get_filtered_events(
     industry=None,
     country=None,
     region=None,
-    city=None,
     attack_type=None,
-    event_status=None,
+    time_range=None,
 ):
     """
     Return events filtered by optional structured fields.
@@ -25,14 +25,27 @@ def get_filtered_events(
     if region:
         query = query.filter(CyberEvent.region.ilike(region))
 
-    if city:
-        query = query.filter(CyberEvent.city.ilike(city))
-
     if attack_type:
         query = query.filter(CyberEvent.attack_type.ilike(attack_type))
 
-    if event_status:
-        query = query.filter(CyberEvent.event_status.ilike(event_status))
+    if time_range:
+        now = datetime.now(UTC)
+
+        if time_range == "24h":
+            cutoff = now - timedelta(hours=24)
+        elif time_range == "7d":
+            cutoff = now - timedelta(days=7)
+        elif time_range == "30d":
+            cutoff = now - timedelta(days=30)
+        elif time_range == "90d":
+            cutoff = now - timedelta(days=90)
+        elif time_range == "1y":
+            cutoff = now - timedelta(days=365)
+        else:
+            cutoff = None
+
+        if cutoff is not None:
+            query = query.filter(CyberEvent.created_at >= cutoff)
 
     return query.all()
 
@@ -49,17 +62,15 @@ def build_summary(
     industry=None,
     country=None,
     region=None,
-    city=None,
     attack_type=None,
-    event_status=None,
+    time_range=None,
 ):
     events = get_filtered_events(
         industry=industry,
         country=country,
         region=region,
-        city=city,
         attack_type=attack_type,
-        event_status=event_status,
+        time_range=time_range,
     )
 
     total_events = len(events)
@@ -74,10 +85,12 @@ def build_summary(
     top_country = _most_common_non_empty(countries)
     top_region = _most_common_non_empty(regions)
 
-    high_impact_events = len([
-        e for e in events
-        if e.impact_type in ["Operational Disruption", "Financial Loss", "Extortion"]
-    ])
+    high_impact_events = len(
+        [
+            e for e in events
+            if e.impact_type in ["Operational Disruption", "Financial Loss", "Extortion"]
+        ]
+    )
 
     mapped_event_count = len(
         [
@@ -96,21 +109,20 @@ def build_summary(
         "high_impact_events": high_impact_events,
     }
 
+
 def build_map(
     industry=None,
     country=None,
     region=None,
-    city=None,
     attack_type=None,
-    event_status=None,
+    time_range=None,
 ):
     events = get_filtered_events(
         industry=industry,
         country=country,
         region=region,
-        city=city,
         attack_type=attack_type,
-        event_status=event_status,
+        time_range=time_range,
     )
 
     return [
@@ -122,9 +134,7 @@ def build_map(
             "industry": e.industry,
             "country": e.country,
             "region": e.region,
-            "city": e.city,
             "attack_type": e.attack_type,
-            "event_status": e.event_status,
             "confidence_level": e.confidence_level,
             "source_count": e.source_count,
         }

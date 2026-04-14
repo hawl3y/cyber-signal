@@ -3,16 +3,16 @@ from app.models import CyberEvent
 
 def evaluate_source_count(event):
     """
-    Reward corroboration, but cap the contribution.
+    Reward corroboration, but keep single-source incidents viable.
     """
     source_count = event.source_count or 0
 
     if source_count >= 5:
-        return 5
-    if source_count >= 3:
         return 4
-    if source_count >= 2:
+    if source_count >= 3:
         return 3
+    if source_count >= 2:
+        return 2
     if source_count >= 1:
         return 1
     return 0
@@ -46,7 +46,7 @@ def evaluate_signal_strength(event):
         score += 1
 
     if event.impact_type:
-        score += 1
+        score += 2
 
     if event.industry:
         score += 1
@@ -55,7 +55,7 @@ def evaluate_signal_strength(event):
         score += 1
 
     if event.victim_org_name:
-        score += 1
+        score += 2
 
     if event.primary_cve_id or (
         event.vuln_status and event.vuln_status.lower() == "known_vulnerability"
@@ -65,12 +65,25 @@ def evaluate_signal_strength(event):
     if event.actor_name:
         score += 1
 
+    if (
+        event.attack_type in ["Malware", "Data Breach", "Ransomware", "Exploitation"]
+        and event.victim_org_name
+    ):
+        score += 1
+
+    if (
+        event.access_vector in ["Web", "Third-Party", "Exploitation", "Credential Abuse", "Phishing"]
+        and event.impact_type
+    ):
+        score += 1
+
     return score
 
 
 def evaluate_uncertainty(event):
     """
-    Penalize missing or weakly resolved fields.
+    Penalize missing or weakly resolved fields, but do not over-penalize
+    valid single-source incidents with incomplete enrichment.
     """
     penalty = 0
 
@@ -87,7 +100,7 @@ def evaluate_uncertainty(event):
         penalty += 1
 
     if not event.victim_org_name:
-        penalty += 1
+        penalty += 2
 
     if event.access_vector == "Unknown Initial Access":
         penalty += 1

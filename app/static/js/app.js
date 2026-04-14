@@ -1,3 +1,120 @@
+const FILTER_STORAGE_KEY = "cyber_signal_filters";
+
+function getDefaultFilters() {
+    return {
+        industry: "",
+        region: "",
+        country: "",
+        attack_type: "",
+        time_range: "",
+    };
+}
+
+function getCurrentFilters() {
+    return {
+        industry: document.getElementById("filter-industry")?.value || "",
+        region: document.getElementById("filter-region")?.value || "",
+        country: document.getElementById("filter-country")?.value || "",
+        attack_type: document.getElementById("filter-attack-type")?.value || "",
+        time_range: document.getElementById("filter-time-range")?.value || "",
+    };
+}
+
+function getSavedFilters() {
+    try {
+        const raw = window.localStorage.getItem(FILTER_STORAGE_KEY);
+
+        if (!raw) {
+            return getDefaultFilters();
+        }
+
+        const parsed = JSON.parse(raw);
+
+        return {
+            ...getDefaultFilters(),
+            ...parsed,
+        };
+    } catch (err) {
+        console.error("Failed to read saved filters:", err);
+        return getDefaultFilters();
+    }
+}
+
+function saveFilters(filters) {
+    try {
+        window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
+    } catch (err) {
+        console.error("Failed to save filters:", err);
+    }
+}
+
+function applyFiltersToControls(filters) {
+    const industryEl = document.getElementById("filter-industry");
+    const regionEl = document.getElementById("filter-region");
+    const countryEl = document.getElementById("filter-country");
+    const attackTypeEl = document.getElementById("filter-attack-type");
+    const timeRangeEl = document.getElementById("filter-time-range");
+
+    if (industryEl) industryEl.value = filters.industry || "";
+    if (regionEl) regionEl.value = filters.region || "";
+    if (countryEl) countryEl.value = filters.country || "";
+    if (attackTypeEl) attackTypeEl.value = filters.attack_type || "";
+    if (timeRangeEl) timeRangeEl.value = filters.time_range || "";
+}
+
+function buildQueryString(filters) {
+    const params = new URLSearchParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value) {
+            params.append(key, value);
+        }
+    });
+
+    const query = params.toString();
+    return query ? `?${query}` : "";
+}
+
+function populateSelect(selectId, values) {
+    const select = document.getElementById(selectId);
+    if (!select) {
+        return;
+    }
+
+    const currentValue = select.value || "";
+    select.innerHTML = '<option value="">All</option>';
+
+    values.forEach(value => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+    });
+
+    if ([...select.options].some(option => option.value === currentValue)) {
+        select.value = currentValue;
+    }
+}
+
+async function loadFilters() {
+    try {
+        const savedFilters = getSavedFilters();
+        const query = buildQueryString(savedFilters);
+
+        const response = await fetch(`/api/filters/${query}`);
+        const data = await response.json();
+
+        populateSelect("filter-industry", data.industries || []);
+        populateSelect("filter-region", data.regions || []);
+        populateSelect("filter-country", data.countries || []);
+        populateSelect("filter-attack-type", data.attack_types || []);
+
+        applyFiltersToControls(savedFilters);
+    } catch (err) {
+        console.error("Failed to load filters:", err);
+    }
+}
+
 async function loadSummary() {
     try {
         const query = buildQueryString(getCurrentFilters());
@@ -12,12 +129,8 @@ async function loadSummary() {
         totalEl.textContent = data.total_events ?? "--";
         industryEl.textContent = data.top_industry ?? "—";
         attackEl.textContent = data.top_attack_type ?? "—";
-
-        if (data.high_impact_events !== undefined) {
-            impactEl.textContent = data.high_impact_events;
-        } else {
-            impactEl.textContent = "—";
-        }
+        impactEl.textContent =
+            data.high_impact_events !== undefined ? data.high_impact_events : "—";
     } catch (err) {
         console.error("Failed to load summary:", err);
     }
@@ -29,6 +142,7 @@ async function loadEvents() {
             ...getCurrentFilters(),
             limit: 20,
         });
+
         const response = await fetch(`/api/events/${query}`);
         const events = await response.json();
 
@@ -59,7 +173,6 @@ async function loadEvents() {
                 </div>
 
                 <div class="event-submeta">
-                    <span class="meta-pill">Status: ${event.event_status || "unknown"}</span>
                     <span class="meta-pill">Confidence: ${event.confidence_level || "unknown"}</span>
                     <span class="meta-pill">Sources: ${event.source_count ?? 0}</span>
                     <span class="meta-pill">Recency: ${event.recency_bucket || "unknown"}</span>
@@ -72,118 +185,6 @@ async function loadEvents() {
         console.error("Failed to load events:", err);
     }
 }
-
-function populateSelect(selectId, values) {
-    const select = document.getElementById(selectId);
-    select.innerHTML = '<option value="">All</option>';
-
-    values.forEach(value => {
-        const option = document.createElement("option");
-        option.value = value;
-        option.textContent = value;
-        select.appendChild(option);
-    });
-}
-
-async function loadFilters() {
-    try {
-        const current = {
-            ...getCurrentFilters(),
-            ...getFiltersFromUrl(),
-        };
-        const query = buildQueryString(current);
-
-        const response = await fetch(`/api/filters/${query}`);
-        const data = await response.json();
-
-        populateSelect("filter-industry", data.industries || []);
-        populateSelect("filter-region", data.regions || []);
-        populateSelect("filter-country", data.countries || []);
-        populateSelect("filter-city", data.cities || []);
-        populateSelect("filter-attack-type", data.attack_types || []);
-        populateSelect("filter-event-status", data.event_statuses || []);
-
-        document.getElementById("filter-industry").value = current.industry;
-        document.getElementById("filter-region").value = current.region;
-        document.getElementById("filter-country").value = current.country;
-        document.getElementById("filter-city").value = current.city;
-        document.getElementById("filter-attack-type").value = current.attack_type;
-        document.getElementById("filter-event-status").value = current.event_status;
-    } catch (err) {
-        console.error("Failed to load filters:", err);
-    }
-}
-
-function getFiltersFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-
-    return {
-        industry: params.get("industry") || "",
-        region: params.get("region") || "",
-        country: params.get("country") || "",
-        city: params.get("city") || "",
-        attack_type: params.get("attack_type") || "",
-        event_status: params.get("event_status") || "",
-    };
-}
-
-function getCurrentFilters() {
-    return {
-        industry: document.getElementById("filter-industry")?.value || "",
-        region: document.getElementById("filter-region")?.value || "",
-        country: document.getElementById("filter-country")?.value || "",
-        city: document.getElementById("filter-city")?.value || "",
-        attack_type: document.getElementById("filter-attack-type")?.value || "",
-        event_status: document.getElementById("filter-event-status")?.value || "",
-    };
-}
-
-function buildQueryString(filters) {
-    const params = new URLSearchParams();
-
-    Object.entries(filters).forEach(([key, value]) => {
-        if (value) {
-            params.append(key, value);
-        }
-    });
-
-    const query = params.toString();
-    return query ? `?${query}` : "";
-}
-
-function updateUrlFromFilters(filters) {
-    const query = buildQueryString(filters);
-    const newUrl = `${window.location.pathname}${query}`;
-    window.history.replaceState({}, "", newUrl);
-}
-
-async function handleFilterChange() {
-    setLoading(true);
-
-    const current = getCurrentFilters();
-    updateUrlFromFilters(current);
-
-    await loadFilters();
-    await loadSummary();
-    await loadMapPoints();
-    await loadEvents();
-
-    setLoading(false);
-}
-
-[
-    "filter-industry",
-    "filter-region",
-    "filter-country",
-    "filter-city",
-    "filter-attack-type",
-    "filter-event-status",
-].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-        el.addEventListener("change", handleFilterChange);
-    }
-});
 
 let map;
 let markersLayer;
@@ -286,7 +287,6 @@ async function loadMapPoints() {
             );
 
             const locationLabel =
-                point.city ||
                 point.country ||
                 point.region ||
                 "Unknown location";
@@ -295,7 +295,7 @@ async function loadMapPoints() {
                 <strong>${point.title || "Untitled"}</strong><br>
                 ${point.attack_type || "Unknown"}<br>
                 ${locationLabel}<br>
-                ${point.event_status || "unknown"} | ${point.confidence_level || "unknown"} | Sources: ${point.source_count ?? 0}
+                ${point.confidence_level || "unknown"} | Sources: ${point.source_count ?? 0}
             `);
 
             markersLayer.addLayer(marker);
@@ -323,7 +323,10 @@ function setLoading(isLoading) {
     ];
 
     sections.forEach(section => {
-        if (!section) return;
+        if (!section) {
+            return;
+        }
+
         if (isLoading) {
             section.classList.add("loading");
         } else {
@@ -332,11 +335,59 @@ function setLoading(isLoading) {
     });
 }
 
-setLoading(true);
-
-loadFilters().then(async () => {
+async function refreshDashboard() {
+    await loadFilters();
     await loadSummary();
     await loadMapPoints();
     await loadEvents();
-    setLoading(false);
+}
+
+async function handleFilterChange() {
+    setLoading(true);
+
+    try {
+        const current = getCurrentFilters();
+        saveFilters(current);
+        await refreshDashboard();
+    } finally {
+        setLoading(false);
+    }
+}
+
+async function resetFilters() {
+    setLoading(true);
+
+    try {
+        const defaults = getDefaultFilters();
+        saveFilters(defaults);
+        applyFiltersToControls(defaults);
+        await refreshDashboard();
+    } finally {
+        setLoading(false);
+    }
+}
+
+[
+    "filter-industry",
+    "filter-region",
+    "filter-country",
+    "filter-attack-type",
+    "filter-time-range",
+].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        el.addEventListener("change", handleFilterChange);
+    }
 });
+
+const resetFiltersButton = document.getElementById("reset-filters");
+if (resetFiltersButton) {
+    resetFiltersButton.addEventListener("click", resetFilters);
+}
+
+setLoading(true);
+
+refreshDashboard()
+    .finally(() => {
+        setLoading(false);
+    });

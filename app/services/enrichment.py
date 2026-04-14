@@ -1,4 +1,7 @@
 import re
+import json
+import re
+from pathlib import Path
 from collections import Counter
 from datetime import datetime, UTC
 
@@ -157,7 +160,7 @@ def _infer_org_geography_from_articles(linked_articles, victim_org_name):
         (
             [
                 rf"\b(?:u\.s\.|u\.s\.a\.|united states|american)-based\s+{org}\b",
-                rf"\b{org},?\s+(?:an?|the)\s+(?:u\.s\.|u\.s\.a\.|united states|american)\s+(?:company|firm|developer|vendor|provider|maker)\b",
+                rf"\b{org},?\s+(?:an?|the)\s+(?:u\.s\.|u\.s\.a\.|united states|american)\s+(?:company|firm|developer|vendor|provider|maker|publisher)\b",
                 rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+(?:the\s+)?(?:u\.s\.|u\.s\.a\.|united states)\b",
             ],
             "United States",
@@ -166,7 +169,7 @@ def _infer_org_geography_from_articles(linked_articles, victim_org_name):
         (
             [
                 rf"\bcanadian-based\s+{org}\b",
-                rf"\b{org},?\s+(?:an?|the)\s+canadian\s+(?:company|firm|developer|vendor|provider|maker)\b",
+                rf"\b{org},?\s+(?:an?|the)\s+canadian\s+(?:company|firm|developer|vendor|provider|maker|publisher)\b",
                 rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+canada\b",
             ],
             "Canada",
@@ -186,7 +189,7 @@ def _infer_org_geography_from_articles(linked_articles, victim_org_name):
             [
                 rf"\bfrench\s+{org}\b",
                 rf"\bfrance-based\s+{org}\b",
-                rf"\b{org},?\s+(?:a|the)\s+french\s+(?:company|firm|developer|vendor|provider|maker)\b",
+                rf"\b{org},?\s+(?:a|the)\s+french\s+(?:company|firm|developer|vendor|provider|maker|publisher)\b",
                 rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+france\b",
             ],
             "France",
@@ -196,7 +199,7 @@ def _infer_org_geography_from_articles(linked_articles, victim_org_name):
             [
                 rf"\bgerman\s+{org}\b",
                 rf"\bgermany-based\s+{org}\b",
-                rf"\b{org},?\s+(?:a|the)\s+german\s+(?:company|firm|developer|vendor|provider|maker)\b",
+                rf"\b{org},?\s+(?:a|the)\s+german\s+(?:company|firm|developer|vendor|provider|maker|publisher)\b",
                 rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+germany\b",
             ],
             "Germany",
@@ -207,11 +210,42 @@ def _infer_org_geography_from_articles(linked_articles, victim_org_name):
                 rf"\bbritish\s+{org}\b",
                 rf"\buk-based\s+{org}\b",
                 rf"\bunited kingdom-based\s+{org}\b",
-                rf"\b{org},?\s+(?:a|the)\s+british\s+(?:company|firm|developer|vendor|provider|maker)\b",
+                rf"\b{org},?\s+(?:a|the)\s+british\s+(?:company|firm|developer|vendor|provider|maker|publisher)\b",
                 rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+(?:the\s+)?united kingdom\b",
             ],
             "United Kingdom",
             "Europe",
+        ),
+        (
+            [
+                rf"\bjapanese\s+{org}\b",
+                rf"\bjapan-based\s+{org}\b",
+                rf"\b{org},?\s+(?:a|the)\s+japanese\s+(?:company|firm|developer|vendor|provider|maker|publisher)\b",
+                rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+japan\b",
+            ],
+            "Japan",
+            "Asia",
+        ),
+        (
+            [
+                rf"\bsouth korean\s+{org}\b",
+                rf"\bkorean\s+{org}\b",
+                rf"\bsouth korea-based\s+{org}\b",
+                rf"\b{org},?\s+(?:a|the)\s+(?:south korean|korean)\s+(?:company|firm|developer|vendor|provider|maker|publisher)\b",
+                rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+south korea\b",
+            ],
+            "South Korea",
+            "Asia",
+        ),
+        (
+            [
+                rf"\baustralian\s+{org}\b",
+                rf"\baustralia-based\s+{org}\b",
+                rf"\b{org},?\s+(?:an?|the)\s+australian\s+(?:company|firm|developer|vendor|provider|maker|publisher)\b",
+                rf"\b{org}\s+is\s+(?:based|headquartered)\s+in\s+australia\b",
+            ],
+            "Australia",
+            "Oceania",
         ),
     ]
 
@@ -222,22 +256,70 @@ def _infer_org_geography_from_articles(linked_articles, victim_org_name):
 
     return {"country": None, "region": None, "city": None}
 
+def _load_org_geography_registry():
+    """
+    Load the organization geography fallback registry from JSON.
+    """
+    registry_path = Path(__file__).resolve().parents[1] / "data" / "org_geography_registry.json"
+
+    try:
+        with registry_path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _resolve_org_home_geography(victim_org_name):
+    """
+    Resolve organization home geography from a small maintained registry.
+
+    This is a controlled enrichment fallback for well-known organizations.
+    """
+    if not victim_org_name:
+        return {"country": None, "region": None}
+
+    registry = _load_org_geography_registry()
+    org = victim_org_name.strip().lower()
+
+    for canonical_name, entry in registry.items():
+        if canonical_name in org:
+            return {
+                "country": entry.get("country"),
+                "region": entry.get("region"),
+                "city": None,
+            }
+
+        aliases = entry.get("aliases", [])
+        for alias in aliases:
+            if alias.lower() in org:
+                return {
+                    "country": entry.get("country"),
+                    "region": entry.get("region"),
+                    "city": None,
+                }
+
+    for canonical_name, entry in registry.items():
+        aliases = entry.get("aliases", [])
+        if org == canonical_name or org in [alias.strip().lower() for alias in aliases]:
+            return {
+                "country": entry.get("country"),
+                "region": entry.get("region"),
+                "city": None,
+            }
+
+    return {"country": None, "region": None, "city": None}
+
 def _coordinates_for_location(city=None, country=None, region=None):
     """
     Deterministic fallback coordinates for map display.
-    Favor region over country for broader visual grouping.
-    """
-    if city == "New York" and country == "United States":
-        return 40.7128, -74.0060
 
-    region_coordinates = {
-        "North America": (54.5260, -105.2551),
-        "South America": (-8.7832, -55.4915),
-        "Europe": (54.5260, 15.2551),
-        "Asia": (34.0479, 100.6197),
-        "Middle East": (29.2985, 42.5510),
-        "Africa": (1.6508, 17.6791),
-        "Oceania": (-22.7359, 140.0188),
+    Coordinate priority must favor the most specific known geography:
+    city -> country -> region
+    """
+    city_coordinates = {
+        ("New York", "United States"): (40.7128, -74.0060),
     }
 
     country_coordinates = {
@@ -282,14 +364,26 @@ def _coordinates_for_location(city=None, country=None, region=None):
         "Egypt": (26.8206, 30.8025),
     }
 
-    if region in region_coordinates:
-        return region_coordinates[region]
+    region_coordinates = {
+        "North America": (54.5260, -105.2551),
+        "South America": (-8.7832, -55.4915),
+        "Europe": (54.5260, 15.2551),
+        "Asia": (34.0479, 100.6197),
+        "Middle East": (29.2985, 42.5510),
+        "Africa": (1.6508, 17.6791),
+        "Oceania": (-22.7359, 140.0188),
+    }
+
+    if city and country and (city, country) in city_coordinates:
+        return city_coordinates[(city, country)]
 
     if country in country_coordinates:
         return country_coordinates[country]
 
-    return None, None
+    if region in region_coordinates:
+        return region_coordinates[region]
 
+    return None, None
 
 def aggregate_event_data(linked_articles, extractions, source_count):
     """
@@ -339,31 +433,29 @@ def aggregate_event_data(linked_articles, extractions, source_count):
     country = _most_common_non_empty(
         [extraction.country for extraction in extractions]
     )
-    city = _most_common_non_empty(
-        [extraction.city for extraction in extractions]
-    )
     summary_short = _most_common_non_empty(
         [extraction.short_event_summary for extraction in extractions]
     )
 
-    if not country and not region and not city:
-        fallback_geo = _infer_geography_from_articles(linked_articles)
-        country = fallback_geo["country"]
-        region = fallback_geo["region"]
-        city = fallback_geo["city"]
+    if not country and not region and victim_org_name:
+        org_geo = _resolve_org_home_geography(victim_org_name)
+        country = org_geo["country"]
+        region = org_geo["region"]
 
-    if not country and not region and not city and victim_org_name:
+    if not country and not region and victim_org_name:
         org_fallback_geo = _infer_org_geography_from_articles(
             linked_articles,
             victim_org_name,
         )
         country = org_fallback_geo["country"]
         region = org_fallback_geo["region"]
-        city = org_fallback_geo["city"]
 
-    if city:
-        geography_type = "city"
-    elif country:
+    if not country and not region:
+        fallback_geo = _infer_geography_from_articles(linked_articles)
+        country = fallback_geo["country"]
+        region = fallback_geo["region"]
+
+    if country:
         geography_type = "country"
     elif region:
         geography_type = "region"
@@ -371,7 +463,7 @@ def aggregate_event_data(linked_articles, extractions, source_count):
         geography_type = None
 
     latitude, longitude = _coordinates_for_location(
-        city=city,
+        city=None,
         country=country,
         region=region,
     )
@@ -391,7 +483,7 @@ def aggregate_event_data(linked_articles, extractions, source_count):
         "zero_day_flag": zero_day_flag,
         "region": region,
         "country": country,
-        "city": city,
+        "city": None,
         "geography_type": geography_type,
         "latitude": latitude,
         "longitude": longitude,

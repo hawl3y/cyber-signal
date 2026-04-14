@@ -19,6 +19,7 @@ def _clean_filter_values(values):
 
     return sorted(cleaned.values(), key=lambda v: v.lower())
 
+
 filters_bp = Blueprint("filters", __name__, url_prefix="/api/filters")
 
 
@@ -27,31 +28,27 @@ def get_filters():
     industry = request.args.get("industry")
     country = request.args.get("country")
     region = request.args.get("region")
-    city = request.args.get("city")
     attack_type = request.args.get("attack_type")
-    event_status = request.args.get("event_status")
+    time_range = request.args.get("time_range")
 
     events = get_filtered_events(
         industry=industry,
         country=country,
         region=region,
-        city=city,
         attack_type=attack_type,
-        event_status=event_status,
+        time_range=time_range,
     )
 
     industries = _clean_filter_values(e.industry for e in events)
     regions = _clean_filter_values(e.region for e in events)
     countries = _clean_filter_values(e.country for e in events)
-    cities = _clean_filter_values(e.city for e in events)
     attack_types = _clean_filter_values(e.attack_type for e in events)
-    event_statuses = _clean_filter_values(e.event_status for e in events)
 
-    return jsonify({
-        "industries": industries,
-        "regions": regions,
-        "countries": countries,
-        "cities": cities,
-        "attack_types": attack_types,
-        "event_statuses": event_statuses,
-    })
+    return jsonify(
+        {
+            "industries": industries,
+            "regions": regions,
+            "countries": countries,
+            "attack_types": attack_types,
+        }
+    )

@@ -12,9 +12,17 @@ from app.services.extraction import (
 def extract_signals_job(force=False):
     """
     Entry point for extraction stage.
+
+    force=True should re-run extraction for articles that already passed
+    processing, not for every non-duplicate raw article.
     """
     if force:
-        articles = RawArticle.query.filter_by(is_duplicate=False).all()
+        articles = RawArticle.query.filter(
+            RawArticle.is_duplicate.is_(False),
+            RawArticle.processing_status.in_(
+                ["ready_for_extraction", "ready_for_clustering", "clustered"]
+            ),
+        ).all()
     else:
         articles = get_ready_for_extraction()
 
