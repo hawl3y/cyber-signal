@@ -16,6 +16,8 @@ class ArticleExtraction(db.Model):
 
     victim_org_name = db.Column(db.String(255))
     victim_org_normalized = db.Column(db.String(255))
+    victim_entity_type = db.Column(db.String(100))
+    victim_display_label = db.Column(db.String(255))
     industry = db.Column(db.String(100))
     region = db.Column(db.String(100))
     country = db.Column(db.String(100))

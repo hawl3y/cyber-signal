@@ -1002,8 +1002,13 @@ def map_eurepoc_row_to_cyber_event(row):
         row.get("name"),
         row.get("description"),
     )
-    victim_org_name = _build_victim_label_from_target(target)
-    victim_org_normalized = _normalize_org_name(victim_org_name)
+    victim_display_label = _build_victim_label_from_target(target)
+    victim_entity_type = target.get("target_type")
+
+    receiver_name = target.get("receiver_name")
+
+    victim_org_name = receiver_name
+    victim_org_normalized = _normalize_org_name(receiver_name) if receiver_name else None
 
     attack_type, impact_type = _map_attack_and_impact(
         row.get("incident_type"),
@@ -1039,6 +1044,8 @@ def map_eurepoc_row_to_cyber_event(row):
         "event_occurred_at": _parse_eurepoc_date(row.get("start_date")),
         "victim_org_name": victim_org_name,
         "victim_org_normalized": victim_org_normalized,
+        "victim_entity_type": victim_entity_type,
+        "victim_display_label": victim_display_label,
         "industry": _map_industry_from_target(target),
         "attack_type": attack_type,
         "access_vector": None,

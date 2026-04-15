@@ -1019,6 +1019,8 @@ def run_rule_extraction(article):
     return {
         "victim_org_name": victim_org_name,
         "victim_org_normalized": victim_org_normalized,
+        "victim_entity_type": None,
+        "victim_display_label": victim_org_name,
         "industry": industry,
         "region": geography["region"],
         "country": geography["country"],
@@ -1065,6 +1067,8 @@ def save_extraction(article_id, signals):
 
     extraction.victim_org_name = signals.get("victim_org_name")
     extraction.victim_org_normalized = signals.get("victim_org_normalized")
+    extraction.victim_entity_type = signals.get("victim_entity_type")
+    extraction.victim_display_label = signals.get("victim_display_label")
     extraction.industry = signals.get("industry")
     extraction.region = signals.get("region")
     extraction.country = signals.get("country")

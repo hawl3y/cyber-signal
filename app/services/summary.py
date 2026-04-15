@@ -108,10 +108,11 @@ def build_summary(
         ]
     )
 
-    confirmed_events = len(
+    validated_events = len(
         [
             e for e in events
-            if e.event_status == "confirmed"
+            if e.record_origin == "historical_dataset"
+            or e.event_status in ["confirmed", "enriched", "resolved", "historical"]
         ]
     )
 
@@ -154,7 +155,7 @@ def build_summary(
         "top_verification_level": top_verification_level,
         "top_record_origin": top_record_origin,
         "high_impact_events": high_impact_events,
-        "confirmed_events": confirmed_events,
+        "validated_events": validated_events,
         "enriched_events": enriched_events,
         "historical_events": historical_events,
         "hybrid_events": hybrid_events,

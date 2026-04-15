@@ -517,6 +517,12 @@ def aggregate_event_data(linked_articles, extractions, source_count):
     victim_org_normalized = _most_common_non_empty(
         [extraction.victim_org_normalized for extraction in extractions]
     )
+    victim_entity_type = _most_common_non_empty(
+        [extraction.victim_entity_type for extraction in extractions]
+    )
+    victim_display_label = _most_common_non_empty(
+        [extraction.victim_display_label for extraction in extractions]
+    )
     industry = _most_common_non_empty(
         [extraction.industry for extraction in extractions]
     )
@@ -588,6 +594,8 @@ def aggregate_event_data(linked_articles, extractions, source_count):
         "canonical_title": primary_article.title,
         "victim_org_name": victim_org_name,
         "victim_org_normalized": victim_org_normalized,
+        "victim_entity_type": victim_entity_type,
+        "victim_display_label": victim_display_label,
         "industry": industry,
         "attack_type": attack_type,
         "access_vector": access_vector,
@@ -625,6 +633,14 @@ def update_event(event_id, event_data):
     event.victim_org_normalized = event_data.get(
         "victim_org_normalized",
         event.victim_org_normalized,
+    )
+    event.victim_entity_type = event_data.get(
+        "victim_entity_type",
+        event.victim_entity_type,
+    )
+    event.victim_display_label = event_data.get(
+        "victim_display_label",
+        event.victim_display_label,
     )
     event.industry = event_data.get("industry", event.industry)
     event.attack_type = event_data.get("attack_type", event.attack_type)

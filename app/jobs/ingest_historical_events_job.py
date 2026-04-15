@@ -127,6 +127,8 @@ def ingest_historical_events_job(records):
 
         event.victim_org_name = victim_org_name
         event.victim_org_normalized = victim_org_normalized
+        event.victim_entity_type = record.get("victim_entity_type")
+        event.victim_display_label = record.get("victim_display_label")
         event.industry = record.get("industry")
 
         event.attack_type = record.get("attack_type")

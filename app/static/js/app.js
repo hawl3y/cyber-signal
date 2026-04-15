@@ -132,7 +132,7 @@ async function loadSummary() {
         const data = await response.json();
 
         const totalEl = document.getElementById("total-events");
-        const confirmedEl = document.getElementById("confirmed-events");
+        const validatedEl = document.getElementById("validated-events");
         const historicalEl = document.getElementById("historical-events");
         const impactEl = document.getElementById("high-impact-events");
 
@@ -142,9 +142,9 @@ async function loadSummary() {
         const verificationEl = document.getElementById("top-verification-level");
 
         if (totalEl) totalEl.textContent = data.total_events ?? "--";
-        if (confirmedEl) {
-            confirmedEl.textContent =
-                data.confirmed_events !== undefined ? data.confirmed_events : "--";
+        if (validatedEl) {
+            validatedEl.textContent =
+                data.validated_events !== undefined ? data.validated_events : "--";
         }
         if (historicalEl) {
             historicalEl.textContent =
@@ -207,7 +207,7 @@ async function loadEvents() {
                 </p>
 
                 <div class="event-meta">
-                    <span class="meta-pill">${event.victim_org_name || "Unknown organization"}</span>
+                    <span class="meta-pill">${event.victim_display_label || event.victim_org_name || "Unknown organization"}</span>
                     <span class="meta-pill">${event.country || event.region || "Unknown geography"}</span>
                     <span class="meta-pill">${event.attack_type || "Unknown attack type"}</span>
                 </div>
