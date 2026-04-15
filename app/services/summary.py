@@ -8,13 +8,15 @@ def get_event_reference_time(event):
     Return the best-known event date for filtering and sorting.
 
     Priority:
-    1. event_occurred_at for historical and hybrid records
-    2. last_seen_at
-    3. first_seen_at
-    4. updated_at
-    5. created_at
+    1. event_occurred_at for historical_dataset and hybrid records
+    2. last_seen_at for live_detection records
+    3. first_seen_at for live_detection records
+    4. updated_at for live_detection records
+    5. created_at for live_detection records
+
+    Historical records with no event_occurred_at remain unknown and return None.
     """
-    if event.record_origin in ["historical_dataset", "hybrid"] and event.event_occurred_at:
+    if event.record_origin in ["historical_dataset", "hybrid"]:
         return event.event_occurred_at
 
     return event.last_seen_at or event.first_seen_at or event.updated_at or event.created_at
@@ -246,5 +248,5 @@ def build_map(
             "source_count": e.source_count,
         }
         for e in events
-        if e.latitude is not None and e.longitude is not None
+        if e.country or (e.latitude is not None and e.longitude is not None)
     ]

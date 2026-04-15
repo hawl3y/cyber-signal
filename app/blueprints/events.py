@@ -37,8 +37,10 @@ def list_events():
 
     events = sorted(
         events,
-        key=lambda e: get_event_reference_time(e) or datetime.min,
-        reverse=True,
+        key=lambda e: (
+            get_event_reference_time(e) is None,
+            -(get_event_reference_time(e).timestamp()) if get_event_reference_time(e) else float("inf"),
+        ),
     )
 
     if offset:
