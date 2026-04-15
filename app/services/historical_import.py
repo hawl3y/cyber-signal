@@ -134,14 +134,11 @@ def _simplify_receiver_category(value):
 
     lowered_values = [item.lower() for item in values]
 
-    if any("critical infrastructure" in item for item in lowered_values):
-        return "critical_infrastructure"
-
-    if any(
-        "corporate" in item or "private sector" in item or "company" in item or "business" in item
-        for item in lowered_values
-    ):
+    if any("corporate" in item or "private sector" in item or "company" in item or "business" in item for item in lowered_values):
         return "private_sector"
+
+    if any("end user" in item or "specially protected groups" in item or "individual" in item for item in lowered_values):
+        return "individuals"
 
     if any("media" in item or "journalism" in item or "news" in item or "newspaper" in item for item in lowered_values):
         return "media"
@@ -149,11 +146,11 @@ def _simplify_receiver_category(value):
     if any("social groups" in item or "activists" in item or "advocacy" in item or "human rights" in item for item in lowered_values):
         return "civil_society"
 
+    if any("critical infrastructure" in item for item in lowered_values):
+        return "critical_infrastructure"
+
     if any("international" in item or "supranational" in item or "humanitarian" in item for item in lowered_values):
         return "international"
-
-    if any("end user" in item or "specially protected groups" in item or "individual" in item for item in lowered_values):
-        return "individuals"
 
     if any("science" in item or "research" in item for item in lowered_values):
         return "research"
@@ -278,26 +275,23 @@ def _infer_target_type_from_text(title, summary):
         ]
     ).lower()
 
-    if any(
-        term in text
-        for term in [
-            "state television",
-            "state tv",
-            "broadcaster",
-            "news outlet",
-            "news agency",
-            "media outlet",
-            "newspaper",
-            "journalist",
-            "al jazeera",
-            "india today",
-            "zeenews",
-            "spiegel",
-            "tv station",
-            "television station",
-            "military news agency",
-        ]
-    ):
+    strong_media_terms = [
+        "state television",
+        "state tv",
+        "broadcaster",
+        "news outlet",
+        "news agency",
+        "media outlet",
+        "al jazeera",
+        "india today",
+        "zeenews",
+        "spiegel",
+        "tv station",
+        "television station",
+        "military news agency",
+    ]
+
+    if any(term in text for term in strong_media_terms):
         return "media"
 
     if any(
@@ -420,21 +414,11 @@ def _infer_target_type_from_text(title, summary):
     if any(
         term in text
         for term in [
-            "electric company",
-            "power grid",
-            "power plant",
-            "pipeline",
-            "water utility",
-            "utility company",
-        ]
-    ):
-        return "critical_infrastructure"
-
-    if any(
-        term in text
-        for term in [
             "muslims",
+            "internet users",
+            "users",
             "activist",
+            "activists",
             "advocacy",
             "civil society",
             "human rights",
@@ -442,6 +426,7 @@ def _infer_target_type_from_text(title, summary):
             "non-profit",
             "ngo",
             "social movement",
+            "humanitarian organization",
         ]
     ):
         return "individuals"
@@ -468,10 +453,25 @@ def _infer_target_type_from_text(title, summary):
     if any(
         term in text
         for term in [
+            "electric company",
+            "power grid",
+            "power plant",
+            "pipeline",
+            "water utility",
+            "utility company",
+        ]
+    ):
+        return "critical_infrastructure"
+
+    if any(
+        term in text
+        for term in [
             "website",
             "websites",
             "web site",
             "web sites",
+            "webpage",
+            "webpages",
             "web host",
             "hosting provider",
             "mobile app",
@@ -479,13 +479,22 @@ def _infer_target_type_from_text(title, summary):
             "app store",
             "platform",
             "online service",
-            "internet users",
             "cyber war",
             "cyberwar",
             "defacing web",
         ]
     ):
         return "technology"
+
+    if any(
+        term in text
+        for term in [
+            "newspaper",
+            "newspapers",
+            "journalist",
+        ]
+    ):
+        return "media"
 
     return None
 
@@ -541,7 +550,7 @@ def _classify_target(
     if subcategory:
         mapped = subcategory_target_map.get(subcategory)
         if mapped:
-            if mapped in {"civil_society", "government", "critical_infrastructure"} and inferred in {
+            if mapped in {"civil_society", "government", "critical_infrastructure", "media"} and inferred in {
                 "media",
                 "political",
                 "military",
@@ -550,7 +559,7 @@ def _classify_target(
                 "private_sector",
                 "technology",
                 "individuals",
-            }:
+            } and inferred != mapped:
                 target_type = inferred
                 source = "text_inference_override_subcategory"
             else:
@@ -560,7 +569,7 @@ def _classify_target(
     if not target_type and category_family:
         mapped = category_target_map.get(category_family)
         if mapped:
-            if mapped in {"civil_society", "government", "critical_infrastructure"} and inferred in {
+            if mapped in {"civil_society", "government", "critical_infrastructure", "media"} and inferred in {
                 "media",
                 "political",
                 "military",
@@ -569,7 +578,7 @@ def _classify_target(
                 "private_sector",
                 "technology",
                 "individuals",
-            }:
+            } and inferred != mapped:
                 target_type = inferred
                 source = "text_inference_override_category"
             else:
