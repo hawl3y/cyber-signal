@@ -114,6 +114,154 @@ def _normalize_placeholder_name(value):
 
     return value.strip()
 
+def _infer_named_victim_from_text(title, summary):
+    text = " ".join([str(title or ""), str(summary or "")]).strip()
+    if not text:
+        return None
+
+    patterns = [
+        r"(?:against|targeting|targeted|breached|disrupted|hacked|compromised|attacked)\s+([A-Z][A-Za-z0-9&().,'`\-\/ ]{2,120})",
+        r"(?:stole data from|attack on|cyber attack on|claims responsibility for stealing [^,]+ from)\s+([A-Z][A-Za-z0-9&().,'`\-\/ ]{2,120})",
+        r"(?:website of)\s+([A-Z][A-Za-z0-9&().,'`\-\/ ]{2,120})",
+        r"(?:vs\.)\s+([A-Z][A-Za-z0-9&().,'`\-\/ ]{2,120})",
+        r"(?:compromising)\s+([A-Z][A-Za-z0-9&().,'`\-\/ ]{2,120})",
+    ]
+
+    invalid_exact = {
+        "government",
+        "ministries",
+        "ministry",
+        "companies",
+        "company",
+        "organizations",
+        "organization",
+        "users",
+        "targets",
+        "target",
+        "sector",
+        "websites",
+        "website",
+        "registries",
+        "registry",
+        "entities",
+        "institutions",
+        "multiple danish municipalities",
+    }
+
+    invalid_contains = [
+        " threat actor",
+        " state-sponsored actors",
+        " unknown threat actors",
+        " hackers",
+        " victims",
+        " targets",
+        " several ",
+        " multiple ",
+    ]
+
+    stop_markers = [
+        ". involved ",
+        ". the ",
+        ". on ",
+        ". unknown ",
+        ", managed by",
+        ", including",
+        ", exposing",
+        ", stealing",
+        ", demanding",
+        ", forcing",
+        ", resulting",
+        ", causing",
+        ", beginning",
+        ", which",
+        ", who",
+        ", and ",
+        ", but ",
+        ", in a",
+        ", in the",
+        " beginning ",
+        " starting ",
+        " between ",
+        " on ",
+        " by ",
+        " with ",
+        "website of ",
+    ]
+
+    def _clean_candidate(candidate):
+        candidate = candidate.strip(" ,.-:;\"'()")
+        candidate = re.sub(r"\s+", " ", candidate).strip()
+
+        lowered = candidate.lower()
+        for marker in stop_markers:
+            idx = lowered.find(marker)
+            if idx > 0:
+                candidate = candidate[:idx].strip(" ,.-:;\"'()")
+                lowered = candidate.lower()
+
+        candidate = re.sub(
+            r"'s\s+(mobile application|website|facebook account|database|system|registries?)$",
+            "",
+            candidate,
+            flags=re.IGNORECASE,
+        )
+        candidate = re.sub(
+            r"\s+(mobile application|website|facebook account|database|system|registries?)$",
+            "",
+            candidate,
+            flags=re.IGNORECASE,
+        )
+
+        candidate = re.sub(r"\s+", " ", candidate).strip(" ,.-:;\"'()")
+        return candidate or None
+
+    def _is_valid_candidate(candidate):
+        lowered = candidate.lower()
+
+        if lowered in invalid_exact:
+            return False
+
+        if any(term in lowered for term in invalid_contains):
+            return False
+
+        if len(candidate) < 3:
+            return False
+
+        if not re.search(r"[A-Z]{2,}|[A-Z][a-z]", candidate):
+            return False
+
+        return True
+
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if not match:
+            continue
+
+        candidate = _clean_candidate(match.group(1))
+        if candidate and _is_valid_candidate(candidate):
+            return candidate
+
+    ministry_match = re.search(
+        r"((?:[A-Z][A-Za-z]+(?:'s)?|British|French|Italian|Finnish|Israeli)\s+Ministry of Justice(?:\s+of\s+[A-Z][A-Za-z]+)?)",
+        text,
+    )
+    if ministry_match:
+        candidate = _clean_candidate(ministry_match.group(1))
+        if candidate and _is_valid_candidate(candidate):
+            return candidate
+
+    short_upper_match = re.search(
+        r"(?:breached|hacked|targeted|attacked|disrupted)\s+([A-Z0-9]{2,10})\s+(?:database|system|network|platform|website|app|application)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if short_upper_match:
+        candidate = short_upper_match.group(1).strip().upper()
+        if candidate and len(candidate) >= 2:
+            return candidate
+
+    return None
+
 def _truncate_string(value, max_length):
     if value is None:
         return None
@@ -658,6 +806,92 @@ def _map_industry_from_target(target):
 
     return industry_map.get(target_type, "Other")
 
+def _classify_org_from_name(org_name):
+    org = _clean_eurepoc_value(org_name)
+    if not org:
+        return None
+
+    lowered = org.lower().strip()
+    lowered = re.sub(r"supremecourtof", "supreme court of ", lowered, flags=re.IGNORECASE)
+
+    org_patterns = [
+        (r"\b(university hospital|hospital|medical center|health system|clinic)\b", ("healthcare", "Healthcare")),
+        (r"\b(university|college|school|schools|school district|public school|public schools|grammar school|research institute|laboratory|research center)\b", ("education", "Education")),
+        (r"\b(bank|credit union|central bank|financial)\b", ("financial", "Financial Services")),
+        (r"\b(ministry|government|governments|parliament|senate|supreme\s*court|courts?|municipality|municipal|city council|state department|embassy|agency|department|local government|local governments)\b", ("government", "Government")),
+        (r"\b(telecom|telecommunications|mobile|internet provider|hosting provider|platform|technology|software)\b", ("technology", "Technology")),
+        (r"\b(newspaper|news|media|television|tv|broadcaster)\b", ("media", "Media")),
+        (r"\b(army|navy|air force|defence|defense|military)\b", ("government", "Government")),
+        (r"\b(airport|airline|rail|railway|metro|port authority|shipping|transport)\b", ("transportation", "Transportation")),
+        (r"\b(utility|power grid|power plant|pipeline|water utility|electric company)\b", ("critical_infrastructure", "Energy")),
+    ]
+
+    for pattern, classification in org_patterns:
+        if re.search(pattern, lowered, flags=re.IGNORECASE):
+            return {
+                "victim_entity_type": classification[0],
+                "industry": classification[1],
+                "source": "org_name_pattern",
+            }
+
+    return None
+
+def _is_valid_resolved_org_name(value):
+    value = _clean_eurepoc_value(value)
+    if not value:
+        return False
+
+    cleaned = re.sub(r"\s+", " ", value).strip()
+    lowered = cleaned.lower()
+
+    invalid_phrases = [
+        "identified as",
+        "tied to",
+        "since 2021",
+        "since 2022",
+        "has compromi",
+        "has compromised",
+        "is targeting",
+        "targeting ",
+        "accessed networks of",
+        "in a release",
+        "for infoop",
+        "to defend ukraine",
+        "big enterprises",
+        "local sea governments",
+        "mass taging points",
+    ]
+
+    if any(phrase in lowered for phrase in invalid_phrases):
+        return False
+
+    generic_patterns = [
+        r"^\s*israeli entities\s*$",
+        r"^\s*french organizations\s*$",
+        r"^\s*russian printers\b",
+        r".*\bentities\b.*",
+        r".*\borganizations\b.*",
+    ]
+
+    if any(re.search(pattern, lowered, flags=re.IGNORECASE) for pattern in generic_patterns):
+        return False
+
+    if len(cleaned) > 90:
+        return False
+
+    if cleaned.count(" and ") >= 2:
+        return False
+
+    return True
+
+def _apply_victim_classification_precedence(resolved_receiver_name, target):
+    if resolved_receiver_name:
+        org_based = _classify_org_from_name(resolved_receiver_name)
+        if org_based:
+            return org_based["victim_entity_type"], org_based["industry"]
+
+    return target.get("target_type"), _map_industry_from_target(target)
+
 
 def _derive_victim_label(receiver_name, receiver_category, receiver_subcategory, receiver_country, title=None, summary=None):
     target = _classify_target(
@@ -1002,13 +1236,37 @@ def map_eurepoc_row_to_cyber_event(row):
         row.get("name"),
         row.get("description"),
     )
-    victim_display_label = _build_victim_label_from_target(target)
-    victim_entity_type = target.get("target_type")
 
     receiver_name = target.get("receiver_name")
+    inferred_receiver_name = None
 
-    victim_org_name = receiver_name
-    victim_org_normalized = _normalize_org_name(receiver_name) if receiver_name else None
+    if not receiver_name:
+        inferred_receiver_name = _infer_named_victim_from_text(
+            row.get("name"),
+            row.get("description"),
+        )
+
+    resolved_receiver_name = receiver_name or inferred_receiver_name
+
+    if not _is_valid_resolved_org_name(resolved_receiver_name):
+        resolved_receiver_name = None
+
+    if resolved_receiver_name:
+        victim_display_label = resolved_receiver_name
+    else:
+        victim_display_label = _build_victim_label_from_target(target)
+
+    victim_entity_type, industry = _apply_victim_classification_precedence(
+        resolved_receiver_name,
+        target,
+    )
+
+    if resolved_receiver_name:
+        victim_org_name = resolved_receiver_name
+        victim_org_normalized = _normalize_org_name(resolved_receiver_name)
+    else:
+        victim_org_name = None
+        victim_org_normalized = None
 
     attack_type, impact_type = _map_attack_and_impact(
         row.get("incident_type"),
@@ -1030,6 +1288,17 @@ def map_eurepoc_row_to_cyber_event(row):
     zero_days_value = row.get("zero_days")
     mitre_initial_access = row.get("mitre_initial_access")
 
+    event_date = (
+        _parse_eurepoc_date(row.get("start_date"))
+        or _parse_eurepoc_date(row.get("end_date"))
+        or _parse_eurepoc_date(row.get("date"))
+    )
+
+    if not event_date:
+        year = row.get("year")
+        if year and str(year).isdigit():
+            event_date = datetime(int(year), 1, 1)
+
     event = {
         "slug": f"eurepoc-{row['incident_id']}",
         "canonical_title": row.get("name") or f"EuRepoC incident {row['incident_id']}",
@@ -1041,12 +1310,12 @@ def map_eurepoc_row_to_cyber_event(row):
         "record_origin": "historical_dataset",
         "confidence_level": "high",
         "confidence_score": None,
-        "event_occurred_at": _parse_eurepoc_date(row.get("start_date")),
+        "event_occurred_at": event_date,
         "victim_org_name": victim_org_name,
         "victim_org_normalized": victim_org_normalized,
         "victim_entity_type": victim_entity_type,
         "victim_display_label": victim_display_label,
-        "industry": _map_industry_from_target(target),
+        "industry": industry,
         "attack_type": attack_type,
         "access_vector": None,
         "impact_type": impact_type,
