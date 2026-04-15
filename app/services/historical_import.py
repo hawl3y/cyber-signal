@@ -128,55 +128,62 @@ def _truncate_string(value, max_length):
     return value[: max_length - 1].rstrip()
 
 def _simplify_receiver_category(value):
-    value = _pick_first_meaningful_semicolon_value(value)
-    if not value:
+    values = _clean_semicolon_values(value)
+    if not values:
         return None
 
-    lowered = value.lower()
+    lowered_values = [item.lower() for item in values]
 
-    if "state institutions" in lowered or "political system" in lowered or "government" in lowered:
-        return "public_sector"
-
-    if "critical infrastructure" in lowered:
+    if any("critical infrastructure" in item for item in lowered_values):
         return "critical_infrastructure"
 
-    if "corporate" in lowered or "private sector" in lowered or "company" in lowered or "business" in lowered:
+    if any(
+        "corporate" in item or "private sector" in item or "company" in item or "business" in item
+        for item in lowered_values
+    ):
         return "private_sector"
 
-    if "media" in lowered or "journalism" in lowered or "news" in lowered or "newspaper" in lowered:
+    if any("media" in item or "journalism" in item or "news" in item or "newspaper" in item for item in lowered_values):
         return "media"
 
-    if "social groups" in lowered or "activists" in lowered or "advocacy" in lowered or "human rights" in lowered:
+    if any("social groups" in item or "activists" in item or "advocacy" in item or "human rights" in item for item in lowered_values):
         return "civil_society"
 
-    if "international" in lowered or "supranational" in lowered or "humanitarian" in lowered:
+    if any("international" in item or "supranational" in item or "humanitarian" in item for item in lowered_values):
         return "international"
 
-    if "end user" in lowered or "specially protected groups" in lowered or "individual" in lowered:
+    if any("end user" in item or "specially protected groups" in item or "individual" in item for item in lowered_values):
         return "individuals"
 
-    if "science" in lowered or "research" in lowered:
+    if any("science" in item or "research" in item for item in lowered_values):
         return "research"
 
-    if "health" in lowered or "hospital" in lowered or "medical" in lowered:
+    if any("health" in item or "hospital" in item or "medical" in item for item in lowered_values):
         return "healthcare"
 
-    if "education" in lowered or "university" in lowered or "school" in lowered:
+    if any("education" in item or "university" in item or "school" in item for item in lowered_values):
         return "education"
+
+    if any("state institutions" in item or "political system" in item or "government" in item for item in lowered_values):
+        return "public_sector"
 
     return None
 
 
 def _simplify_receiver_subcategory(value):
-    value = _pick_first_meaningful_semicolon_value(value)
-    value = _clean_eurepoc_value(value)
-    if not value:
+    values = _clean_semicolon_values(value)
+    if not values:
         return None
 
-    value = re.sub(r"\s*\(e\.g\.[^)]+\)", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"\s+", " ", value).strip()
+    normalized_values = []
+    for item in values:
+        cleaned = re.sub(r"\s*\(e\.g\.[^)]+\)", "", item, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        if cleaned:
+            normalized_values.append(cleaned)
 
-    lowered = value.lower()
+    if not normalized_values:
+        return None
 
     generic_map = {
         "other targets": None,
@@ -199,12 +206,44 @@ def _simplify_receiver_subcategory(value):
         "defense industry": "Defense industry organizations",
         "election infrastructure / related systems": "Election systems",
         "critical infrastructure": "Critical infrastructure organizations",
+        "energy": "Critical infrastructure organizations",
+        "telecommunications": "Technology organizations",
     }
 
-    if lowered in generic_map:
-        return generic_map[lowered]
+    mapped_values = []
+    for item in normalized_values:
+        lowered = item.lower()
+        mapped = generic_map.get(lowered, item)
+        if mapped and mapped not in mapped_values:
+            mapped_values.append(mapped)
 
-    return value
+    if not mapped_values:
+        return None
+
+    priority_order = [
+        "Political parties",
+        "Media organizations",
+        "Military organizations",
+        "Financial institutions",
+        "Transportation organizations",
+        "Healthcare organizations",
+        "Educational institutions",
+        "Technology organizations",
+        "Defense industry organizations",
+        "Critical infrastructure organizations",
+        "Government entities",
+        "Civil administration",
+        "Legislative bodies",
+        "Election systems",
+        "Advocacy organizations",
+        "Civil society organizations",
+    ]
+
+    for candidate in priority_order:
+        if candidate in mapped_values:
+            return candidate
+
+    return mapped_values[0]
 
 
 def _build_target_fallback_label(category_family, subcategory, country):
@@ -230,30 +269,397 @@ def _build_target_fallback_label(category_family, subcategory, country):
 
     return base_label
 
-def _derive_victim_label(receiver_name, receiver_category, receiver_subcategory, receiver_country):
-    name = _pick_first_meaningful_semicolon_value(receiver_name)
+
+def _infer_target_type_from_text(title, summary):
+    text = " ".join(
+        [
+            str(title or ""),
+            str(summary or ""),
+        ]
+    ).lower()
+
+    if any(
+        term in text
+        for term in [
+            "state television",
+            "state tv",
+            "broadcaster",
+            "news outlet",
+            "news agency",
+            "media outlet",
+            "newspaper",
+            "journalist",
+            "al jazeera",
+            "india today",
+            "zeenews",
+            "spiegel",
+            "tv station",
+            "television station",
+            "military news agency",
+        ]
+    ):
+        return "media"
+
+    if any(
+        term in text
+        for term in [
+            "political party",
+            "political parties",
+            "kuomintang",
+            "democratic progressive party",
+            "dpp",
+            "party headquarters",
+            "presidential campaign",
+            "campaign for president",
+            "election commission",
+            "electoral",
+        ]
+    ):
+        return "political"
+
+    if any(
+        term in text
+        for term in [
+            "military",
+            "naval",
+            "air force",
+            "war college",
+            "army",
+            "defense ministry",
+            "defence ministry",
+            "defense department",
+            "defence department",
+            "navy",
+            "centrifuges",
+            "nuclear facility",
+            "niprnet",
+            "bundeswehr",
+        ]
+    ):
+        return "military"
+
+    if any(
+        term in text
+        for term in [
+            "swift",
+            "bank",
+            "payment system",
+            "financial institution",
+            "credit union",
+            "central bank",
+        ]
+    ):
+        return "financial"
+
+    if any(
+        term in text
+        for term in [
+            "airline",
+            "airport",
+            "transport",
+            "rail",
+            "shipping",
+            "port authority",
+            "metro",
+            "railway",
+            "aeroflot",
+        ]
+    ):
+        return "transportation"
+
+    if any(
+        term in text
+        for term in [
+            "hospital",
+            "medical center",
+            "healthcare",
+            "health system",
+            "clinic",
+            "medical facility",
+        ]
+    ):
+        return "healthcare"
+
+    if any(
+        term in text
+        for term in [
+            "university",
+            "college",
+            "school",
+            "campus",
+            "research institute",
+            "laboratory",
+            "research center",
+            "scientific institute",
+        ]
+    ):
+        return "education"
+
+    if any(
+        term in text
+        for term in [
+            "westinghouse",
+            "us steel",
+            "lockheed martin",
+            "commercial and defense technology companies",
+            "technology companies",
+            "defense technology companies",
+            "company",
+            "corporation",
+            "enterprise",
+            "business",
+            "manufacturer",
+            "industrial",
+            "defense contractor",
+            "contractor",
+            "technology theft",
+        ]
+    ):
+        return "private_sector"
+
+    if any(
+        term in text
+        for term in [
+            "electric company",
+            "power grid",
+            "power plant",
+            "pipeline",
+            "water utility",
+            "utility company",
+        ]
+    ):
+        return "critical_infrastructure"
+
+    if any(
+        term in text
+        for term in [
+            "muslims",
+            "activist",
+            "advocacy",
+            "civil society",
+            "human rights",
+            "nonprofit",
+            "non-profit",
+            "ngo",
+            "social movement",
+        ]
+    ):
+        return "individuals"
+
+    if any(
+        term in text
+        for term in [
+            "government website",
+            "government websites",
+            "state department",
+            "government agency",
+            "federal agency",
+            "ministry",
+            "embassy",
+            "parliament",
+            "senate",
+            "municipality",
+            "city government",
+            "government",
+        ]
+    ):
+        return "government"
+
+    if any(
+        term in text
+        for term in [
+            "website",
+            "websites",
+            "web site",
+            "web sites",
+            "web host",
+            "hosting provider",
+            "mobile app",
+            "smartphone",
+            "app store",
+            "platform",
+            "online service",
+            "internet users",
+            "cyber war",
+            "cyberwar",
+            "defacing web",
+        ]
+    ):
+        return "technology"
+
+    return None
+
+
+def _classify_target(
+    receiver_name,
+    receiver_category,
+    receiver_subcategory,
+    receiver_country,
+    title,
+    summary,
+):
+    name = _normalize_placeholder_name(receiver_name)
+    subcategory = _simplify_receiver_subcategory(receiver_subcategory)
+    category_family = _simplify_receiver_category(receiver_category)
+    country = _pick_first_meaningful_semicolon_value(receiver_country)
+
+    subcategory_target_map = {
+        "Healthcare organizations": "healthcare",
+        "Transportation organizations": "transportation",
+        "Financial institutions": "financial",
+        "Legislative bodies": "government",
+        "Government entities": "government",
+        "Civil administration": "government",
+        "Media organizations": "media",
+        "Civil society organizations": "civil_society",
+        "Advocacy organizations": "civil_society",
+        "Political parties": "political",
+        "Military organizations": "military",
+        "Defense industry organizations": "private_sector",
+        "Election systems": "political",
+        "Critical infrastructure organizations": "critical_infrastructure",
+        "Technology organizations": "technology",
+    }
+
+    category_target_map = {
+        "public_sector": "government",
+        "critical_infrastructure": "critical_infrastructure",
+        "private_sector": "private_sector",
+        "media": "media",
+        "civil_society": "civil_society",
+        "international": "international",
+        "individuals": "individuals",
+        "research": "research",
+        "healthcare": "healthcare",
+        "education": "education",
+    }
+
+    target_type = None
+    source = None
+    inferred = _infer_target_type_from_text(title, summary)
+
+    if subcategory:
+        mapped = subcategory_target_map.get(subcategory)
+        if mapped:
+            if mapped in {"civil_society", "government", "critical_infrastructure"} and inferred in {
+                "media",
+                "political",
+                "military",
+                "financial",
+                "transportation",
+                "private_sector",
+                "technology",
+                "individuals",
+            }:
+                target_type = inferred
+                source = "text_inference_override_subcategory"
+            else:
+                target_type = mapped
+                source = "receiver_subcategory"
+
+    if not target_type and category_family:
+        mapped = category_target_map.get(category_family)
+        if mapped:
+            if mapped in {"civil_society", "government", "critical_infrastructure"} and inferred in {
+                "media",
+                "political",
+                "military",
+                "financial",
+                "transportation",
+                "private_sector",
+                "technology",
+                "individuals",
+            }:
+                target_type = inferred
+                source = "text_inference_override_category"
+            else:
+                target_type = mapped
+                source = "receiver_category"
+
+    if not target_type and inferred:
+        target_type = inferred
+        source = "text_inference"
+
+    if not target_type:
+        target_type = "unknown"
+        source = "fallback"
+
+    return {
+        "receiver_name": name,
+        "receiver_subcategory": subcategory,
+        "receiver_category_family": category_family,
+        "country": country,
+        "target_type": target_type,
+        "source": source,
+    }
+
+
+def _build_victim_label_from_target(target):
+    name = target.get("receiver_name")
     if name:
         return name
 
-    subcategory = _simplify_receiver_subcategory(receiver_subcategory)
-    if subcategory:
-        country = _pick_first_meaningful_semicolon_value(receiver_country)
-        return f"{subcategory} ({country})" if country else subcategory
+    country = target.get("country")
+    target_type = target.get("target_type")
 
-    category_family = _simplify_receiver_category(receiver_category)
-    if category_family:
-        return _build_target_fallback_label(
-            category_family,
-            None,
-            _pick_first_meaningful_semicolon_value(receiver_country),
-        )
+    label_map = {
+        "government": "Government entities",
+        "political": "Political parties",
+        "military": "Military organizations",
+        "media": "Media organizations",
+        "financial": "Financial institutions",
+        "transportation": "Transportation organizations",
+        "healthcare": "Healthcare organizations",
+        "education": "Educational institutions",
+        "civil_society": "Civil society organizations",
+        "technology": "Technology organizations",
+        "critical_infrastructure": "Critical infrastructure organizations",
+        "private_sector": "Private sector organizations",
+        "research": "Research organizations",
+        "international": "International organizations",
+        "individuals": "Individual targets",
+        "unknown": "Unspecified target",
+    }
 
-    # LAST RESORT ONLY
-    return _build_target_fallback_label(
-        None,
-        None,
-        _pick_first_meaningful_semicolon_value(receiver_country),
+    base_label = label_map.get(target_type, "Unspecified target")
+    return f"{base_label} ({country})" if country else base_label
+
+
+def _map_industry_from_target(target):
+    target_type = target.get("target_type")
+
+    industry_map = {
+        "government": "Government",
+        "political": "Government",
+        "military": "Government",
+        "media": "Media",
+        "financial": "Financial Services",
+        "transportation": "Transportation",
+        "healthcare": "Healthcare",
+        "education": "Education",
+        "civil_society": "Other",
+        "technology": "Technology",
+        "critical_infrastructure": "Energy",
+        "private_sector": "Private Sector",
+        "research": "Education",
+        "international": "Other",
+        "individuals": "Other",
+        "unknown": "Other",
+    }
+
+    return industry_map.get(target_type, "Other")
+
+
+def _derive_victim_label(receiver_name, receiver_category, receiver_subcategory, receiver_country, title=None, summary=None):
+    target = _classify_target(
+        receiver_name,
+        receiver_category,
+        receiver_subcategory,
+        receiver_country,
+        title,
+        summary,
     )
+    return _build_victim_label_from_target(target)
 
 
 def _parse_region_list(value):
@@ -326,45 +732,16 @@ def _parse_region_list(value):
     return None
 
 
-def _map_industry(receiver_category, receiver_subcategory):
-    text = " ".join(
-        [
-            receiver_category or "",
-            receiver_subcategory or "",
-        ]
-    ).lower()
-
-    if any(term in text for term in ["public_sector"]):
-        return "Government"
-
-    if any(term in text for term in ["healthcare"]):
-        return "Healthcare"
-
-    if any(term in text for term in ["financial"]):
-        return "Financial Services"
-
-    if any(term in text for term in ["critical_infrastructure"]):
-        return "Energy"
-
-    if any(term in text for term in ["transportation"]):
-        return "Transportation"
-
-    if any(term in text for term in ["education"]):
-        return "Education"
-
-    if any(term in text for term in ["media"]):
-        return "Media"
-
-    if any(term in text for term in ["technology"]):
-        return "Technology"
-
-    if any(term in text for term in ["manufacturing"]):
-        return "Manufacturing"
-
-    if any(term in text for term in ["private_sector"]):
-        return "Private Sector"
-
-    return "Other"
+def _map_industry(receiver_name, receiver_category, receiver_subcategory, receiver_country, title=None, summary=None):
+    target = _classify_target(
+        receiver_name,
+        receiver_category,
+        receiver_subcategory,
+        receiver_country,
+        title,
+        summary,
+    )
+    return _map_industry_from_target(target)
 
 
 def _map_attack_and_impact(incident_type, has_disruption, data_theft, hijacking, title=None, description=None):
@@ -587,125 +964,6 @@ def _postprocess_mapped_event(event):
     summary = str(event.get("summary_short") or "").lower()
     combined = f"{title} {summary}"
 
-    country = event.get("country")
-
-    def with_country(label):
-        return f"{label} ({country})" if country else label
-
-    if (
-        "state television" in combined
-        or "state tv" in combined
-        or "television" in combined
-        or "broadcaster" in combined
-        or "newspaper" in combined
-        or "news outlet" in combined
-        or "news agency" in combined
-    ):
-        event["victim_org_name"] = with_country("Media organizations")
-        event["industry"] = "Media"
-
-    elif (
-        "swift" in combined
-        or "bank" in combined
-        or "payment system" in combined
-        or "financial institution" in combined
-    ):
-        event["victim_org_name"] = with_country("Financial institutions")
-        event["industry"] = "Financial Services"
-
-    elif (
-        "airline" in combined
-        or "airport" in combined
-        or "transport" in combined
-        or "rail" in combined
-        or "shipping" in combined
-    ):
-        event["victim_org_name"] = with_country("Transportation organizations")
-        event["industry"] = "Transportation"
-
-    elif (
-        "westinghouse" in combined
-        or "us steel" in combined
-        or "lockheed martin" in combined
-        or "defense contractor" in combined
-        or "electric company" in combined
-        or "industrial" in combined
-        or "manufacturing" in combined
-    ):
-        event["victim_org_name"] = with_country("Defense industry organizations")
-        event["industry"] = "Technology"
-
-    elif (
-        "military" in combined
-        or "naval" in combined
-        or "air force" in combined
-        or "defense ministry" in combined
-        or "war college" in combined
-        or "centrifuges" in combined
-        or "nuclear facility" in combined
-        or "niprnet" in combined
-    ):
-        event["victim_org_name"] = with_country("Military organizations")
-        event["industry"] = "Government"
-
-    elif (
-        "university" in combined
-        or "college" in combined
-        or "school" in combined
-    ):
-        event["victim_org_name"] = with_country("Educational institutions")
-        event["industry"] = "Education"
-
-    elif (
-        "hospital" in combined
-        or "medical center" in combined
-        or "healthcare" in combined
-    ):
-        event["victim_org_name"] = with_country("Healthcare organizations")
-        event["industry"] = "Healthcare"
-
-    elif (
-        "ministry" in combined
-        or "state department" in combined
-        or "government" in combined
-        or "embassy" in combined
-    ):
-        event["victim_org_name"] = with_country("Government entities")
-        event["industry"] = "Government"
-
-    elif (
-        "political party" in combined
-        or "political parties" in combined
-        or "campaign for president" in combined
-        or "election" in combined
-    ):
-        event["victim_org_name"] = with_country("Political parties")
-        event["industry"] = "Government"
-
-    elif (
-        "website" in combined
-        or "websites" in combined
-        or "web site" in combined
-        or "web sites" in combined
-        or "web host" in combined
-        or "internet users" in combined
-        or "mobile app" in combined
-        or "smartphone" in combined
-        or "cyber war" in combined
-        or "cyberwar" in combined
-        or "defacing web" in combined
-    ):
-        event["victim_org_name"] = with_country("Technology organizations")
-        event["industry"] = "Technology"
-
-    elif (
-        "activist" in combined
-        or "advocacy" in combined
-        or "civil society" in combined
-    ):
-        event["victim_org_name"] = with_country("Civil society organizations")
-        event["industry"] = "Other"
-
     disruption_signals = [
         "turned off internet access",
         "shut down",
@@ -727,12 +985,15 @@ def _postprocess_mapped_event(event):
 
 
 def map_eurepoc_row_to_cyber_event(row):
-    victim_org_name = _derive_victim_label(
+    target = _classify_target(
         row.get("receiver_name"),
         row.get("receiver_category"),
         row.get("receiver_subcategory"),
         row.get("receiver_country"),
+        row.get("name"),
+        row.get("description"),
     )
+    victim_org_name = _build_victim_label_from_target(target)
     victim_org_normalized = _normalize_org_name(victim_org_name)
 
     attack_type, impact_type = _map_attack_and_impact(
@@ -769,10 +1030,7 @@ def map_eurepoc_row_to_cyber_event(row):
         "event_occurred_at": _parse_eurepoc_date(row.get("start_date")),
         "victim_org_name": victim_org_name,
         "victim_org_normalized": victim_org_normalized,
-        "industry": _map_industry(
-            _simplify_receiver_category(row.get("receiver_category")),
-            _simplify_receiver_subcategory(row.get("receiver_subcategory")),
-        ),
+        "industry": _map_industry_from_target(target),
         "attack_type": attack_type,
         "access_vector": None,
         "impact_type": impact_type,
