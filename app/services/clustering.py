@@ -2,6 +2,51 @@ from app.extensions import db
 from app.models import RawArticle, ArticleExtraction, CyberEvent, EventSourceLink
 
 
+def _is_primary_source_article(article):
+    """
+    Lightweight evidence-role classification.
+
+    Primary source means the article appears to contain direct disclosure
+    or first-hand reporting from the victim, regulator, or official body.
+    """
+    if not article:
+        return False
+
+    text = " ".join(
+        [
+            (article.title or "").strip(),
+            (article.summary or "").strip(),
+            (article.content or "").strip(),
+        ]
+    ).lower()
+
+    primary_signals = [
+        "the company said",
+        "the company announced",
+        "the organization said",
+        "the victim said",
+        "according to the company",
+        "according to the organization",
+        "the regulator said",
+        "the sec said",
+        "the sec filing",
+        "in a filing",
+        "in a statement",
+        "in a statement shared",
+        "official statement",
+        "official disclosure",
+        "company statement",
+        "company disclosed",
+        "the hospital said",
+        "the vendor said",
+        "the provider said",
+        "confirmed in a statement",
+        "announced that hackers breached its systems",
+    ]
+
+    return any(signal in text for signal in primary_signals)
+
+
 def get_ready_for_clustering():
     """
     Fetch articles ready for clustering.
@@ -18,28 +63,37 @@ def get_extraction(article):
 
 def find_candidate_events(extraction):
     """
-    Find candidate events using victim organization as the primary key,
-    with a narrow actor-based fallback only when victim extraction is missing.
+    Find candidate events using normalized victim organization as the primary key,
+    then raw victim name, then a narrow actor fallback.
+
+    This now supports matching live detections onto historical records so they
+    can evolve into hybrid canonical events.
     """
     if not extraction:
         return []
 
+    candidates = []
+
     if extraction.victim_org_normalized:
-        return CyberEvent.query.filter_by(
+        candidates = CyberEvent.query.filter_by(
             victim_org_normalized=extraction.victim_org_normalized
         ).all()
+        if candidates:
+            return candidates
 
     if extraction.victim_org_name:
-        return CyberEvent.query.filter_by(
+        candidates = CyberEvent.query.filter_by(
             victim_org_name=extraction.victim_org_name
         ).all()
+        if candidates:
+            return candidates
 
     if extraction.actor_name:
-        actor_candidates = CyberEvent.query.filter_by(
+        candidates = CyberEvent.query.filter_by(
             actor_name=extraction.actor_name
         ).all()
-        if actor_candidates:
-            return actor_candidates
+        if candidates:
+            return candidates
 
     return []
 
@@ -64,6 +118,9 @@ def attach_to_event(article, event):
     """
     Link article to event if not already linked, mark article as clustered,
     and keep source_count aligned with actual links.
+
+    If a live article attaches to a historical event, promote the record origin
+    to hybrid.
     """
     existing_link = EventSourceLink.query.filter_by(
         cyber_event_id=event.id,
@@ -75,7 +132,7 @@ def attach_to_event(article, event):
             cyber_event_id=event.id,
             raw_article_id=article.id,
             match_score=1.0,
-            is_primary_source=False,
+            is_primary_source=_is_primary_source_article(article),
         )
         db.session.add(link)
 
@@ -85,6 +142,17 @@ def attach_to_event(article, event):
     event.source_count = EventSourceLink.query.filter_by(
         cyber_event_id=event.id
     ).count()
+
+    seen_at = article.published_at or article.created_at
+
+    if event.first_seen_at is None:
+        event.first_seen_at = seen_at
+
+    if seen_at and (event.last_seen_at is None or seen_at > event.last_seen_at):
+        event.last_seen_at = seen_at
+
+    if event.record_origin == "historical_dataset":
+        event.record_origin = "hybrid"
 
     db.session.commit()
     return existing_link if existing_link else link
@@ -100,6 +168,8 @@ def create_event(article, extraction):
     existing_event = CyberEvent.query.filter_by(slug=slug).first()
     if existing_event:
         return existing_event
+
+    seen_at = article.published_at or article.created_at
 
     event = CyberEvent(
         canonical_title=article.title or "Untitled Event",
@@ -122,7 +192,9 @@ def create_event(article, extraction):
         country=extraction.country if extraction else None,
         city=extraction.city if extraction else None,
         summary_short=extraction.short_event_summary if extraction else None,
-        source_count=0,  # important: start at 0, not 1
+        source_count=0,
+        first_seen_at=seen_at,
+        last_seen_at=seen_at,
     )
 
     db.session.add(event)
@@ -132,7 +204,7 @@ def create_event(article, extraction):
         cyber_event_id=event.id,
         raw_article_id=article.id,
         match_score=1.0,
-        is_primary_source=True,
+        is_primary_source=_is_primary_source_article(article),
     )
     db.session.add(link)
 

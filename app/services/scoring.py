@@ -121,9 +121,13 @@ def derive_verification_level(event, confidence_level):
     Product-facing verification level.
 
     This is related to confidence, but leans more heavily on corroboration.
+    Historical curated records retain high verification by default.
     """
     source_count = event.source_count or 0
     high_cred_count = event.high_credibility_source_count or 0
+
+    if event.record_origin == "historical_dataset":
+        return "high"
 
     if confidence_level == "high" and (source_count >= 2 or high_cred_count >= 1):
         return "high"
@@ -167,17 +171,33 @@ def derive_is_high_impact(event):
 
 def derive_event_status(event, confidence_level, verification_level):
     """
-    Initial lifecycle mapping for live-detected events.
+    Lifecycle mapping for live-detected events.
 
-    This is intentionally simple for now:
-    - candidate: single-source or low-confidence early signal
-    - active: multiple sources or medium verification
-    - confirmed: high verification / highly corroborated
+    Status intent:
+    - historical: curated historical dataset record
+    - candidate: early or weakly resolved signal
+    - active: developing event with some corroboration or medium confidence
+    - enriched: structurally well-defined event, but not fully confirmed
+    - confirmed: highly corroborated / trusted event
     """
     source_count = event.source_count or 0
+    high_cred_count = event.high_credibility_source_count or 0
 
-    if verification_level == "high":
+    if event.record_origin == "historical_dataset":
+        return "historical"
+
+    if verification_level == "high" and (source_count >= 2 or high_cred_count >= 1):
         return "confirmed"
+
+    if (
+        event.victim_org_name
+        and event.impact_type
+        and event.attack_type
+        and event.attack_type != "Unknown"
+        and confidence_level in ["medium", "high"]
+        and verification_level in ["medium", "high"]
+    ):
+        return "enriched"
 
     if source_count >= 2 or verification_level == "medium" or confidence_level == "medium":
         return "active"

@@ -1,6 +1,5 @@
 import re
 import json
-import re
 from pathlib import Path
 from collections import Counter
 from datetime import datetime, UTC
@@ -47,6 +46,124 @@ def _most_common_non_empty(values):
         return None
 
     return Counter(cleaned).most_common(1)[0][0]
+
+def _build_event_summary(linked_articles, extractions):
+    """
+    Build a cleaner canonical short summary for the event.
+
+    Priority:
+    1. Best extraction short summary
+    2. Primary article summary
+    3. Primary article title
+    """
+    candidates = []
+
+    for extraction in extractions:
+        summary = (extraction.short_event_summary or "").strip()
+        if not summary:
+            continue
+
+        summary = re.sub(r"\s*\[\.\.\.\]\s*$", "", summary).strip()
+        summary = re.sub(r"\s+", " ", summary).strip()
+
+        if len(summary) < 40:
+            continue
+
+        candidates.append(summary)
+
+    if candidates:
+        candidates = sorted(
+            candidates,
+            key=lambda s: (
+                "unknown" in s.lower(),
+                len(s) > 280,
+                abs(len(s) - 180),
+            ),
+        )
+        return candidates[0]
+
+    for article in linked_articles:
+        if not article:
+            continue
+
+        summary = (article.summary or "").strip()
+        if summary:
+            summary = re.sub(r"\s+", " ", summary).strip()
+            return summary
+
+    primary_article = linked_articles[0] if linked_articles else None
+    if primary_article and primary_article.title:
+        return primary_article.title.strip()
+
+    return None
+
+def _derive_seen_dates(linked_articles):
+    """
+    Derive first_seen_at and last_seen_at from linked article timestamps.
+    """
+    timestamps = [
+        article.published_at or article.created_at
+        for article in linked_articles
+        if article and (article.published_at or article.created_at)
+    ]
+
+    if not timestamps:
+        return {"first_seen_at": None, "last_seen_at": None}
+
+    return {
+        "first_seen_at": min(timestamps),
+        "last_seen_at": max(timestamps),
+    }
+
+def _is_primary_source_article(article):
+    """
+    Lightweight evidence-role classification.
+
+    Primary source means the article appears to contain direct disclosure
+    or first-hand reporting from the victim, regulator, or official body.
+    """
+    if not article:
+        return False
+
+    text = " ".join(
+        [
+            (article.title or "").strip(),
+            (article.summary or "").strip(),
+            (article.content or "").strip(),
+        ]
+    ).lower()
+
+    primary_signals = [
+        "the company said",
+        "the company announced",
+        "the organization said",
+        "according to the company",
+        "according to the organization",
+        "the regulator said",
+        "the sec said",
+        "the sec filing",
+        "in a filing",
+        "in a statement",
+        "official statement",
+        "official disclosure",
+        "company statement",
+        "company disclosed",
+        "announced that hackers breached its systems",
+    ]
+
+    return any(signal in text for signal in primary_signals)
+
+def refresh_event_source_roles(event_id):
+    """
+    Re-evaluate evidence roles for all links attached to an event.
+    """
+    links = EventSourceLink.query.filter_by(cyber_event_id=event_id).all()
+
+    for link in links:
+        article = RawArticle.query.get(link.raw_article_id)
+        link.is_primary_source = _is_primary_source_article(article)
+
+    db.session.flush()
 
 def _infer_geography_from_articles(linked_articles):
     """
@@ -433,9 +550,8 @@ def aggregate_event_data(linked_articles, extractions, source_count):
     country = _most_common_non_empty(
         [extraction.country for extraction in extractions]
     )
-    summary_short = _most_common_non_empty(
-        [extraction.short_event_summary for extraction in extractions]
-    )
+    summary_short = _build_event_summary(linked_articles, extractions)
+    seen_dates = _derive_seen_dates(linked_articles)
 
     if not country and not region and victim_org_name:
         org_geo = _resolve_org_home_geography(victim_org_name)
@@ -489,6 +605,8 @@ def aggregate_event_data(linked_articles, extractions, source_count):
         "longitude": longitude,
         "summary_short": summary_short,
         "source_count": source_count,
+        "first_seen_at": seen_dates["first_seen_at"],
+        "last_seen_at": seen_dates["last_seen_at"],
         "last_enriched_at": datetime.now(UTC),
     }
 
@@ -528,10 +646,13 @@ def update_event(event_id, event_data):
     event.longitude = event_data.get("longitude", event.longitude)
     event.summary_short = event_data.get("summary_short", event.summary_short)
     event.source_count = event_data.get("source_count", event.source_count)
+    event.first_seen_at = event_data.get("first_seen_at", event.first_seen_at)
+    event.last_seen_at = event_data.get("last_seen_at", event.last_seen_at)
     event.last_enriched_at = event_data.get(
         "last_enriched_at",
         event.last_enriched_at,
     )
 
+    refresh_event_source_roles(event_id)
     db.session.commit()
     return event

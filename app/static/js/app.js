@@ -1,5 +1,15 @@
 const FILTER_STORAGE_KEY = "cyber_signal_filters";
 
+function formatLabel(value) {
+    if (!value) return "—";
+
+    return value
+        .toString()
+        .split("_")
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+}
+
 function getDefaultFilters() {
     return {
         industry: "",
@@ -122,15 +132,35 @@ async function loadSummary() {
         const data = await response.json();
 
         const totalEl = document.getElementById("total-events");
-        const industryEl = document.getElementById("top-industry");
-        const attackEl = document.getElementById("top-attack-type");
+        const confirmedEl = document.getElementById("confirmed-events");
+        const historicalEl = document.getElementById("historical-events");
         const impactEl = document.getElementById("high-impact-events");
 
-        totalEl.textContent = data.total_events ?? "--";
-        industryEl.textContent = data.top_industry ?? "—";
-        attackEl.textContent = data.top_attack_type ?? "—";
-        impactEl.textContent =
-            data.high_impact_events !== undefined ? data.high_impact_events : "—";
+        const industryEl = document.getElementById("top-industry");
+        const attackEl = document.getElementById("top-attack-type");
+        const regionEl = document.getElementById("top-region");
+        const verificationEl = document.getElementById("top-verification-level");
+
+        if (totalEl) totalEl.textContent = data.total_events ?? "--";
+        if (confirmedEl) {
+            confirmedEl.textContent =
+                data.confirmed_events !== undefined ? data.confirmed_events : "--";
+        }
+        if (historicalEl) {
+            historicalEl.textContent =
+                data.historical_events !== undefined ? data.historical_events : "--";
+        }
+        if (impactEl) {
+            impactEl.textContent =
+                data.high_impact_events !== undefined ? data.high_impact_events : "--";
+        }
+
+        if (industryEl) industryEl.textContent = data.top_industry ?? "—";
+        if (attackEl) attackEl.textContent = data.top_attack_type ?? "—";
+        if (regionEl) regionEl.textContent = data.top_region ?? "—";
+        if (verificationEl) {
+            verificationEl.textContent = formatLabel(data.top_verification_level);
+        }
     } catch (err) {
         console.error("Failed to load summary:", err);
     }
@@ -158,6 +188,17 @@ async function loadEvents() {
             const el = document.createElement("article");
             el.className = "event-card";
 
+            const timelineLabel =
+                event.record_origin === "historical_dataset"
+                    ? `Occurred ${event.event_occurred_at
+                          ? new Date(event.event_occurred_at).toLocaleDateString()
+                          : "Unknown"}`
+                    : `Last seen ${event.last_seen_at
+                          ? new Date(event.last_seen_at).toLocaleDateString()
+                          : "Unknown"}`;
+
+            const detailLine = `Status: ${formatLabel(event.event_status)} • Verification: ${formatLabel(event.verification_level)} • Origin: ${formatLabel(event.record_origin)} • Sources: ${event.source_count ?? 0}`;
+
             el.innerHTML = `
                 <h3>${event.canonical_title || "Untitled Event"}</h3>
 
@@ -166,17 +207,13 @@ async function loadEvents() {
                 </p>
 
                 <div class="event-meta">
-                    <span class="meta-pill">${event.industry || "Unknown industry"}</span>
+                    <span class="meta-pill">${event.victim_org_name || "Unknown organization"}</span>
                     <span class="meta-pill">${event.country || event.region || "Unknown geography"}</span>
                     <span class="meta-pill">${event.attack_type || "Unknown attack type"}</span>
-                    <span class="meta-pill">${event.victim_org_name || "Unknown organization"}</span>
                 </div>
 
-                <div class="event-submeta">
-                    <span class="meta-pill">Confidence: ${event.confidence_level || "unknown"}</span>
-                    <span class="meta-pill">Sources: ${event.source_count ?? 0}</span>
-                    <span class="meta-pill">Recency: ${event.recency_bucket || "unknown"}</span>
-                </div>
+                <div class="event-detail-line">${detailLine}</div>
+                <div class="event-timeline">${timelineLabel}</div>
             `;
 
             container.appendChild(el);

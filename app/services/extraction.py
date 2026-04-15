@@ -142,6 +142,23 @@ def _clean_org_name(value):
 
     return cleaned or None
 
+def _normalize_org_name(value):
+    if not value:
+        return None
+
+    normalized = value.strip().lower()
+    normalized = normalized.replace("&", " and ")
+    normalized = re.sub(r"'s\b", "", normalized)
+    normalized = re.sub(r"[^a-z0-9\s]", " ", normalized)
+    normalized = re.sub(
+        r"\b(inc|llc|ltd|corp|corporation|company|co|group|plc|sa|ag|gmbh|nv|bv)\b",
+        "",
+        normalized,
+    )
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
+    return normalized or None
+
 def _extract_victim_org_name(article):
     title = (article.title or "").strip()
     summary = (article.summary or "").strip()
@@ -745,7 +762,7 @@ def run_rule_extraction(article):
     victim_org_name = _extract_victim_org_name(article)
     if victim_org_name is None and _has_exploitation_signal(text):
         victim_org_name = _extract_exploitation_subject(article)
-    victim_org_normalized = victim_org_name.lower() if victim_org_name else None
+    victim_org_normalized = _normalize_org_name(victim_org_name)
     industry = _extract_industry(text)
     geography = _extract_geography(text)
     actor = _extract_actor(original_text)

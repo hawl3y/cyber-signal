@@ -16,6 +16,7 @@ from app.blueprints.clustering import clustering_bp
 from app.blueprints.enrichment import enrichment_bp
 from app.blueprints.scoring import scoring_bp
 from app.blueprints.automation import automation_bp
+from app.blueprints.historical_ingestion import historical_ingestion_bp
 
 def create_app():
     app = Flask(__name__)
@@ -36,7 +37,8 @@ def create_app():
     app.register_blueprint(enrichment_bp)
     app.register_blueprint(scoring_bp)
     app.register_blueprint(automation_bp)
-
+    app.register_blueprint(historical_ingestion_bp)
+    
     @app.route("/")
     def home():
         return render_template("index.html")

@@ -2,6 +2,7 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
+from app.models import EventSourceLink
 from app.services.summary import get_filtered_events
 
 events_bp = Blueprint("events", __name__, url_prefix="/api/events")
@@ -69,11 +70,23 @@ def list_events():
                     if ref and (datetime.utcnow() - ref).days <= 7
                     else "older"
                 )
-            )(event.last_seen_at or event.updated_at or event.created_at),
+            )(
+                event.event_occurred_at
+                if event.record_origin == "historical_dataset" and event.event_occurred_at
+                else event.last_seen_at or event.updated_at or event.created_at
+            ),
             "summary_short": event.summary_short,
             "confidence_score": event.confidence_score,
             "confidence_level": event.confidence_level,
             "source_count": event.source_count,
+            "primary_source_count": EventSourceLink.query.filter_by(
+                cyber_event_id=event.id,
+                is_primary_source=True,
+            ).count(),
+            "secondary_source_count": EventSourceLink.query.filter_by(
+                cyber_event_id=event.id,
+                is_primary_source=False,
+            ).count(),
             "first_seen_at": event.first_seen_at,
             "last_seen_at": event.last_seen_at,
             "event_occurred_at": event.event_occurred_at,

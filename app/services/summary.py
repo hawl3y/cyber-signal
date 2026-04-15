@@ -45,7 +45,17 @@ def get_filtered_events(
             cutoff = None
 
         if cutoff is not None:
-            query = query.filter(CyberEvent.created_at >= cutoff)
+            events = query.all()
+
+            def event_time(event):
+                if event.record_origin in ["historical_dataset", "hybrid"] and event.event_occurred_at:
+                    return event.event_occurred_at
+                return event.last_seen_at or event.first_seen_at or event.updated_at or event.created_at
+
+            return [
+                event for event in events
+                if event_time(event) and event_time(event) >= cutoff
+            ]
 
     return query.all()
 
@@ -81,6 +91,7 @@ def build_summary(
     regions = [e.region for e in events if e.region]
     statuses = [e.event_status for e in events if e.event_status]
     verification_levels = [e.verification_level for e in events if e.verification_level]
+    origins = [e.record_origin for e in events if e.record_origin]
 
     top_industry = _most_common_non_empty(industries)
     top_attack_type = _most_common_non_empty(attack_types)
@@ -88,6 +99,7 @@ def build_summary(
     top_region = _most_common_non_empty(regions)
     top_event_status = _most_common_non_empty(statuses)
     top_verification_level = _most_common_non_empty(verification_levels)
+    top_record_origin = _most_common_non_empty(origins)
 
     high_impact_events = len(
         [
@@ -100,6 +112,27 @@ def build_summary(
         [
             e for e in events
             if e.event_status == "confirmed"
+        ]
+    )
+
+    enriched_events = len(
+        [
+            e for e in events
+            if e.event_status == "enriched"
+        ]
+    )
+
+    historical_events = len(
+        [
+            e for e in events
+            if e.record_origin == "historical_dataset"
+        ]
+    )
+
+    hybrid_events = len(
+        [
+            e for e in events
+            if e.record_origin == "hybrid"
         ]
     )
 
@@ -119,8 +152,12 @@ def build_summary(
         "top_region": top_region,
         "top_event_status": top_event_status,
         "top_verification_level": top_verification_level,
+        "top_record_origin": top_record_origin,
         "high_impact_events": high_impact_events,
         "confirmed_events": confirmed_events,
+        "enriched_events": enriched_events,
+        "historical_events": historical_events,
+        "hybrid_events": hybrid_events,
     }
 
 

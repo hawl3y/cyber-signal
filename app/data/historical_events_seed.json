@@ -1,0 +1,16 @@
+[
+  {
+    "canonical_title": "Historical ransomware attack on Example Corp",
+    "victim_org_name": "Example Corp",
+    "victim_org_normalized": "example corp",
+    "industry": "Manufacturing",
+    "attack_type": "Ransomware",
+    "impact_type": "Operational Disruption",
+    "country": "United States",
+    "region": "North America",
+    "geography_type": "country",
+    "summary_short": "Example Corp suffered a historically documented ransomware attack that disrupted operations.",
+    "event_occurred_at": "2019-06-01T00:00:00",
+    "is_high_impact": true
+  }
+]
