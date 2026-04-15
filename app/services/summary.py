@@ -3,6 +3,21 @@ from datetime import datetime, timedelta, UTC
 
 from app.models import CyberEvent
 
+def get_event_reference_time(event):
+    """
+    Return the best-known event date for filtering and sorting.
+
+    Priority:
+    1. event_occurred_at for historical and hybrid records
+    2. last_seen_at
+    3. first_seen_at
+    4. updated_at
+    5. created_at
+    """
+    if event.record_origin in ["historical_dataset", "hybrid"] and event.event_occurred_at:
+        return event.event_occurred_at
+
+    return event.last_seen_at or event.first_seen_at or event.updated_at or event.created_at
 
 def get_filtered_events(
     industry=None,
@@ -10,6 +25,8 @@ def get_filtered_events(
     region=None,
     attack_type=None,
     time_range=None,
+    start_date=None,
+    end_date=None,
     record_origin=None,
 ):
     """
@@ -32,8 +49,36 @@ def get_filtered_events(
     if record_origin:
         query = query.filter(CyberEvent.record_origin == record_origin)
 
+    if start_date or end_date:
+        events = query.all()
+
+        parsed_start = None
+        parsed_end = None
+
+        if start_date:
+            parsed_start = datetime.fromisoformat(start_date)
+
+        if end_date:
+            parsed_end = datetime.fromisoformat(end_date) + timedelta(days=1)
+
+        filtered = []
+        for event in events:
+            reference_time = get_event_reference_time(event)
+            if not reference_time:
+                continue
+
+            if parsed_start and reference_time < parsed_start:
+                continue
+
+            if parsed_end and reference_time >= parsed_end:
+                continue
+
+            filtered.append(event)
+
+        return filtered
+
     if time_range:
-        now = datetime.now(UTC)
+        now = datetime.utcnow()
 
         if time_range == "24h":
             cutoff = now - timedelta(hours=24)
@@ -51,14 +96,9 @@ def get_filtered_events(
         if cutoff is not None:
             events = query.all()
 
-            def event_time(event):
-                if event.record_origin in ["historical_dataset", "hybrid"] and event.event_occurred_at:
-                    return event.event_occurred_at
-                return event.last_seen_at or event.first_seen_at or event.updated_at or event.created_at
-
             return [
                 event for event in events
-                if event_time(event) and event_time(event) >= cutoff
+                if get_event_reference_time(event) and get_event_reference_time(event) >= cutoff
             ]
 
     return query.all()
@@ -78,6 +118,8 @@ def build_summary(
     region=None,
     attack_type=None,
     time_range=None,
+    start_date=None,
+    end_date=None,
 ):
     events = get_filtered_events(
         industry=industry,
@@ -85,6 +127,8 @@ def build_summary(
         region=region,
         attack_type=attack_type,
         time_range=time_range,
+        start_date=start_date,
+        end_date=end_date,
     )
 
     total_events = len(events)
@@ -172,6 +216,8 @@ def build_map(
     region=None,
     attack_type=None,
     time_range=None,
+    start_date=None,
+    end_date=None,
 ):
     events = get_filtered_events(
         industry=industry,
@@ -179,6 +225,8 @@ def build_map(
         region=region,
         attack_type=attack_type,
         time_range=time_range,
+        start_date=start_date,
+        end_date=end_date,
     )
 
     return [

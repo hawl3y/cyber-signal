@@ -1,6 +1,12 @@
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction, CyberEvent, EventSourceLink
-from app.services.enrichment import _infer_victim_entity_type_and_display_label
+from app.services.enrichment import (
+    _infer_victim_entity_type_and_display_label,
+    _resolve_org_home_geography,
+    _infer_org_geography_from_articles,
+    _infer_geography_from_articles,
+    _coordinates_for_location,
+)
 
 
 def _is_primary_source_article(article):
@@ -175,11 +181,46 @@ def create_event(article, extraction):
     victim_org_name = extraction.victim_org_name if extraction else None
     industry = extraction.industry if extraction else None
     country = extraction.country if extraction else None
+    region = extraction.region if extraction else None
+    city = extraction.city if extraction else None
 
     victim_entity_type, victim_display_label = _infer_victim_entity_type_and_display_label(
         victim_org_name,
         industry,
         country,
+    )
+
+    linked_articles = [article] if article else []
+
+    if not country and not region and victim_org_name:
+        org_geo = _resolve_org_home_geography(victim_org_name)
+        country = org_geo["country"]
+        region = org_geo["region"]
+
+    if not country and not region and victim_org_name:
+        org_fallback_geo = _infer_org_geography_from_articles(
+            linked_articles,
+            victim_org_name,
+        )
+        country = org_fallback_geo["country"]
+        region = org_fallback_geo["region"]
+
+    if not country and not region:
+        fallback_geo = _infer_geography_from_articles(linked_articles)
+        country = fallback_geo["country"]
+        region = fallback_geo["region"]
+
+    if country:
+        geography_type = "country"
+    elif region:
+        geography_type = "region"
+    else:
+        geography_type = None
+
+    latitude, longitude = _coordinates_for_location(
+        city=city,
+        country=country,
+        region=region,
     )
 
     event = CyberEvent(
@@ -201,9 +242,12 @@ def create_event(article, extraction):
         ),
         vuln_status=extraction.vuln_status if extraction else None,
         zero_day_flag=extraction.zero_day_flag if extraction else False,
-        region=extraction.region if extraction else None,
+        region=region,
         country=country,
-        city=extraction.city if extraction else None,
+        city=city,
+        geography_type=geography_type,
+        latitude=latitude,
+        longitude=longitude,
         summary_short=extraction.short_event_summary if extraction else None,
         source_count=0,
         first_seen_at=seen_at,

@@ -30,6 +30,8 @@ def get_filters():
     region = request.args.get("region")
     attack_type = request.args.get("attack_type")
     time_range = request.args.get("time_range")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
 
     events = get_filtered_events(
         industry=industry,
@@ -37,6 +39,8 @@ def get_filters():
         region=region,
         attack_type=attack_type,
         time_range=time_range,
+        start_date=start_date,
+        end_date=end_date,
     )
 
     industries = _clean_filter_values(e.industry for e in events)

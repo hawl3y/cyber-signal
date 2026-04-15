@@ -1,4 +1,9 @@
 const FILTER_STORAGE_KEY = "cyber_signal_filters";
+const EVENTS_PAGE_SIZE = 25;
+const WORLD_GEOJSON_URL = "/static/data/world-countries.geo.json";
+let currentPage = 1;
+let lastLoadedEventCount = 0;
+let worldGeoJsonPromise = null;
 
 function formatLabel(value) {
     if (!value) return "—";
@@ -16,7 +21,8 @@ function getDefaultFilters() {
         region: "",
         country: "",
         attack_type: "",
-        time_range: "",
+        start_date: "",
+        end_date: "",
     };
 }
 
@@ -26,7 +32,8 @@ function getCurrentFilters() {
         region: document.getElementById("filter-region")?.value || "",
         country: document.getElementById("filter-country")?.value || "",
         attack_type: document.getElementById("filter-attack-type")?.value || "",
-        time_range: document.getElementById("filter-time-range")?.value || "",
+        start_date: document.getElementById("filter-start-date")?.value || "",
+        end_date: document.getElementById("filter-end-date")?.value || "",
     };
 }
 
@@ -63,13 +70,15 @@ function applyFiltersToControls(filters) {
     const regionEl = document.getElementById("filter-region");
     const countryEl = document.getElementById("filter-country");
     const attackTypeEl = document.getElementById("filter-attack-type");
-    const timeRangeEl = document.getElementById("filter-time-range");
+    const startDateEl = document.getElementById("filter-start-date");
+    const endDateEl = document.getElementById("filter-end-date");
 
     if (industryEl) industryEl.value = filters.industry || "";
     if (regionEl) regionEl.value = filters.region || "";
     if (countryEl) countryEl.value = filters.country || "";
     if (attackTypeEl) attackTypeEl.value = filters.attack_type || "";
-    if (timeRangeEl) timeRangeEl.value = filters.time_range || "";
+    if (startDateEl) startDateEl.value = filters.start_date || "";
+    if (endDateEl) endDateEl.value = filters.end_date || "";
 }
 
 function buildQueryString(filters) {
@@ -83,6 +92,30 @@ function buildQueryString(filters) {
 
     const query = params.toString();
     return query ? `?${query}` : "";
+}
+
+function buildEventsQuery(filters, page = 1) {
+    return buildQueryString({
+        ...filters,
+        limit: EVENTS_PAGE_SIZE,
+        offset: Math.max(0, (page - 1) * EVENTS_PAGE_SIZE),
+    });
+}
+
+async function loadWorldGeoJson() {
+    if (worldGeoJsonPromise) {
+        return worldGeoJsonPromise;
+    }
+
+    worldGeoJsonPromise = fetch(WORLD_GEOJSON_URL)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Failed to load world GeoJSON.");
+            }
+            return response.json();
+        });
+
+    return worldGeoJsonPromise;
 }
 
 function populateSelect(selectId, values) {
@@ -168,19 +201,33 @@ async function loadSummary() {
 
 async function loadEvents() {
     try {
-        const query = buildQueryString({
-            ...getCurrentFilters(),
-            limit: 20,
-        });
+        const query = buildEventsQuery(getCurrentFilters(), currentPage);
 
         const response = await fetch(`/api/events/${query}`);
         const events = await response.json();
 
+        lastLoadedEventCount = events.length;
+
         const container = document.getElementById("event-feed");
+        const countEl = document.getElementById("feed-count");
+
         container.innerHTML = "";
 
+        if (countEl) {
+            const start = lastLoadedEventCount ? ((currentPage - 1) * EVENTS_PAGE_SIZE) + 1 : 0;
+            const end = ((currentPage - 1) * EVENTS_PAGE_SIZE) + lastLoadedEventCount;
+            countEl.textContent = lastLoadedEventCount ? `Showing ${start}–${end}` : "No results";
+        }
+
         if (!events.length) {
+            if (currentPage > 1) {
+                currentPage -= 1;
+                await loadEvents();
+                return;
+            }
+
             container.innerHTML = "<p class='placeholder-list'>No events found.</p>";
+            updatePaginationControls();
             return;
         }
 
@@ -197,8 +244,8 @@ async function loadEvents() {
                           ? new Date(event.last_seen_at).toLocaleDateString()
                           : "Unknown"}`;
 
-            const detailLine = `Status: ${formatLabel(event.event_status)} • Verification: ${formatLabel(event.verification_level)} • Origin: ${formatLabel(event.record_origin)} • Sources: ${event.source_count ?? 0}`;
-
+            const detailLine = `Status: ${formatLabel(event.event_status)} • Verification: ${formatLabel(event.verification_level)} • Origin: ${formatLabel(event.record_origin)}`;
+            
             el.innerHTML = `
                 <h3>${event.canonical_title || "Untitled Event"}</h3>
 
@@ -218,69 +265,102 @@ async function loadEvents() {
 
             container.appendChild(el);
         });
+
+        updatePaginationControls();
     } catch (err) {
         console.error("Failed to load events:", err);
     }
 }
 
+function updatePaginationControls() {
+    const prevButton = document.getElementById("pagination-prev");
+    const nextButton = document.getElementById("pagination-next");
+    const statusEl = document.getElementById("pagination-status");
+
+    if (prevButton) {
+        prevButton.disabled = currentPage <= 1;
+    }
+
+    if (nextButton) {
+        nextButton.disabled = lastLoadedEventCount < EVENTS_PAGE_SIZE;
+    }
+
+    if (statusEl) {
+        statusEl.textContent = `Page ${currentPage}`;
+    }
+}
+
 let map;
-let markersLayer;
+let choroplethLayer;
 
-function getConfidenceMarkerStyle(confidenceLevel) {
-    const level = (confidenceLevel || "").toLowerCase();
-
-    if (level === "high") {
-        return {
-            radius: 9,
-            color: "#ffffff",
-            weight: 2,
-            fillColor: "#b91c1c",
-            fillOpacity: 0.9,
-        };
+function normalizeCountryName(value) {
+    if (!value) {
+        return "";
     }
 
-    if (level === "medium") {
-        return {
-            radius: 8,
-            color: "#ffffff",
-            weight: 2,
-            fillColor: "#f59e0b",
-            fillOpacity: 0.9,
-        };
-    }
+    const normalized = value.toString().trim().toLowerCase();
 
-    return {
-        radius: 7,
-        color: "#ffffff",
-        weight: 2,
-        fillColor: "#2563eb",
-        fillOpacity: 0.8,
+    const aliases = {
+        "united states of america": "united states",
+        "usa": "united states",
+        "us": "united states",
+        "u.s.": "united states",
+        "u.s.a.": "united states",
+        "uk": "united kingdom",
+        "russian federation": "russia",
+        "korea, republic of": "south korea",
+        "republic of korea": "south korea",
+        "korea south": "south korea",
+        "viet nam": "vietnam",
+        "czechia": "czech republic",
     };
+
+    return aliases[normalized] || normalized;
 }
 
-function getCoordinateKey(lat, lng) {
-    return `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`;
+function getCountryEventCounts(points) {
+    const counts = new Map();
+
+    points.forEach(point => {
+        const key = normalizeCountryName(point.country);
+        if (!key) {
+            return;
+        }
+
+        counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return counts;
 }
 
-function getJitteredLatLng(lat, lng, occurrenceIndex) {
-    if (!occurrenceIndex) {
-        return [lat, lng];
-    }
+function getCountryFillColor(count) {
+    if (count >= 10) return "#1e3a8a";
+    if (count >= 5) return "#1d4ed8";
+    if (count >= 3) return "#2563eb";
+    if (count >= 1) return "#60a5fa";
+    return "#f1f5f9";
+}
 
-    const angle = occurrenceIndex * 0.9;
-    const distance = 0.18 * Math.ceil(occurrenceIndex / 2);
-
-    const latOffset = Math.sin(angle) * distance;
-    const lngOffset = Math.cos(angle) * distance;
-
-    return [lat + latOffset, lng + lngOffset];
+function getFeatureCountryName(feature) {
+    return (
+        feature?.properties?.name ||
+        feature?.properties?.NAME ||
+        feature?.properties?.admin ||
+        feature?.properties?.ADMIN ||
+        ""
+    );
 }
 
 async function loadMapPoints() {
     try {
         const query = buildQueryString(getCurrentFilters());
-        const response = await fetch(`/api/summary/map${query}`);
-        const points = await response.json();
+        const [pointsResponse, worldGeoJson] = await Promise.all([
+            fetch(`/api/summary/map${query}`),
+            loadWorldGeoJson(),
+        ]);
+
+        const points = await pointsResponse.json();
+        const countryCounts = getCountryEventCounts(points);
 
         if (!map) {
             map = L.map("map", {
@@ -293,60 +373,68 @@ async function loadMapPoints() {
                 subdomains: "abcd",
                 maxZoom: 19,
             }).addTo(map);
-
-            markersLayer = L.layerGroup().addTo(map);
         }
 
-        markersLayer.clearLayers();
+        if (choroplethLayer) {
+            map.removeLayer(choroplethLayer);
+        }
+
+        choroplethLayer = L.geoJSON(worldGeoJson, {
+            style: feature => {
+                const countryName = normalizeCountryName(getFeatureCountryName(feature));
+                const count = countryCounts.get(countryName) || 0;
+
+                return {
+                    fillColor: getCountryFillColor(count),
+                    weight: 1,
+                    opacity: 1,
+                    color: "#e2e8f0",
+                    fillOpacity: count > 0 ? 0.85 : 0.15,
+                };
+            },
+            onEachFeature: (feature, layer) => {
+                const rawCountryName = getFeatureCountryName(feature);
+                const countryName = normalizeCountryName(rawCountryName);
+                const count = countryCounts.get(countryName) || 0;
+
+                layer.bindPopup(`
+                    <strong>${rawCountryName || "Unknown country"}</strong><br>
+                    ${count} event${count === 1 ? "" : "s"}
+                `);
+
+                layer.on("mouseover", () => {
+                    layer.setStyle({
+                        weight: 2,
+                        color: "#94a3b8",
+                    });
+                });
+
+                layer.on("mouseout", () => {
+                    choroplethLayer.resetStyle(layer);
+                });
+            },
+        }).addTo(map);
 
         if (!points.length) {
             map.setView([20, 0], 2);
             return;
         }
 
-        const bounds = [];
-        const coordinateCounts = {};
+        const mappedLatLngs = points
+            .filter(point => point.lat != null && point.lng != null)
+            .map(point => [Number(point.lat), Number(point.lng)])
+            .filter(([lat, lng]) => !Number.isNaN(lat) && !Number.isNaN(lng));
 
-        points.forEach(point => {
-            const key = getCoordinateKey(point.lat, point.lng);
-            const occurrenceIndex = coordinateCounts[key] || 0;
-            coordinateCounts[key] = occurrenceIndex + 1;
-
-            const [displayLat, displayLng] = getJitteredLatLng(
-                Number(point.lat),
-                Number(point.lng),
-                occurrenceIndex
-            );
-
-            const marker = L.circleMarker(
-                [displayLat, displayLng],
-                getConfidenceMarkerStyle(point.confidence_level)
-            );
-
-            const locationLabel =
-                point.country ||
-                point.region ||
-                "Unknown location";
-
-            marker.bindPopup(`
-                <strong>${point.title || "Untitled"}</strong><br>
-                ${point.attack_type || "Unknown"}<br>
-                ${locationLabel}<br>
-                ${point.confidence_level || "unknown"} | Sources: ${point.source_count ?? 0}
-            `);
-
-            markersLayer.addLayer(marker);
-            bounds.push([displayLat, displayLng]);
-        });
-
-        if (bounds.length === 1) {
-            map.setView(bounds[0], 4);
-        } else {
-            map.fitBounds(bounds, { padding: [30, 30] });
+        if (mappedLatLngs.length === 1) {
+            map.setView(mappedLatLngs[0], 4);
+        } else if (mappedLatLngs.length > 1) {
+            map.fitBounds(mappedLatLngs, { padding: [30, 30] });
 
             if (map.getZoom() > 5) {
                 map.setZoom(5);
             }
+        } else {
+            map.setView([20, 0], 2);
         }
     } catch (err) {
         console.error("Failed to load map:", err);
@@ -383,6 +471,7 @@ async function handleFilterChange() {
     setLoading(true);
 
     try {
+        currentPage = 1;
         const current = getCurrentFilters();
         saveFilters(current);
         await refreshDashboard();
@@ -391,10 +480,31 @@ async function handleFilterChange() {
     }
 }
 
+function enableDatePickerOpenOnClick(inputId) {
+    const input = document.getElementById(inputId);
+
+    if (!input) {
+        return;
+    }
+
+    input.addEventListener("click", () => {
+        if (typeof input.showPicker === "function") {
+            input.showPicker();
+        }
+    });
+
+    input.addEventListener("focus", () => {
+        if (typeof input.showPicker === "function") {
+            input.showPicker();
+        }
+    });
+}
+
 async function resetFilters() {
     setLoading(true);
 
     try {
+        currentPage = 1;
         const defaults = getDefaultFilters();
         saveFilters(defaults);
         applyFiltersToControls(defaults);
@@ -404,12 +514,16 @@ async function resetFilters() {
     }
 }
 
+enableDatePickerOpenOnClick("filter-start-date");
+enableDatePickerOpenOnClick("filter-end-date");
+
 [
     "filter-industry",
     "filter-region",
     "filter-country",
     "filter-attack-type",
-    "filter-time-range",
+    "filter-start-date",
+    "filter-end-date",
 ].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
@@ -420,6 +534,40 @@ async function resetFilters() {
 const resetFiltersButton = document.getElementById("reset-filters");
 if (resetFiltersButton) {
     resetFiltersButton.addEventListener("click", resetFilters);
+}
+
+const paginationPrevButton = document.getElementById("pagination-prev");
+if (paginationPrevButton) {
+    paginationPrevButton.addEventListener("click", async () => {
+        if (currentPage <= 1) {
+            return;
+        }
+
+        setLoading(true);
+        try {
+            currentPage -= 1;
+            await refreshDashboard();
+        } finally {
+            setLoading(false);
+        }
+    });
+}
+
+const paginationNextButton = document.getElementById("pagination-next");
+if (paginationNextButton) {
+    paginationNextButton.addEventListener("click", async () => {
+        if (lastLoadedEventCount < EVENTS_PAGE_SIZE) {
+            return;
+        }
+
+        setLoading(true);
+        try {
+            currentPage += 1;
+            await refreshDashboard();
+        } finally {
+            setLoading(false);
+        }
+    });
 }
 
 setLoading(true);

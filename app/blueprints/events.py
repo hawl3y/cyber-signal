@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 
 from app.models import EventSourceLink
-from app.services.summary import get_filtered_events
+from app.services.summary import get_filtered_events, get_event_reference_time
 
 events_bp = Blueprint("events", __name__, url_prefix="/api/events")
 
@@ -15,6 +15,8 @@ def list_events():
     region = request.args.get("region")
     attack_type = request.args.get("attack_type")
     time_range = request.args.get("time_range")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
     record_origin = request.args.get("record_origin")
     limit = request.args.get("limit", type=int)
     offset = request.args.get("offset", default=0, type=int)
@@ -25,6 +27,8 @@ def list_events():
         region=region,
         attack_type=attack_type,
         time_range=time_range,
+        start_date=start_date,
+        end_date=end_date,
         record_origin=record_origin,
     )
 
@@ -33,7 +37,7 @@ def list_events():
 
     events = sorted(
         events,
-        key=lambda e: e.last_seen_at or e.created_at,
+        key=lambda e: get_event_reference_time(e) or datetime.min,
         reverse=True,
     )
 
@@ -75,11 +79,7 @@ def list_events():
                     if ref and (datetime.utcnow() - ref).days <= 7
                     else "older"
                 )
-            )(
-                event.event_occurred_at
-                if event.record_origin == "historical_dataset" and event.event_occurred_at
-                else event.last_seen_at or event.updated_at or event.created_at
-            ),
+            )(get_event_reference_time(event)),
             "summary_short": event.summary_short,
             "confidence_score": event.confidence_score,
             "confidence_level": event.confidence_level,

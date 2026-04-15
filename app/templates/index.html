@@ -49,15 +49,13 @@
                         </div>
 
                         <div>
-                            <label for="filter-time-range">Time Range</label><br>
-                            <select id="filter-time-range" class="filter-select">
-                                <option value="">All Time</option>
-                                <option value="24h">Past 24 Hours</option>
-                                <option value="7d">Past 7 Days</option>
-                                <option value="30d">Past 30 Days</option>
-                                <option value="90d">Past 90 Days</option>
-                                <option value="1y">Past 1 Year</option>
-                            </select>
+                            <label for="filter-start-date">Start Date</label><br>
+                            <input id="filter-start-date" class="filter-select" type="date">
+                        </div>
+
+                        <div>
+                            <label for="filter-end-date">End Date</label><br>
+                            <input id="filter-end-date" class="filter-select" type="date">
                         </div>
                     </div>
 
@@ -111,16 +109,16 @@
                         <h2>Map</h2>
                         <div class="map-legend">
                             <span class="legend-item">
-                                <span class="legend-dot legend-dot-high"></span>
-                                High
+                                <span class="legend-swatch legend-swatch-light"></span>
+                                Lower Concentration
                             </span>
                             <span class="legend-item">
-                                <span class="legend-dot legend-dot-medium"></span>
-                                Medium
+                                <span class="legend-swatch legend-swatch-medium"></span>
+                                Medium Concentration
                             </span>
                             <span class="legend-item">
-                                <span class="legend-dot legend-dot-low"></span>
-                                Low
+                                <span class="legend-swatch legend-swatch-dark"></span>
+                                Higher Concentration
                             </span>
                         </div>
                     </div>
@@ -128,8 +126,22 @@
                 </section>
 
                 <section class="panel feed-placeholder">
-                    <h2>Event Feed</h2>
+                    <div class="feed-header">
+                        <h2>Event Feed</h2>
+                        <span id="feed-count" class="feed-count"></span>
+                    </div>
+
                     <div id="event-feed" class="feed-list"></div>
+
+                    <div class="pagination" id="pagination-controls">
+                        <button id="pagination-prev" type="button" class="pagination-button">
+                            Previous
+                        </button>
+                        <span id="pagination-status" class="pagination-status">Page 1</span>
+                        <button id="pagination-next" type="button" class="pagination-button">
+                            Next
+                        </button>
+                    </div>
                 </section>
             </main>
         </div>

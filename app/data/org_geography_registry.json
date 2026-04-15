@@ -19,7 +19,6 @@
     "region": "Europe",
     "aliases": []
   },
-
   "microsoft": {
     "country": "United States",
     "region": "North America",
@@ -182,5 +181,20 @@
     "country": "United States",
     "region": "North America",
     "aliases": ["stryker"]
+  },
+  "kraken": {
+    "country": "United States",
+    "region": "North America",
+    "aliases": []
+  },
+  "ledger": {
+    "country": "France",
+    "region": "Europe",
+    "aliases": ["ledger live"]
+  },
+  "mcgraw hill": {
+    "country": "United States",
+    "region": "North America",
+    "aliases": ["mcgraw-hill"]
   }
 }

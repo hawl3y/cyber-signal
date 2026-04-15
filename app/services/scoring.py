@@ -109,9 +109,9 @@ def evaluate_uncertainty(event):
 
 
 def map_score_to_level(score):
-    if score >= 9:
+    if score >= 10:
         return "high"
-    if score >= 5:
+    if score >= 4:
         return "medium"
     return "low"
 

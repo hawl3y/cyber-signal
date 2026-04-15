@@ -12,6 +12,8 @@ def get_summary():
     region = request.args.get("region")
     attack_type = request.args.get("attack_type")
     time_range = request.args.get("time_range")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
 
     return jsonify(
         build_summary(
@@ -20,6 +22,8 @@ def get_summary():
             region=region,
             attack_type=attack_type,
             time_range=time_range,
+            start_date=start_date,
+            end_date=end_date,
         )
     )
 
@@ -31,6 +35,8 @@ def get_map():
     region = request.args.get("region")
     attack_type = request.args.get("attack_type")
     time_range = request.args.get("time_range")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
 
     return jsonify(
         build_map(
@@ -39,5 +45,7 @@ def get_map():
             region=region,
             attack_type=attack_type,
             time_range=time_range,
+            start_date=start_date,
+            end_date=end_date,
         )
     )
