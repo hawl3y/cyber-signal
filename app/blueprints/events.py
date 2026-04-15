@@ -15,6 +15,7 @@ def list_events():
     region = request.args.get("region")
     attack_type = request.args.get("attack_type")
     time_range = request.args.get("time_range")
+    record_origin = request.args.get("record_origin")
     limit = request.args.get("limit", type=int)
     offset = request.args.get("offset", default=0, type=int)
 
@@ -24,6 +25,7 @@ def list_events():
         region=region,
         attack_type=attack_type,
         time_range=time_range,
+        record_origin=record_origin,
     )
 
     if offset is None or offset < 0:

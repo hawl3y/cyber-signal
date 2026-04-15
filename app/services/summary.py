@@ -10,6 +10,7 @@ def get_filtered_events(
     region=None,
     attack_type=None,
     time_range=None,
+    record_origin=None,
 ):
     """
     Return events filtered by optional structured fields.
@@ -27,6 +28,9 @@ def get_filtered_events(
 
     if attack_type:
         query = query.filter(CyberEvent.attack_type.ilike(attack_type))
+
+    if record_origin:
+        query = query.filter(CyberEvent.record_origin == record_origin)
 
     if time_range:
         now = datetime.now(UTC)

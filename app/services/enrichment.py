@@ -502,6 +502,56 @@ def _coordinates_for_location(city=None, country=None, region=None):
 
     return None, None
 
+def _infer_victim_entity_type_and_display_label(victim_org_name, industry, country):
+    if victim_org_name:
+        display_label = victim_org_name
+    else:
+        display_label = None
+
+    industry_to_entity_type = {
+        "Government": "government",
+        "Financial Services": "financial",
+        "Healthcare": "healthcare",
+        "Education": "education",
+        "Media": "media",
+        "Transportation": "transportation",
+        "Technology": "technology",
+        "Energy": "critical_infrastructure",
+        "Private Sector": "private_sector",
+        "Manufacturing": "private_sector",
+        "Consumer Services": "private_sector",
+        "Retail": "private_sector",
+        "Telecommunications": "technology",
+        "Other": "unknown",
+    }
+
+    entity_type = industry_to_entity_type.get(industry)
+
+    if not display_label and entity_type:
+        label_map = {
+            "government": "Government entities",
+            "political": "Political parties",
+            "military": "Military organizations",
+            "media": "Media organizations",
+            "financial": "Financial institutions",
+            "transportation": "Transportation organizations",
+            "healthcare": "Healthcare organizations",
+            "education": "Educational institutions",
+            "civil_society": "Civil society organizations",
+            "technology": "Technology organizations",
+            "critical_infrastructure": "Critical infrastructure organizations",
+            "private_sector": "Private sector organizations",
+            "research": "Research organizations",
+            "international": "International organizations",
+            "individuals": "Individual targets",
+            "unknown": "Unspecified target",
+        }
+
+        base_label = label_map.get(entity_type, "Unspecified target")
+        display_label = f"{base_label} ({country})" if country else base_label
+
+    return entity_type, display_label
+
 def aggregate_event_data(linked_articles, extractions, source_count):
     """
     Aggregate structured event data from linked articles and extractions.
@@ -559,6 +609,19 @@ def aggregate_event_data(linked_articles, extractions, source_count):
     summary_short = _build_event_summary(linked_articles, extractions)
     seen_dates = _derive_seen_dates(linked_articles)
 
+    if not victim_entity_type or not victim_display_label:
+        inferred_entity_type, inferred_display_label = _infer_victim_entity_type_and_display_label(
+            victim_org_name,
+            industry,
+            country,
+        )
+
+        if not victim_entity_type:
+            victim_entity_type = inferred_entity_type
+
+        if not victim_display_label:
+            victim_display_label = inferred_display_label
+
     if not country and not region and victim_org_name:
         org_geo = _resolve_org_home_geography(victim_org_name)
         country = org_geo["country"]
@@ -583,6 +646,19 @@ def aggregate_event_data(linked_articles, extractions, source_count):
         geography_type = "region"
     else:
         geography_type = None
+
+    if not victim_entity_type or not victim_display_label:
+        inferred_entity_type, inferred_display_label = _infer_victim_entity_type_and_display_label(
+            victim_org_name,
+            industry,
+            country,
+        )
+
+        if not victim_entity_type:
+            victim_entity_type = inferred_entity_type
+
+        if not victim_display_label:
+            victim_display_label = inferred_display_label
 
     latitude, longitude = _coordinates_for_location(
         city=None,
