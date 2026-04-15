@@ -1,5 +1,6 @@
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction, CyberEvent, EventSourceLink
+from app.services.enrichment import _infer_victim_entity_type_and_display_label
 
 
 def _is_primary_source_article(article):
@@ -171,15 +172,27 @@ def create_event(article, extraction):
 
     seen_at = article.published_at or article.created_at
 
+    victim_org_name = extraction.victim_org_name if extraction else None
+    industry = extraction.industry if extraction else None
+    country = extraction.country if extraction else None
+
+    victim_entity_type, victim_display_label = _infer_victim_entity_type_and_display_label(
+        victim_org_name,
+        industry,
+        country,
+    )
+
     event = CyberEvent(
         canonical_title=article.title or "Untitled Event",
         slug=slug,
         event_status="open",
-        victim_org_name=extraction.victim_org_name if extraction else None,
+        victim_org_name=victim_org_name,
         victim_org_normalized=(
             extraction.victim_org_normalized if extraction else None
         ),
-        industry=extraction.industry if extraction else None,
+        victim_entity_type=victim_entity_type,
+        victim_display_label=victim_display_label,
+        industry=industry,
         attack_type=extraction.attack_type if extraction else None,
         access_vector=extraction.access_vector if extraction else None,
         impact_type=extraction.impact_type if extraction else None,
@@ -189,7 +202,7 @@ def create_event(article, extraction):
         vuln_status=extraction.vuln_status if extraction else None,
         zero_day_flag=extraction.zero_day_flag if extraction else False,
         region=extraction.region if extraction else None,
-        country=extraction.country if extraction else None,
+        country=country,
         city=extraction.city if extraction else None,
         summary_short=extraction.short_event_summary if extraction else None,
         source_count=0,

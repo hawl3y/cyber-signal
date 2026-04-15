@@ -52,6 +52,7 @@ def list_events():
             "record_origin": event.record_origin,
             "is_high_impact": event.is_high_impact,
             "victim_org_name": event.victim_org_name,
+            "victim_org_normalized": event.victim_org_normalized,
             "victim_entity_type": event.victim_entity_type,
             "victim_display_label": event.victim_display_label,
             "industry": event.industry,

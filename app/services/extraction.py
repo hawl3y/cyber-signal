@@ -13,12 +13,26 @@ def _combined_article_text(article):
         ]
     ).lower()
 
+def _clean_summary_text(value):
+    if not value:
+        return None
+
+    cleaned = value.strip()
+    cleaned = re.sub(r"\s*\[\.\.\.\]\s*$", "", cleaned).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    return cleaned or None
+
 def _clean_org_name(value):
     if not value:
         return None
 
     prefixes_to_strip = [
         "the ",
+        "fake ",
+        "crypto-exchange ",
+        "educational company ",
+        "education company ",
         "cryptocurrency atm giant ",
         "software provider ",
         "software vendor ",
@@ -47,6 +61,7 @@ def _clean_org_name(value):
     ]
 
     blocked_exact = {
+        "the",
         "webinar",
         "mobile devices",
         "smart slider updates",
@@ -64,6 +79,7 @@ def _clean_org_name(value):
         "customer data",
         "victims",
         "crypto fraud victims",
+        "ledger live",
         "ngos",
         "universities",
         "ngos, universities",
@@ -147,6 +163,7 @@ def _normalize_org_name(value):
         return None
 
     normalized = value.strip().lower()
+    normalized = normalized.replace("-", " ")
     normalized = normalized.replace("&", " and ")
     normalized = re.sub(r"'s\b", "", normalized)
     normalized = re.sub(r"[^a-z0-9\s]", " ", normalized)
@@ -171,6 +188,7 @@ def _extract_victim_org_name(article):
     title_patterns = [
         " reports ",
         " report ",
+        "says",
         " hit by ",
         " attacked by ",
         " breached ",
@@ -183,6 +201,10 @@ def _extract_victim_org_name(article):
         " hacked ",
         " loses ",
         " stolen in ",
+        " extorted by ",
+        " confirms ",
+        " confirmed ",
+        " following ",
     ]
 
     for pattern in title_patterns:
@@ -280,8 +302,12 @@ def _extract_victim_org_name(article):
                     return candidate
 
     explicit_entity_patterns = [
-        r"\b(?:vendor|provider|developer|company|firm|chain|project)\s+([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\b",
-        r"\b([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+(?:has been impacted|hit by|breached|hacked|exposes customer data|exposes data)\b",
+        r"\b(?:vendor|provider|developer|company|firm|chain|project|crypto-exchange)\s+([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\b",
+        r"\b([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+(?:has been impacted|hit by|breached|hacked|exposes customer data|exposes data|confirms data breach|confirmed data breach|extorted by hackers)\b",
+        r"\bFake\s+([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+app\b",
+        r"\b([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+Live\s+app\b",
+        r"\btheft from\s+([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+involved\b",
+        r"\btheft from\s+([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\b",
     ]
 
     for pattern in explicit_entity_patterns:
@@ -304,13 +330,14 @@ def _extract_victim_org_name(article):
         "analysis of",
         "report on",
         "the silent",
-        "it reads like",
     ]
 
     summary_incident_patterns = [
         r"\b([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+has suffered\b",
         r"\b([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+announced that hackers breached its systems\b",
         r"\bbelonging to\s+([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\b",
+        r"\btheft from\s+([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\b",
+        r"\bmalicious\s+([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+app\b",
     ]
 
     if summary:
@@ -352,6 +379,32 @@ def _extract_exploitation_subject(article):
     return None
 
 def _extract_industry(text):
+    if any(keyword in text for keyword in [
+        "software provider",
+        "software vendor",
+        "technology",
+        "tech company",
+        "it provider",
+        "cloud",
+        "saas",
+        "hosting provider",
+        "managed service provider",
+        "msp",
+        "it services",
+        "data center",
+        "software",
+        "plugin",
+        "browser",
+        "developer tool",
+        "video game developer",
+        "cpu-z",
+        "hwmonitor",
+        "marimo",
+        "project",
+        "application framework",
+    ]):
+        return "Technology"
+
     if any(keyword in text for keyword in [
         "hospital",
         "healthcare",
@@ -405,32 +458,6 @@ def _extract_industry(text):
         "parish",
     ]):
         return "Government"
-
-    if any(keyword in text for keyword in [
-        "software provider",
-        "software vendor",
-        "technology",
-        "tech company",
-        "it provider",
-        "cloud",
-        "saas",
-        "hosting provider",
-        "managed service provider",
-        "msp",
-        "it services",
-        "data center",
-        "software",
-        "plugin",
-        "browser",
-        "developer tool",
-        "video game developer",
-        "cpu-z",
-        "hwmonitor",
-        "marimo",
-        "project",
-        "application framework",
-    ]):
-        return "Technology"
 
     if any(keyword in text for keyword in [
         "gym",
@@ -1014,7 +1041,7 @@ def run_rule_extraction(article):
 
     zero_day_flag = "zero-day" in text or "0day" in text or "0-day" in text
 
-    short_event_summary = (article.summary or article.title or "").strip()
+    short_event_summary = _clean_summary_text(article.summary) or _clean_summary_text(article.title)
 
     return {
         "victim_org_name": victim_org_name,

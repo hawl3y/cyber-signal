@@ -1,5 +1,6 @@
 from app.extensions import db
 from app.models import RawArticle
+from app.services.extraction import _extract_victim_org_name, _has_exploitation_signal
 
 
 def _combined_article_text(article):
@@ -63,7 +64,6 @@ def is_relevant_incident(article):
         "guidance",
         "recommendations",
         "news release",
-        "statement",
         "take down",
         "takedown",
         "developer arrest",
@@ -89,7 +89,7 @@ def is_relevant_incident(article):
         "designed to block",
     ]
 
-    if any(pattern in title_and_summary for pattern in negative_title_patterns):
+    if any(pattern in title for pattern in negative_title_patterns):
         return False
 
     negative_context_phrases = [
@@ -160,10 +160,22 @@ def is_relevant_incident(article):
         "confirmed a ransomware attack",
         "reported a breach",
         "disclosed a breach",
+        "insider breach",
+        "extorted by hackers",
+        "following extortion threat",
+        "stole $",
+        "stole £",
+        "stole €",
+        "theft from ",
     ]
 
+    victim_org_name = _extract_victim_org_name(article)
+    has_exploitation_subject = _has_exploitation_signal(text)
+
     if any(phrase in text for phrase in strong_incident_phrases):
-        return True
+        if victim_org_name or has_exploitation_subject:
+            return True
+        return False
 
     completed_incident_verbs = [
         "breached",
@@ -184,6 +196,11 @@ def is_relevant_incident(article):
         "downloaded personal data",
         "gained access",
         "malicious executables",
+        "extorted",
+        "stole $",
+        "stole £",
+        "stole €",
+        "theft from ",
     ]
 
     concrete_impact_terms = [
@@ -204,6 +221,10 @@ def is_relevant_incident(article):
         "ransom",
         "malicious executables",
         "gained access to an api",
+        "stole $",
+        "stole £",
+        "stole €",
+        "theft",
     ]
 
     generic_only_victim_terms = [
@@ -293,13 +314,19 @@ def is_relevant_incident(article):
         return False
 
     if has_completed_incident and (has_concrete_impact or has_concrete_org_context):
-        return True
+        if victim_org_name or has_exploitation_subject:
+            return True
+        return False
 
     if has_concrete_impact and has_concrete_org_context:
-        return True
+        if victim_org_name or has_exploitation_subject:
+            return True
+        return False
 
     if has_concrete_impact and has_generic_only_victim and has_completed_incident:
-        return True
+        if victim_org_name:
+            return True
+        return False
 
     return False
 
