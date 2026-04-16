@@ -129,6 +129,7 @@ def _infer_named_victim_from_text(title, summary):
 
     invalid_exact = {
         "government",
+        "governments",
         "ministries",
         "ministry",
         "companies",
@@ -146,6 +147,8 @@ def _infer_named_victim_from_text(title, summary):
         "entities",
         "institutions",
         "multiple danish municipalities",
+        "israeli entities",
+        "french organizations",
     }
 
     invalid_contains = [
@@ -157,6 +160,14 @@ def _infer_named_victim_from_text(title, summary):
         " targets",
         " several ",
         " multiple ",
+        " identified as ",
+        " tied to ",
+        " in a release",
+        " to defend ukraine",
+        " for infoop",
+        " has compromised",
+        " is targeting",
+        " accessed networks of",
     ]
 
     stop_markers = [
@@ -186,6 +197,10 @@ def _infer_named_victim_from_text(title, summary):
         " by ",
         " with ",
         "website of ",
+        " in a release",
+        " to defend ukraine",
+        " for infoop",
+        " since ",
     ]
 
     def _clean_candidate(candidate):
@@ -224,7 +239,16 @@ def _infer_named_victim_from_text(title, summary):
         if any(term in lowered for term in invalid_contains):
             return False
 
+        if re.search(r"\b(entities|organizations|institutions|governments|companies|users|targets)\b", lowered):
+            return False
+
         if len(candidate) < 3:
+            return False
+
+        if len(candidate) > 90:
+            return False
+
+        if candidate.count(" and ") >= 2:
             return False
 
         if not re.search(r"[A-Z]{2,}|[A-Z][a-z]", candidate):
@@ -282,6 +306,15 @@ def _simplify_receiver_category(value):
 
     lowered_values = [item.lower() for item in values]
 
+    if any("health" in item or "hospital" in item or "medical" in item for item in lowered_values):
+        return "healthcare"
+
+    if any("education" in item or "university" in item or "school" in item for item in lowered_values):
+        return "education"
+
+    if any("state institutions" in item or "political system" in item or "government" in item for item in lowered_values):
+        return "public_sector"
+
     if any("corporate" in item or "private sector" in item or "company" in item or "business" in item for item in lowered_values):
         return "private_sector"
 
@@ -302,15 +335,6 @@ def _simplify_receiver_category(value):
 
     if any("science" in item or "research" in item for item in lowered_values):
         return "research"
-
-    if any("health" in item or "hospital" in item or "medical" in item for item in lowered_values):
-        return "healthcare"
-
-    if any("education" in item or "university" in item or "school" in item for item in lowered_values):
-        return "education"
-
-    if any("state institutions" in item or "political system" in item or "government" in item for item in lowered_values):
-        return "public_sector"
 
     return None
 
@@ -342,6 +366,7 @@ def _simplify_receiver_subcategory(value):
         "legislative": "Legislative bodies",
         "government / ministries": "Government entities",
         "civil service / administration": "Civil administration",
+        "judiciary": "Government entities",
         "media targets": "Media organizations",
         "social groups targets": "Civil society organizations",
         "advocacy / activists": "Advocacy organizations",
@@ -351,7 +376,9 @@ def _simplify_receiver_subcategory(value):
         "defense industry": "Defense industry organizations",
         "election infrastructure / related systems": "Election systems",
         "critical infrastructure": "Critical infrastructure organizations",
+        "critical manufacturing": "Critical infrastructure organizations",
         "energy": "Critical infrastructure organizations",
+        "food": "Critical infrastructure organizations",
         "telecommunications": "Technology organizations",
     }
 
@@ -365,30 +392,30 @@ def _simplify_receiver_subcategory(value):
     if not mapped_values:
         return None
 
-    priority_order = [
-        "Political parties",
-        "Media organizations",
-        "Military organizations",
-        "Financial institutions",
-        "Transportation organizations",
-        "Healthcare organizations",
-        "Educational institutions",
-        "Technology organizations",
-        "Defense industry organizations",
-        "Critical infrastructure organizations",
+    government_family = {
         "Government entities",
         "Civil administration",
         "Legislative bodies",
         "Election systems",
-        "Advocacy organizations",
-        "Civil society organizations",
-    ]
+    }
 
-    for candidate in priority_order:
-        if candidate in mapped_values:
-            return candidate
+    if any(value in mapped_values for value in government_family):
+        if "Government entities" in mapped_values:
+            return "Government entities"
+        if "Civil administration" in mapped_values:
+            return "Civil administration"
+        if "Legislative bodies" in mapped_values:
+            return "Legislative bodies"
+        if "Election systems" in mapped_values:
+            return "Election systems"
 
-    return mapped_values[0]
+    if "Critical infrastructure organizations" in mapped_values and len(mapped_values) == 1:
+        return "Critical infrastructure organizations"
+
+    if len(mapped_values) == 1:
+        return mapped_values[0]
+
+    return None
 
 
 def _build_target_fallback_label(category_family, subcategory, country):
@@ -462,62 +489,13 @@ def _infer_target_type_from_text(title, summary):
     if any(
         term in text
         for term in [
-            "military",
-            "naval",
-            "air force",
-            "war college",
-            "army",
-            "defense ministry",
-            "defence ministry",
-            "defense department",
-            "defence department",
-            "navy",
-            "centrifuges",
-            "nuclear facility",
-            "niprnet",
-            "bundeswehr",
-        ]
-    ):
-        return "military"
-
-    if any(
-        term in text
-        for term in [
-            "swift",
-            "bank",
-            "payment system",
-            "financial institution",
-            "credit union",
-            "central bank",
-        ]
-    ):
-        return "financial"
-
-    if any(
-        term in text
-        for term in [
-            "airline",
-            "airport",
-            "transport",
-            "rail",
-            "shipping",
-            "port authority",
-            "metro",
-            "railway",
-            "aeroflot",
-        ]
-    ):
-        return "transportation"
-
-    if any(
-        term in text
-        for term in [
             "hospital",
             "medical center",
             "healthcare",
             "health system",
             "clinic",
             "medical facility",
+            "health sciences center",
         ]
     ):
         return "healthcare"
@@ -540,13 +518,97 @@ def _infer_target_type_from_text(title, summary):
     if any(
         term in text
         for term in [
+            "bank",
+            "payment system",
+            "financial institution",
+            "credit union",
+            "central bank",
+            "insurer",
+            "insurance",
+        ]
+    ):
+        return "financial"
+
+    if any(
+        term in text
+        for term in [
+            "airline",
+            "airport",
+            "rail",
+            "port authority",
+            "metro",
+            "railway",
+            "aeroflot",
+        ]
+    ):
+        return "transportation"
+
+    if any(
+        term in text
+        for term in [
+            "government website",
+            "government websites",
+            "government sites",
+            "state department",
+            "government agency",
+            "federal agency",
+            "ministry",
+            "embassy",
+            "parliament",
+            "senate",
+            "municipality",
+            "city government",
+            "city of ",
+            "town of ",
+            "state registries",
+            "government",
+        ]
+    ):
+        return "government"
+
+    if any(
+        term in text
+        for term in [
+            "military",
+            "naval",
+            "air force",
+            "war college",
+            "army",
+            "defense ministry",
+            "defence ministry",
+            "defense department",
+            "defence department",
+            "navy",
+            "centrifuges",
+            "nuclear facility",
+            "niprnet",
+            "bundeswehr",
+        ]
+    ):
+        return "military"
+
+    if any(
+        term in text
+        for term in [
+            "electric company",
+            "power grid",
+            "power plant",
+            "pipeline",
+            "water utility",
+            "utility company",
+        ]
+    ):
+        return "critical_infrastructure"
+
+    if any(
+        term in text
+        for term in [
             "westinghouse",
             "us steel",
             "lockheed martin",
             "commercial and defense technology companies",
             "technology companies",
             "defense technology companies",
-            "company",
             "corporation",
             "enterprise",
             "business",
@@ -582,38 +644,6 @@ def _infer_target_type_from_text(title, summary):
     if any(
         term in text
         for term in [
-            "government website",
-            "government websites",
-            "state department",
-            "government agency",
-            "federal agency",
-            "ministry",
-            "embassy",
-            "parliament",
-            "senate",
-            "municipality",
-            "city government",
-            "government",
-        ]
-    ):
-        return "government"
-
-    if any(
-        term in text
-        for term in [
-            "electric company",
-            "power grid",
-            "power plant",
-            "pipeline",
-            "water utility",
-            "utility company",
-        ]
-    ):
-        return "critical_infrastructure"
-
-    if any(
-        term in text
-        for term in [
             "website",
             "websites",
             "web site",
@@ -645,7 +675,6 @@ def _infer_target_type_from_text(title, summary):
         return "media"
 
     return None
-
 
 def _classify_target(
     receiver_name,
@@ -697,16 +726,21 @@ def _classify_target(
 
     if subcategory:
         mapped = subcategory_target_map.get(subcategory)
+
+        if (
+            mapped == "transportation"
+            and category_family == "private_sector"
+        ):
+            mapped = "private_sector"
+
         if mapped:
-            if mapped in {"civil_society", "government", "critical_infrastructure", "media"} and inferred in {
+            if mapped in {"civil_society", "media"} and inferred in {
                 "media",
                 "political",
                 "military",
-                "financial",
-                "transportation",
-                "private_sector",
-                "technology",
-                "individuals",
+                "government",
+                "education",
+                "healthcare",
             } and inferred != mapped:
                 target_type = inferred
                 source = "text_inference_override_subcategory"
@@ -717,15 +751,13 @@ def _classify_target(
     if not target_type and category_family:
         mapped = category_target_map.get(category_family)
         if mapped:
-            if mapped in {"civil_society", "government", "critical_infrastructure", "media"} and inferred in {
+            if mapped in {"civil_society", "media"} and inferred in {
                 "media",
                 "political",
                 "military",
-                "financial",
-                "transportation",
-                "private_sector",
-                "technology",
-                "individuals",
+                "government",
+                "education",
+                "healthcare",
             } and inferred != mapped:
                 target_type = inferred
                 source = "text_inference_override_category"
@@ -736,6 +768,21 @@ def _classify_target(
     if not target_type and inferred:
         target_type = inferred
         source = "text_inference"
+
+    if _is_generic_unresolved_target_context(receiver_name, title, summary):
+        if target_type not in {"government", "critical_infrastructure", "private_sector"}:
+            if category_family == "public_sector":
+                target_type = "government"
+                source = "generic_target_category_guard"
+            elif category_family == "critical_infrastructure":
+                target_type = "critical_infrastructure"
+                source = "generic_target_category_guard"
+            elif category_family == "private_sector":
+                target_type = "private_sector"
+                source = "generic_target_category_guard"
+            else:
+                target_type = "unknown"
+                source = "generic_target_fallback"
 
     if not target_type:
         target_type = "unknown"
@@ -749,7 +796,6 @@ def _classify_target(
         "target_type": target_type,
         "source": source,
     }
-
 
 def _build_victim_label_from_target(target):
     name = target.get("receiver_name")
@@ -871,6 +917,9 @@ def _is_valid_resolved_org_name(value):
         r"^\s*russian printers\b",
         r".*\bentities\b.*",
         r".*\borganizations\b.*",
+        r".*\binstitutions\b.*",
+        r".*\bgovernments\b.*",
+        r".*\bcompanies\b.*",
     ]
 
     if any(re.search(pattern, lowered, flags=re.IGNORECASE) for pattern in generic_patterns):
@@ -883,6 +932,35 @@ def _is_valid_resolved_org_name(value):
         return False
 
     return True
+
+def _is_generic_unresolved_target_context(receiver_name, title, summary):
+    if _normalize_placeholder_name(receiver_name):
+        return False
+
+    text = " ".join([str(title or ""), str(summary or "")]).lower()
+
+    generic_terms = [
+        "unknown targeted entities",
+        "entities",
+        "organizations",
+        "companies",
+        "providers",
+        "victims",
+        "targets",
+        "corporate networks",
+        "telecommunication providers",
+        "telecom",
+        "telecoms",
+        "phone hack",
+        "shipping companies",
+        "medical laboratories",
+        "government sites",
+        "networks of",
+        "multiple victims",
+        "various countries",
+    ]
+
+    return any(term in text for term in generic_terms)
 
 def _apply_victim_classification_precedence(resolved_receiver_name, target):
     if resolved_receiver_name:
