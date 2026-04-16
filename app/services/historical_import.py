@@ -4,6 +4,9 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from app.services.classification import resolve_classification
+from app.services.taxonomy import fallback_industry_from_entity_type
+
 
 def _parse_eurepoc_date(value):
     if not value:
@@ -228,10 +231,20 @@ def _infer_named_victim_from_text(title, summary):
         )
 
         candidate = re.sub(r"\s+", " ", candidate).strip(" ,.-:;\"'()")
+        candidate = re.sub(
+            r",\s*(exfiltrating|stealing|encrypting|demanding|causing|forcing|resulting).*?$",
+            "",
+            candidate,
+            flags=re.IGNORECASE,
+        ).strip(" ,.-:;\"'()")
+
         return candidate or None
 
     def _is_valid_candidate(candidate):
         lowered = candidate.lower()
+
+        if lowered in {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}:
+            return False
 
         if lowered in invalid_exact:
             return False
@@ -830,27 +843,22 @@ def _build_victim_label_from_target(target):
 
 def _map_industry_from_target(target):
     target_type = target.get("target_type")
+    return fallback_industry_from_entity_type(target_type)
 
-    industry_map = {
-        "government": "Government",
-        "political": "Government",
-        "military": "Government",
-        "media": "Media",
-        "financial": "Financial Services",
-        "transportation": "Transportation",
-        "healthcare": "Healthcare",
-        "education": "Education",
-        "civil_society": "Other",
-        "technology": "Technology",
-        "critical_infrastructure": "Energy",
-        "private_sector": "Private Sector",
-        "research": "Education",
-        "international": "Other",
-        "individuals": "Other",
-        "unknown": "Other",
-    }
+def resolve_classification_from_target(target):
+    target_type = target.get("target_type")
+    industry = _map_industry_from_target(target)
 
-    return industry_map.get(target_type, "Other")
+    resolved = resolve_classification(
+        org_lookup_result={
+            "victim_entity_type": target_type,
+            "industry": industry,
+            "source": "historical_target",
+        },
+        source_prefix="historical_target",
+    )
+
+    return resolved
 
 def _classify_org_from_name(org_name):
     org = _clean_eurepoc_value(org_name)
@@ -860,16 +868,28 @@ def _classify_org_from_name(org_name):
     lowered = org.lower().strip()
     lowered = re.sub(r"supremecourtof", "supreme court of ", lowered, flags=re.IGNORECASE)
 
+    if re.search(
+        r"\b(bank of france|banque de france|federal reserve|central bank|national atomic energy commission)\b",
+        lowered,
+        flags=re.IGNORECASE,
+    ):
+        return {
+            "victim_entity_type": "government",
+            "industry": "Government",
+            "source": "org_name_pattern",
+        }
+
     org_patterns = [
-        (r"\b(university hospital|hospital|medical center|health system|clinic)\b", ("healthcare", "Healthcare")),
-        (r"\b(university|college|school|schools|school district|public school|public schools|grammar school|research institute|laboratory|research center)\b", ("education", "Education")),
-        (r"\b(bank|credit union|central bank|financial)\b", ("financial", "Financial Services")),
-        (r"\b(ministry|government|governments|parliament|senate|supreme\s*court|courts?|municipality|municipal|city council|state department|embassy|agency|department|local government|local governments)\b", ("government", "Government")),
-        (r"\b(telecom|telecommunications|mobile|internet provider|hosting provider|platform|technology|software)\b", ("technology", "Technology")),
-        (r"\b(newspaper|news|media|television|tv|broadcaster)\b", ("media", "Media")),
+        (r"\b(ministry|government|governments|parliament|senate|supreme\s*court|courts?|municipality|municipal|city council|state department|embassy|agency|department|local government|local governments|township|town hall|public benefits system)\b", ("government", "Government")),
         (r"\b(army|navy|air force|defence|defense|military)\b", ("government", "Government")),
-        (r"\b(airport|airline|rail|railway|metro|port authority|shipping|transport)\b", ("transportation", "Transportation")),
-        (r"\b(utility|power grid|power plant|pipeline|water utility|electric company)\b", ("critical_infrastructure", "Energy")),
+        (r"\b(university hospital|hospital|medical center|health system|clinic|klinikum|medical practice|medical practices|health network|laboratory|laboratories)\b", ("private_sector", "Healthcare")),
+        (r"\b(university|college|school|schools|school division|school district|public school|public schools|grammar school)\b", ("government", "Government")),
+        (r"\b(research institute|research center|scientific institute|research and development institutes)\b", ("private_sector", "Education")),
+        (r"\b(bank|credit union|financial|insurance|insurer)\b", ("private_sector", "Financial Services")),
+        (r"\b(telecom|telecommunications|mobile|internet provider|hosting provider|platform|technology|software|communications|networks)\b", ("private_sector", "Technology")),
+        (r"\b(newspaper|news|media|television|tv|broadcaster)\b", ("private_sector", "Media")),
+        (r"\b(airport|airline|rail|railway|metro|port authority|shipping|transport|port)\b", ("critical_infrastructure", "Transportation")),
+        (r"\b(utility|power grid|power plant|pipeline|water utility|electric company|petroleum|refinery|energy|water treatment)\b", ("critical_infrastructure", "Energy")),
     ]
 
     for pattern, classification in org_patterns:
@@ -880,7 +900,11 @@ def _classify_org_from_name(org_name):
                 "source": "org_name_pattern",
             }
 
-    return None
+    return {
+        "victim_entity_type": "private_sector",
+        "industry": "Private Sector",
+        "source": "org_name_default",
+    }
 
 def _is_valid_resolved_org_name(value):
     value = _clean_eurepoc_value(value)
@@ -965,10 +989,15 @@ def _is_generic_unresolved_target_context(receiver_name, title, summary):
 def _apply_victim_classification_precedence(resolved_receiver_name, target):
     if resolved_receiver_name:
         org_based = _classify_org_from_name(resolved_receiver_name)
-        if org_based:
-            return org_based["victim_entity_type"], org_based["industry"]
+        resolved = resolve_classification(
+            org_lookup_result=org_based,
+            source_prefix="historical",
+        )
+        if resolved["victim_entity_type"] != "unknown" or resolved["industry"] != "Other":
+            return resolved["victim_entity_type"], resolved["industry"]
 
-    return target.get("target_type"), _map_industry_from_target(target)
+    resolved = resolve_classification_from_target(target)
+    return resolved["victim_entity_type"], resolved["industry"]
 
 
 def _derive_victim_label(receiver_name, receiver_category, receiver_subcategory, receiver_country, title=None, summary=None):

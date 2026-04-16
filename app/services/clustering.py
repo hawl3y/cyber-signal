@@ -70,16 +70,12 @@ def get_extraction(article):
 
 def find_candidate_events(extraction):
     """
-    Find candidate events using normalized victim organization as the primary key,
-    then raw victim name, then a narrow actor fallback.
+    Find candidate events using victim organization only.
 
-    This now supports matching live detections onto historical records so they
-    can evolve into hybrid canonical events.
+    Keep this strict for now to prevent false merges.
     """
     if not extraction:
         return []
-
-    candidates = []
 
     if extraction.victim_org_normalized:
         candidates = CyberEvent.query.filter_by(
@@ -95,19 +91,14 @@ def find_candidate_events(extraction):
         if candidates:
             return candidates
 
-    if extraction.actor_name:
-        candidates = CyberEvent.query.filter_by(
-            actor_name=extraction.actor_name
-        ).all()
-        if candidates:
-            return candidates
-
     return []
 
 
 def find_best_match(extraction, candidates):
     """
-    Return a simple deterministic match result.
+    Return a strict deterministic match result.
+
+    Only allow a match when victim organization aligns exactly.
     """
     class Result:
         def __init__(self, score=0, event_id=None):
@@ -117,8 +108,22 @@ def find_best_match(extraction, candidates):
     if not extraction or not candidates:
         return Result()
 
-    candidate = candidates[0]
-    return Result(score=1.0, event_id=candidate.id)
+    for candidate in candidates:
+        if (
+            extraction.victim_org_normalized
+            and candidate.victim_org_normalized
+            and extraction.victim_org_normalized == candidate.victim_org_normalized
+        ):
+            return Result(score=1.0, event_id=candidate.id)
+
+        if (
+            extraction.victim_org_name
+            and candidate.victim_org_name
+            and extraction.victim_org_name == candidate.victim_org_name
+        ):
+            return Result(score=0.95, event_id=candidate.id)
+
+    return Result(score=0, event_id=None)
 
 
 def attach_to_event(article, event):
