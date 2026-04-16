@@ -1,3 +1,5 @@
+import re
+
 from app.extensions import db
 from app.models import RawArticle
 from app.services.extraction import _extract_victim_org_name, _has_exploitation_signal
@@ -15,16 +17,17 @@ def _combined_article_text(article):
 
 def is_relevant_incident(article):
     """
-    Return True only for concrete cyber incidents involving a real victim,
-    a completed compromise/disruption/breach, or active exploitation with
-    specific malicious impact.
+    Return True for concrete cyber incident reporting.
 
-    This intentionally rejects:
-    - product/security feature releases
-    - advisories, research, analysis, webinars
-    - law enforcement takedowns
-    - campaign / targeting / exposure-only reporting
-    - patch / fix / update reporting without concrete victim impact
+    Admit:
+    - named-victim incidents
+    - exploitation with concrete malicious outcome
+    - attack/campaign reports with a direct attacked target class
+
+    Reject:
+    - product/advisory/research/takedown reporting
+    - trend/analysis/reporting articles about cyber activity
+    - articles without a concrete attack construction
     """
     text = _combined_article_text(article)
     title = (article.title or "").strip().lower()
@@ -53,14 +56,10 @@ def is_relevant_incident(article):
         "forecast",
         "prediction",
         "analysis of",
-        "analysis reveals",
-        "report finds",
-        "study shows",
         "conference",
         "annual review",
         "toolkit",
         "advisory",
-        "alert",
         "guidance",
         "recommendations",
         "news release",
@@ -70,17 +69,6 @@ def is_relevant_incident(article):
         "arrest",
         "seizure",
         "law enforcement",
-        "emergency fix",
-        "fix for",
-        "security update",
-        "software update",
-        "firmware update",
-        "patch",
-        "patches",
-        "zero-day flaw",
-        "flaw in",
-        "vulnerability in",
-        "cve-",
         "available now",
         "now available",
         "end-to-end encryption",
@@ -92,92 +80,35 @@ def is_relevant_incident(article):
     if any(pattern in title for pattern in negative_title_patterns):
         return False
 
-    negative_context_phrases = [
-        "targeting credentials",
-        "targeting c-suite executives",
-        "targeting executives",
-        "targeted attacks on ngos",
-        "non-governmental organizations and universities",
-        "industrial devices exposed",
-        "devices exposed",
-        "internet-exposed",
-        "attack surface",
-        "attack surface targeted",
-        "widely used phishing tool",
-        "phishing tool",
-        "phishing-as-a-service",
-        "create fake websites",
-        "login portals for just $500",
-        "was disrupted by the fbi",
-        "law enforcement agencies",
-        "released an emergency security update",
-        "security update for",
-        "block info-stealing malware",
-        "helps organisations detect",
-        "helps organizations detect",
-        "take immediate action",
-        "threats facing",
-        "continue to escalate",
-        "latest annual review reveals",
-        "analysis of 1 billion",
-        "analysis of one billion",
-        "human-scale security",
-    ]
-
-    if any(phrase in text for phrase in negative_context_phrases):
-        return False
-
-    strong_incident_phrases = [
-        "hit by ransomware",
-        "ransomware attack on",
-        "data breach",
-        "security breach",
-        "breach of",
-        "hack at",
-        "hack of",
-        "forced offline",
-        "taken offline",
-        "service disruption",
-        "operational disruption",
-        "systems were compromised",
-        "network was compromised",
-        "unauthorized access",
-        "customer data was accessed",
-        "records were accessed",
-        "downloaded personal data",
-        "gained access to an api",
-        "serve malicious executables",
-        "download links on the official website to serve malicious",
-        "threatening to release stolen data",
-        "ransom is not paid",
-        "data leaked",
-        "stolen data",
-        "has suffered a data breach",
-        "hackers breached its systems",
-        "breached its systems",
-        "confirmed a breach",
-        "confirmed a cyberattack",
-        "confirmed a ransomware attack",
-        "reported a breach",
-        "disclosed a breach",
-        "insider breach",
-        "extorted by hackers",
-        "following extortion threat",
-        "stole $",
-        "stole £",
-        "stole €",
-        "theft from ",
-    ]
-
     victim_org_name = _extract_victim_org_name(article)
     has_exploitation_subject = _has_exploitation_signal(text)
 
-    if any(phrase in text for phrase in strong_incident_phrases):
-        if victim_org_name or has_exploitation_subject:
-            return True
-        return False
+    has_reporting_frame = bool(
+        re.search(
+            r"\b(?:according to|researchers find|report finds|study shows|analysis reveals|researchers say)\b",
+            title_and_summary,
+            flags=re.IGNORECASE,
+        )
+    )
 
-    completed_incident_verbs = [
+    has_direct_attack_construction = bool(
+        re.search(
+            r"\b(?:"
+            r"data breach|security breach|breach of|breach at|hack of|hack at|attack on|attack against|"
+            r"hit by ransomware|forced offline|taken offline|"
+            r"used in attacks on|used in attacks against|"
+            r"hacked to push malware to|push malware to|pushed malware to|"
+            r"used to deploy malware|abused to deploy|deployed malware against|deployed malware to|"
+            r"stole[n]? data|data leaked|records were accessed|customer data was accessed|"
+            r"breached its systems|confirmed a breach|confirmed a cyberattack|confirmed a ransomware attack|"
+            r"disclosed a breach|reported a breach|extorted by hackers|following extortion threat"
+            r")\b",
+            title_and_summary,
+            flags=re.IGNORECASE,
+        )
+    )
+
+    has_completed_incident = any(term in text for term in [
         "breached",
         "hacked",
         "compromised",
@@ -201,9 +132,14 @@ def is_relevant_incident(article):
         "stole £",
         "stole €",
         "theft from ",
-    ]
+        "deployed malware",
+        "used to deploy malware",
+        "push malware to",
+        "pushed malware to",
+        "abused to deploy",
+    ])
 
-    concrete_impact_terms = [
+    has_concrete_impact = any(term in text for term in [
         "data breach",
         "security breach",
         "unauthorized access",
@@ -225,107 +161,68 @@ def is_relevant_incident(article):
         "stole £",
         "stole €",
         "theft",
-    ]
+        "malware",
+        "backdoor",
+        "infostealer",
+        "loader",
+        "trojan",
+        "wiper",
+        "spyware",
+    ])
 
-    generic_only_victim_terms = [
-        "customers",
-        "customer",
-        "patients",
-        "members",
-        "employees",
-        "executives",
-        "ngos",
-        "universities",
-        "organizations",
-        "organisations",
-        "victims",
-        "users",
-        "devices",
-    ]
-
-    concrete_org_context_terms = [
-        "company",
-        "software provider",
-        "software vendor",
-        "official website",
-        "website",
-        "api",
-        "cloud analytics platform",
-        "gym chain",
-        "hospital",
-        "healthcare provider",
-        "vendor",
-        "provider",
-        "developer",
-        "bank",
-        "manufacturer",
-        "utility",
+    has_attack_target_context = any(term in text for term in [
+        "government",
+        "govt",
+        "agency",
+        "ministry",
         "municipality",
         "city of",
         "county",
-    ]
+        "hospital",
+        "hospitals",
+        "healthcare",
+        "school",
+        "schools",
+        "university",
+        "universities",
+        "college",
+        "bank",
+        "banks",
+        "company",
+        "companies",
+        "organization",
+        "organizations",
+        "organisation",
+        "organisations",
+        "website",
+        "websites",
+        "site",
+        "sites",
+        "plugin suite",
+        "users",
+        "customers",
+        "accounts",
+    ])
 
-    abstract_only_patterns = [
-        "targeting",
-        "used in attacks",
-        "used in targeted attacks",
-        "campaign targeting",
-        "under active exploitation",
-        "actively exploited",
-        "known exploited vulnerability",
-        "zero-day",
-        "flaw",
-        "vulnerability",
-        "cve-",
-        "phishing service",
-        "phishing platform",
-        "tool",
-        "researchers",
-        "report",
-        "analysis",
-        "study",
-    ]
-
-    has_completed_incident = any(term in text for term in completed_incident_verbs)
-    has_concrete_impact = any(term in text for term in concrete_impact_terms)
-    has_generic_only_victim = any(term in text for term in generic_only_victim_terms)
-    has_concrete_org_context = any(term in text for term in concrete_org_context_terms)
-    has_abstract_only = any(term in text for term in abstract_only_patterns)
-
-    if has_abstract_only and not has_completed_incident and not has_concrete_impact:
+    has_only_advisory_exploitation = (
+        _has_exploitation_signal(text)
+        and not has_concrete_impact
+        and not has_direct_attack_construction
+        and not victim_org_name
+    )
+    if has_only_advisory_exploitation:
         return False
 
-    if "targeting" in text and not has_completed_incident and not has_concrete_impact:
-        return False
+    if victim_org_name:
+        return has_direct_attack_construction or has_completed_incident or has_concrete_impact
 
-    if "exposed" in text and not has_completed_incident and not has_concrete_impact:
-        return False
+    if has_exploitation_subject:
+        return has_direct_attack_construction or has_completed_incident or has_concrete_impact
 
-    if "under active exploitation" in text and not any(
-        term in text for term in [
-            "credential theft",
-            "stolen credentials",
-            "data theft",
-            "malware",
-            "backdoor",
-            "ransomware",
-        ]
-    ):
-        return False
+    if has_attack_target_context and has_direct_attack_construction:
+        return True
 
-    if has_completed_incident and (has_concrete_impact or has_concrete_org_context):
-        if victim_org_name or has_exploitation_subject:
-            return True
-        return False
-
-    if has_concrete_impact and has_concrete_org_context:
-        if victim_org_name or has_exploitation_subject:
-            return True
-        return False
-
-    if has_concrete_impact and has_generic_only_victim and has_completed_incident:
-        if victim_org_name:
-            return True
+    if has_reporting_frame:
         return False
 
     return False

@@ -3,6 +3,17 @@ import re
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction
 
+from app.services.classification import resolve_classification
+from app.services.taxonomy import (
+    fallback_industry_from_entity_type,
+    normalize_access_vector,
+    normalize_actor_type,
+    normalize_attack_type,
+    normalize_attribution_status,
+    normalize_impact_type,
+    normalize_vuln_status,
+)
+
 
 def _combined_article_text(article):
     return " ".join(
@@ -23,140 +34,185 @@ def _clean_summary_text(value):
 
     return cleaned or None
 
+def _is_plausible_org_candidate(value):
+    if not value:
+        return False
+
+    cleaned = re.sub(r"\s+", " ", str(value).strip())
+    if not cleaned:
+        return False
+
+    lowered = cleaned.lower()
+    words = lowered.split()
+
+    action_terms = {
+        "affects",
+        "affected",
+        "breached",
+        "hacked",
+        "hit",
+        "targeted",
+        "attacked",
+        "exposed",
+        "leaked",
+        "stolen",
+        "pushed",
+        "push",
+        "infected",
+        "compromised",
+        "extorted",
+        "disrupted",
+        "running",
+        "using",
+    }
+
+    generic_tail_terms = {
+        "suite",
+        "plugin",
+        "plugins",
+        "package",
+        "packages",
+        "tool",
+        "tools",
+        "system",
+        "systems",
+        "platform",
+        "platforms",
+        "app",
+        "apps",
+        "application",
+        "applications",
+        "sites",
+        "website",
+        "websites",
+        "accounts",
+        "users",
+        "customers",
+        "data",
+        "records",
+    }
+
+    allowed_org_suffixes = {
+        "bank",
+        "group",
+        "university",
+        "hospital",
+        "clinic",
+        "school",
+        "college",
+        "telecom",
+        "telecommunications",
+        "communications",
+        "insurance",
+        "laboratory",
+        "laboratories",
+        "agency",
+        "ministry",
+        "department",
+        "authority",
+        "city",
+        "municipality",
+        "network",
+        "networks",
+        "corp",
+        "corporation",
+        "inc",
+        "ltd",
+        "llc",
+        "plc",
+    }
+
+    if any(term in words for term in action_terms):
+        return False
+
+    if len(words) >= 3 and words[-1] in generic_tail_terms and words[-1] not in allowed_org_suffixes:
+        return False
+
+    if len(words) >= 2 and words[-2] in action_terms:
+        return False
+
+    uppercase_tokens = re.findall(r"\b[A-Z][A-Za-z0-9&._-]*\b", cleaned)
+    if not uppercase_tokens and not re.search(r"[A-Z]{2,}", cleaned):
+        return False
+
+    return True
+
+ORG_CLAUSE_BOUNDARY_RE = re.compile(
+    r"\s+(?:"
+    r"affects?|affected|impacting|impacts?|hits?|hit|after|via|through|using|"
+    r"linked\s+to|with|in|as|amid|following|from|that|which|where|when|"
+    r"according\s+to|said|says|confirmed|confirms|reported|reportedly"
+    r")\b",
+    flags=re.IGNORECASE,
+)
+
 def _clean_org_name(value):
     if not value:
         return None
 
-    prefixes_to_strip = [
-        "the ",
-        "fake ",
-        "crypto-exchange ",
-        "educational company ",
-        "education company ",
-        "cryptocurrency atm giant ",
-        "software provider ",
-        "software vendor ",
-        "healthcare software vendor ",
-        "healthcare software provider ",
-        "video game developer ",
-        "healthcare it solutions provider ",
-        "company ",
-        "vendor ",
-        "provider ",
-        "developer ",
-        "firm ",
-        "organization ",
-        "org ",
-        "group ",
-        "chain ",
-        "project ",
-        "platform ",
-        "dutch gym chain ",
-        "european gym chain ",
-        "gym chain ",
-        "dutch healthcare software vendor ",
-        "healthcare software vendor ",
-        "dutch healthcare software provider ",
-        "dutch hospitals face disruptions after ransomware attack on software provider ",
-    ]
-
-    blocked_exact = {
-        "the",
-        "webinar",
-        "mobile devices",
-        "smart slider updates",
-        "smart slider",
-        "google chrome",
-        "gmail",
-        "analysis",
-        "report",
-        "reports",
-        "hackers",
-        "threat actors",
-        "employees",
-        "canadian employees",
-        "customers",
-        "customer data",
-        "victims",
-        "crypto fraud victims",
-        "ledger live",
-        "ngos",
-        "universities",
-        "ngos, universities",
-        "international crackdown",
-        "several eu countries",
-        "official website",
-        "download links",
-    }
-
-    blocked_startswith = [
-        "analysis of ",
-        "report on ",
-        "reports on ",
-        "webinar",
-        "new ",
-        "nearly ",
-        "over ",
-        "under ",
-    ]
-
-    blocked_contains = [
-        "spy novel",
-        "mobile devices",
-        "webinar",
-        "threat actors",
-        "victims identified",
-        "customer data",
-        "employees targeted",
-        "international crackdown",
-        "several eu countries",
-        "new infostealer",
-        "new malware",
-        "attacks on ngos",
-        "one billion cisa kev remediation records",
-        "human-scale security",
-        "decrypts server-side",
-        "sessions",
-    ]
-
     cleaned = value.strip(" -,:;\"'()[]{}“”‘’")
-
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    lowered = cleaned.lower()
-
-    for prefix in prefixes_to_strip:
-        if lowered.startswith(prefix):
-            cleaned = cleaned[len(prefix):].strip(" -,:;\"'()[]{}“”‘’")
-            cleaned = re.sub(r"\s+", " ", cleaned).strip()
-            lowered = cleaned.lower()
 
     if not cleaned:
         return None
 
-    if lowered in blocked_exact:
+    cleaned = re.sub(r"^(?:the)\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = ORG_CLAUSE_BOUNDARY_RE.split(cleaned, maxsplit=1)[0].strip()
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" -,:;\"'()[]{}“”‘’")
+
+    if not cleaned:
         return None
 
-    if any(lowered.startswith(prefix) for prefix in blocked_startswith):
-        return None
+    cleaned = re.sub(
+        r"^(?:(?:[A-Za-z][A-Za-z0-9&._-]*\s+){0,2}"
+        r"(?:company|organization|firm|vendor|provider|developer|publisher|operator|platform|exchange|chain|group|maker|giant)\s+)"
+        r"(?=[A-Z])",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    ).strip()
 
-    if any(fragment in lowered for fragment in blocked_contains):
-        return None
+    lowered = cleaned.lower()
 
-    if cleaned.startswith(("'", '"', "‘", "“")):
-        return None
+    blocked_exact = {
+        "data",
+        "breach",
+        "hack",
+        "attack",
+        "ransomware",
+        "cyberattack",
+        "cyber",
+        "accounts",
+        "users",
+        "customers",
+        "employees",
+        "systems",
+        "platform",
+        "suite",
+        "plugin",
+        "plugins",
+        "report",
+        "reports",
+        "analysis",
+        "hackers",
+        "threat actors",
+        "official website",
+        "download links",
+    }
 
-    if len(cleaned.split()) > 8:
-        return None
-
-    if lowered.endswith(" attacks") or lowered.endswith(" attack"):
+    if not cleaned or lowered in blocked_exact:
         return None
 
     if len(cleaned) <= 2:
         return None
 
-    cleaned = re.sub(r"\bA$", "", cleaned).strip()
+    if len(cleaned.split()) > 6:
+        return None
 
-    return cleaned or None
+    if not _is_plausible_org_candidate(cleaned):
+        return None
+
+    return cleaned
 
 def _normalize_org_name(value):
     if not value:
@@ -176,185 +232,133 @@ def _normalize_org_name(value):
 
     return normalized or None
 
+def _classify_org_from_name(org_name):
+    if not org_name:
+        return None
+
+    lowered = org_name.lower().strip()
+
+    if re.search(
+        r"\b(bank of france|banque de france|federal reserve|central bank)\b",
+        lowered,
+        flags=re.IGNORECASE,
+    ):
+        return "government"
+
+    government_patterns = [
+        r"\b(ministry|government|parliament|senate|supreme\s*court|court|municipality|municipal|city of |town of |state department|embassy|agency|department)\b",
+        r"\b(army|navy|air force|defence|defense|military)\b",
+    ]
+
+    critical_infrastructure_patterns = [
+        r"\b(airport|airline|aviation|rail|railway|transit|metro|port authority|shipping|logistics|freight|utility|power grid|power plant|pipeline|water utility|electric company|energy)\b",
+    ]
+
+    private_sector_patterns = [
+        r"\b(university hospital|hospital|medical center|health system|clinic|health sciences center|bank|credit union|financial|insurance|insurer|exchange|cryptocurrency platform|crypto exchange|telecom|telecommunications|carrier|mobile network|broadband|internet provider|internet service provider|isp|hosting provider|platform|technology|software|newspaper|news outlet|media company|broadcaster|television network|radio station|publisher|university|college|school|schools|school district|public school|public schools|grammar school|campus|research institute|laboratory|research center)\b",
+    ]
+
+    for pattern in government_patterns:
+        if re.search(pattern, lowered, flags=re.IGNORECASE):
+            return "government"
+
+    for pattern in critical_infrastructure_patterns:
+        if re.search(pattern, lowered, flags=re.IGNORECASE):
+            return "critical_infrastructure"
+
+    for pattern in private_sector_patterns:
+        if re.search(pattern, lowered, flags=re.IGNORECASE):
+            return "private_sector"
+
+    if re.search(r"\b(inc|corp|corporation|llc|ltd|plc|gmbh|ag|sa|bv|nv)\b", lowered, flags=re.IGNORECASE):
+        return "private_sector"
+
+    tokens = lowered.split()
+    if len(tokens) == 1 and re.search(r"[a-z]", lowered):
+        return "private_sector"
+
+    return None
+
+
+def _map_entity_type_to_industry(entity_type):
+    return fallback_industry_from_entity_type(entity_type)
+
+
+def _resolve_live_victim_classification(victim_org_name, text, extracted_industry):
+    org_based_entity_type = _classify_org_from_name(victim_org_name)
+
+    if org_based_entity_type:
+        resolved = resolve_classification(
+            org_lookup_result={
+                "victim_entity_type": org_based_entity_type,
+                "industry": _map_entity_type_to_industry(org_based_entity_type),
+                "source": "live_org_name",
+            },
+            source_prefix="live",
+        )
+        if resolved["victim_entity_type"] != "unknown" or resolved["industry"] != "Other":
+            return resolved
+
+    return resolve_classification(
+        industry_value=extracted_industry,
+        source_prefix="live",
+    )
+
 def _extract_victim_org_name(article):
     title = (article.title or "").strip()
     summary = (article.summary or "").strip()
 
-    title_lower = title.lower()
-
-    if title_lower.startswith("webinar:"):
+    if not title:
         return None
 
-    title_patterns = [
-        " reports ",
-        " report ",
-        "says",
-        " hit by ",
-        " attacked by ",
-        " breached ",
-        " faces ",
-        " suffers ",
-        " targeted by ",
-        " disrupted after ",
-        " disrupted by ",
-        " affected by ",
-        " hacked ",
-        " loses ",
-        " stolen in ",
-        " extorted by ",
-        " confirms ",
-        " confirmed ",
-        " following ",
-    ]
+    if title.lower().startswith("webinar:"):
+        return None
 
-    for pattern in title_patterns:
-        if pattern in title_lower:
-            idx = title_lower.find(pattern)
-            candidate = _clean_org_name(title[:idx])
-            if candidate:
-                return candidate
-
-    leading_post_patterns = [
-        "breach of ",
-        "hack of ",
-        "attack on ",
-        "breach at ",
-        "hack at ",
-        "attack against ",
-    ]
-
-    for pattern in leading_post_patterns:
-        if title_lower.startswith(pattern):
-            candidate = title[len(pattern):].strip()
-            candidate = (
-                candidate.split(" via ")[0]
-                .split(" after ")[0]
-                .split(" linked to ")[0]
-                .split(" in ")[0]
-                .split(" exposes ")[0]
-            )
-            candidate = _clean_org_name(candidate)
-            if candidate:
-                return candidate
-
-    post_patterns = [
-        " breach of ",
-        " hack of ",
-        " attack on ",
-        " breach at ",
-        " hack at ",
-        " attack against ",
-    ]
-
-    for pattern in post_patterns:
-        if pattern in title_lower:
-            idx = title_lower.find(pattern)
-            candidate = title[idx + len(pattern):].strip()
-            candidate = (
-                candidate.split(" via ")[0]
-                .split(" after ")[0]
-                .split(" linked to ")[0]
-                .split(" in ")[0]
-                .split(" exposes ")[0]
-            )
-            candidate = _clean_org_name(candidate)
-            if candidate:
-                return candidate
-            
-    embedded_data_patterns = [
-        r"^(?:Stolen|Leaked|Exposed)\s+([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+(?:analytics data|customer data|member data|user data|internal data|data|records)\b",
-        r"\b([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+(?:analytics data|customer data|member data|user data|internal data|data|records)\s+(?:leaked|exposed|stolen|posted online)\b",
-    ]
-
-    for pattern in embedded_data_patterns:
-        match = re.search(pattern, title)
-        if match:
-            candidate = _clean_org_name(match.group(1))
-            if candidate:
-                return candidate
-
+    texts = [title]
     if summary:
-        for pattern in embedded_data_patterns:
-            match = re.search(pattern, summary)
-            if match:
-                candidate = _clean_org_name(match.group(1))
-                if candidate:
-                    return candidate
-                
-    incident_noun_patterns = [
-        r"\b([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+(?:data breach|breach|hack|ransomware attack|cyberattack|cyber attack)\b",
-        r"\b(?:European|Dutch|British|French|German|American|Canadian|Japanese|Australian)\s+[A-Za-z][A-Za-z0-9&._-]*\s+(?:giant|chain|provider|vendor|developer|firm|company)\s+([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+(?:data breach|breach|hack|ransomware attack|cyberattack|cyber attack)\b",
+        texts.append(summary)
+
+    target_patterns = [
+        r"\b(?:breach|hack|attack|cyberattack|cyber attack|ransomware attack)\s+(?:at|on|against|of)\s+([^,.;:]+)",
+        r"\b([^,.;:]+?)\s+(?:was|were|has been|have been)\s+(?:breached|hacked|attacked|targeted|compromised|disrupted|extorted)\b",
+        r"\b(?:hit|targeted|breached|hacked|attacked|compromised|disrupted|extorted)\s+([^,.;:]+)",
     ]
 
-    for pattern in incident_noun_patterns:
-        match = re.search(pattern, title)
-        if match:
-            candidate = _clean_org_name(match.group(1))
-            if candidate:
-                return candidate
+    self_disclosure_patterns = [
+        r"\b([^,.;:]+?)\s+(?:said|says|confirmed|confirms|announced|disclosed|reported)\b",
+    ]
 
-    if summary:
-        for pattern in incident_noun_patterns:
-            match = re.search(pattern, summary)
-            if match:
+    incident_terms = [
+        "breach",
+        "data leak",
+        "data breach",
+        "misconfiguration",
+        "hacked",
+        "breached",
+        "attacked",
+        "compromised",
+        "ransomware",
+        "extortion",
+        "leak",
+    ]
+
+    for text in texts:
+        for pattern in target_patterns:
+            for match in re.finditer(pattern, text, flags=re.IGNORECASE):
                 candidate = _clean_org_name(match.group(1))
                 if candidate:
                     return candidate
 
-    explicit_entity_patterns = [
-        r"\b(?:vendor|provider|developer|company|firm|chain|project|crypto-exchange)\s+([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\b",
-        r"\b([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+(?:has been impacted|hit by|breached|hacked|exposes customer data|exposes data|confirms data breach|confirmed data breach|extorted by hackers)\b",
-        r"\bFake\s+([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+app\b",
-        r"\b([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+Live\s+app\b",
-        r"\btheft from\s+([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+involved\b",
-        r"\btheft from\s+([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\b",
-    ]
+    for text in texts:
+        lowered_text = text.lower()
+        if not any(term in lowered_text for term in incident_terms):
+            continue
 
-    for pattern in explicit_entity_patterns:
-        match = re.search(pattern, title)
-        if match:
-            candidate = _clean_org_name(match.group(1))
-            if candidate:
-                return candidate
-
-    if summary:
-        for pattern in explicit_entity_patterns:
-            match = re.search(pattern, summary)
-            if match:
+        for pattern in self_disclosure_patterns:
+            for match in re.finditer(pattern, text, flags=re.IGNORECASE):
                 candidate = _clean_org_name(match.group(1))
                 if candidate:
                     return candidate
-
-    colon_blocklist = [
-        "webinar",
-        "analysis of",
-        "report on",
-        "the silent",
-    ]
-
-    summary_incident_patterns = [
-        r"\b([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+has suffered\b",
-        r"\b([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+announced that hackers breached its systems\b",
-        r"\bbelonging to\s+([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\b",
-        r"\btheft from\s+([A-Z][A-Za-z0-9&._-]*(?:-[A-Z][A-Za-z0-9&._-]*)?(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\b",
-        r"\bmalicious\s+([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,4})\s+app\b",
-    ]
-
-    if summary:
-        for pattern in summary_incident_patterns:
-            match = re.search(pattern, summary)
-            if match:
-                candidate = _clean_org_name(match.group(1))
-                if candidate:
-                    return candidate
-
-    if ":" in title:
-        left_raw = title.split(":", 1)[0].strip()
-        left_lower = left_raw.lower()
-        if not any(left_lower.startswith(prefix) for prefix in colon_blocklist):
-            left = _clean_org_name(left_raw)
-            if left:
-                return left
 
     return None
 
@@ -379,11 +383,26 @@ def _extract_exploitation_subject(article):
     return None
 
 def _extract_industry(text):
+    target_context_patterns = [
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(government|govt|agency|ministry|municipalit(?:y|ies)|federal|state government|department)\b", "Government"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(hospital|hospitals|healthcare|clinic|health system|medical)\b", "Healthcare"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(school|schools|university|universities|college|education|educational|student|campus|district)\b", "Education"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(bank|banks|financial|credit union|insurance|brokerage|payment processor)\b", "Financial Services"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(utility|utilities|power grid|electric|water utility|pipeline|energy)\b", "Energy"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(airport|airline|aviation|rail|railway|transit|metro|shipping|logistics|freight|port authority)\b", "Transportation"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(newspaper|news outlet|media company|broadcaster|television network|radio station|publisher)\b", "Media"),
+    ]
+
+    for pattern, industry in target_context_patterns:
+        if re.search(pattern, text, flags=re.IGNORECASE):
+            return industry
+
     if any(keyword in text for keyword in [
         "software provider",
         "software vendor",
         "technology",
         "tech company",
+        "tech firm",
         "it provider",
         "cloud",
         "saas",
@@ -397,11 +416,13 @@ def _extract_industry(text):
         "browser",
         "developer tool",
         "video game developer",
-        "cpu-z",
-        "hwmonitor",
-        "marimo",
-        "project",
         "application framework",
+        "platform",
+        "telematics",
+        "fleet management",
+        "fleet management company",
+        "gps tracking",
+        "tracking platform",
     ]):
         return "Technology"
 
@@ -436,6 +457,8 @@ def _extract_industry(text):
         "university",
         "college",
         "education",
+        "educational",
+        "edtech",
         "student",
         "campus",
         "district",
@@ -458,48 +481,6 @@ def _extract_industry(text):
         "parish",
     ]):
         return "Government"
-
-    if any(keyword in text for keyword in [
-        "gym",
-        "fitness",
-        "health club",
-        "members across several countries",
-    ]):
-        return "Consumer Services"
-
-    if any(keyword in text for keyword in [
-        "retail",
-        "store",
-        "merchant",
-        "e-commerce",
-        "shopping",
-        "supermarket",
-        "grocery",
-    ]):
-        return "Retail"
-
-    if any(keyword in text for keyword in [
-        "manufacturer",
-        "manufacturing",
-        "industrial",
-        "factory",
-        "plc",
-        "assembly plant",
-        "production facility",
-    ]):
-        return "Manufacturing"
-
-    if any(keyword in text for keyword in [
-        "telecom",
-        "telecommunications",
-        "carrier",
-        "mobile network",
-        "broadband",
-        "internet provider",
-        "internet service provider",
-        "isp",
-    ]):
-        return "Telecommunications"
 
     if any(keyword in text for keyword in [
         "energy",
@@ -606,6 +587,29 @@ def _extract_geography(text):
         (["turkey", "turkish"], "Turkey", "Middle East"),
     ]
 
+    target_phrase_patterns = [
+        r"\battacks?\s+(?:on|against)\s+([^.;:]+)",
+        r"\btarget(?:ing|ed)\s+([^.;:]+)",
+        r"\bcampaign(?:s)?\s+against\s+([^.;:]+)",
+        r"\bmalware\s+used\s+in\s+attacks?\s+(?:on|against)\s+([^.;:]+)",
+    ]
+
+    target_spans = []
+    for pattern in target_phrase_patterns:
+        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+            span = match.group(1).strip()
+            if span:
+                target_spans.append(span)
+
+    for span in target_spans:
+        for keywords, mapped_country, mapped_region in geography_map:
+            if any(keyword in span for keyword in keywords):
+                return {
+                    "country": mapped_country,
+                    "region": mapped_region,
+                    "city": None,
+                }
+
     for keywords, mapped_country, mapped_region in geography_map:
         if any(keyword in text for keyword in keywords):
             country = mapped_country
@@ -656,12 +660,12 @@ def _has_exploitation_signal(text):
 
 def _extract_actor(text):
     """
-    Extract explicitly named threat actors only.
+    Extract explicitly named threat actors.
 
-    Rules:
-    - use explicit attribution patterns only
-    - reject generic actor phrases
-    - distinguish claimed vs attributed
+    Supports:
+    - claimed responsibility
+    - attributed / linked patterns
+    - actor-led action patterns (e.g., "ShinyHunters group leaked data")
     """
     if not text:
         return {
@@ -723,18 +727,11 @@ def _extract_actor(text):
 
         return cleaned
 
+    # 1. claimed
     claimed_patterns = [
         r"\b([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\s+(?:cybercrime group|threat group|ransomware group|ransomware gang|hacktivist group)\s+has claimed responsibility\b",
         r"\b([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\s+has claimed responsibility\b",
         r"\bclaimed by\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
-    ]
-
-    attributed_patterns = [
-        r"\btracked as\s+([A-Z][A-Za-z0-9_-]*(?:-[A-Za-z0-9_-]+)*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
-        r"\battributed to\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
-        r"\blinked to\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
-        r"\bassociated with\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
-        r"\btied to\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
     ]
 
     for pattern in claimed_patterns:
@@ -748,6 +745,15 @@ def _extract_actor(text):
                     "attribution_status": "claimed",
                 }
 
+    # 2. attributed
+    attributed_patterns = [
+        r"\btracked as\s+([A-Z][A-Za-z0-9_-]*(?:-[A-Za-z0-9_-]+)*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
+        r"\battributed to\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
+        r"\blinked to\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
+        r"\bassociated with\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
+        r"\btied to\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
+    ]
+
     for pattern in attributed_patterns:
         match = re.search(pattern, text)
         if match:
@@ -756,6 +762,22 @@ def _extract_actor(text):
                 return {
                     "actor_name": candidate,
                     "actor_type": "Threat Group",
+                    "attribution_status": "attributed",
+                }
+
+    # 3. actor-led action (NEW)
+    action_patterns = [
+        r"\b([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\s+(?:extortion group|ransomware group|ransomware gang|cybercrime group|hacktivist group)\s+(?:has|have)\s+(?:leaked|stolen|breached|hacked|targeted|attacked|compromised|deployed)\b",
+    ]
+
+    for pattern in action_patterns:
+        match = re.search(pattern, text)
+        if match:
+            candidate = normalize_candidate(match.group(1))
+            if candidate:
+                return {
+                    "actor_name": candidate,
+                    "actor_type": "Cybercrime Group",
                     "attribution_status": "attributed",
                 }
 
@@ -789,8 +811,18 @@ def run_rule_extraction(article):
     victim_org_name = _extract_victim_org_name(article)
     if victim_org_name is None and _has_exploitation_signal(text):
         victim_org_name = _extract_exploitation_subject(article)
+
     victim_org_normalized = _normalize_org_name(victim_org_name)
-    industry = _extract_industry(text)
+    extracted_industry = _extract_industry(text)
+    classification = _resolve_live_victim_classification(
+        victim_org_name,
+        text,
+        extracted_industry,
+    )
+
+    industry = classification["industry"]
+    victim_entity_type = classification["victim_entity_type"]
+
     geography = _extract_geography(text)
     actor = _extract_actor(original_text)
 
@@ -846,6 +878,16 @@ def run_rule_extraction(article):
         "spyware",
         "wiper",
         "malicious executables",
+        "payload",
+        "payloads",
+        "deployed payloads",
+        "used to deploy malware",
+        "abused to deploy",
+        "deployed malware",
+        "deploy scripts",
+        "running with system privileges",
+        "disabled antivirus protections",
+        "killing scripts",
     ]):
         attack_type = "Malware"
     elif _has_exploitation_signal(text):
@@ -1043,10 +1085,17 @@ def run_rule_extraction(article):
 
     short_event_summary = _clean_summary_text(article.summary) or _clean_summary_text(article.title)
 
+    attack_type = normalize_attack_type(attack_type)
+    access_vector = normalize_access_vector(access_vector)
+    impact_type = normalize_impact_type(impact_type)
+    actor_type = normalize_actor_type(actor["actor_type"])
+    attribution_status = normalize_attribution_status(actor["attribution_status"])
+    vuln_status = normalize_vuln_status(vuln_status)
+
     return {
         "victim_org_name": victim_org_name,
         "victim_org_normalized": victim_org_normalized,
-        "victim_entity_type": None,
+        "victim_entity_type": victim_entity_type,
         "victim_display_label": victim_org_name,
         "industry": industry,
         "region": geography["region"],
@@ -1056,8 +1105,8 @@ def run_rule_extraction(article):
         "access_vector": access_vector,
         "impact_type": impact_type,
         "actor_name": actor["actor_name"],
-        "actor_type": actor["actor_type"],
-        "attribution_status": actor["attribution_status"],
+        "actor_type": actor_type,
+        "attribution_status": attribution_status,
         "vuln_status": vuln_status,
         "cve_ids": [],
         "zero_day_flag": zero_day_flag,

@@ -7,6 +7,20 @@ from datetime import datetime, UTC
 from app.extensions import db
 from app.models import CyberEvent, EventSourceLink, RawArticle, ArticleExtraction
 
+from app.services.classification import resolve_classification
+from app.services.taxonomy import (
+    normalize_access_vector,
+    normalize_actor_type,
+    normalize_attack_type,
+    normalize_attribution_status,
+    normalize_event_status,
+    normalize_impact_type,
+    normalize_industry,
+    normalize_record_origin,
+    normalize_verification_level,
+    normalize_vuln_status,
+)
+
 
 def get_linked_articles(event_id):
     """
@@ -46,6 +60,31 @@ def _most_common_non_empty(values):
         return None
 
     return Counter(cleaned).most_common(1)[0][0]
+
+def _most_common_non_default(values, default_values):
+    cleaned = []
+    fallback = []
+
+    for value in values:
+        if value is None:
+            continue
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                continue
+
+        fallback.append(value)
+
+        if value not in default_values:
+            cleaned.append(value)
+
+    if cleaned:
+        return Counter(cleaned).most_common(1)[0][0]
+
+    if fallback:
+        return Counter(fallback).most_common(1)[0][0]
+
+    return None
 
 def _build_event_summary(linked_articles, extractions):
     """
@@ -167,8 +206,11 @@ def refresh_event_source_roles(event_id):
 
 def _infer_geography_from_articles(linked_articles):
     """
-    Lightweight fallback geography inference from article text when
-    extraction does not populate country/region.
+    Fallback geography inference from article text.
+
+    Precedence:
+    1. Geography named as the attack target context
+    2. Generic geography mention anywhere in the article text
     """
     text = " ".join(
         [
@@ -234,6 +276,25 @@ def _infer_geography_from_articles(linked_articles):
         (["kenya"], "Kenya", "Africa"),
         (["egypt"], "Egypt", "Africa"),
     ]
+
+    target_phrase_patterns = [
+        r"\battacks?\s+(?:on|against)\s+([^.;:]+)",
+        r"\btarget(?:ing|ed)\s+([^.;:]+)",
+        r"\bcampaign(?:s)?\s+against\s+([^.;:]+)",
+        r"\bmalware\s+used\s+in\s+attacks?\s+(?:on|against)\s+([^.;:]+)",
+    ]
+
+    target_spans = []
+    for pattern in target_phrase_patterns:
+        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+            span = match.group(1).strip()
+            if span:
+                target_spans.append(span)
+
+    for span in target_spans:
+        for keywords, country, region in geography_map:
+            if any(keyword in span for keyword in keywords):
+                return {"country": country, "region": region, "city": None}
 
     for keywords, country, region in geography_map:
         if any(keyword in text for keyword in keywords):
@@ -508,47 +569,24 @@ def _infer_victim_entity_type_and_display_label(victim_org_name, industry, count
     else:
         display_label = None
 
-    industry_to_entity_type = {
-        "Government": "government",
-        "Financial Services": "financial",
-        "Healthcare": "healthcare",
-        "Education": "education",
-        "Media": "media",
-        "Transportation": "transportation",
-        "Technology": "technology",
-        "Energy": "critical_infrastructure",
-        "Private Sector": "private_sector",
-        "Manufacturing": "private_sector",
-        "Consumer Services": "private_sector",
-        "Retail": "private_sector",
-        "Telecommunications": "technology",
-        "Other": "unknown",
-    }
+    resolved = resolve_classification(
+        industry_value=industry,
+        source_prefix="enrichment",
+    )
+    entity_type = resolved["victim_entity_type"]
 
-    entity_type = industry_to_entity_type.get(industry)
-
-    if not display_label and entity_type:
+    if not display_label:
         label_map = {
-            "government": "Government entities",
-            "political": "Political parties",
-            "military": "Military organizations",
-            "media": "Media organizations",
-            "financial": "Financial institutions",
-            "transportation": "Transportation organizations",
-            "healthcare": "Healthcare organizations",
-            "education": "Educational institutions",
-            "civil_society": "Civil society organizations",
-            "technology": "Technology organizations",
-            "critical_infrastructure": "Critical infrastructure organizations",
-            "private_sector": "Private sector organizations",
-            "research": "Research organizations",
-            "international": "International organizations",
-            "individuals": "Individual targets",
-            "unknown": "Unspecified target",
+            "government": "Government",
+            "private_sector": "Private Sector",
+            "critical_infrastructure": "Critical Infrastructure",
+            "civil_society": "Civil Society",
+            "international": "International",
+            "individuals": "Individuals",
+            "unknown": "Unspecified Target",
         }
 
-        base_label = label_map.get(entity_type, "Unspecified target")
-        display_label = f"{base_label} ({country})" if country else base_label
+        display_label = label_map.get(entity_type, "Unspecified Target")
 
     return entity_type, display_label
 
@@ -588,11 +626,13 @@ def aggregate_event_data(linked_articles, extractions, source_count):
     actor_name = _most_common_non_empty(
         [extraction.actor_name for extraction in extractions]
     )
-    actor_type = _most_common_non_empty(
-        [extraction.actor_type for extraction in extractions]
+    actor_type = _most_common_non_default(
+        [extraction.actor_type for extraction in extractions],
+        {"Unknown"},
     )
-    attribution_status = _most_common_non_empty(
-        [extraction.attribution_status for extraction in extractions]
+    attribution_status = _most_common_non_default(
+        [extraction.attribution_status for extraction in extractions],
+        {"unattributed"},
     )
     vuln_status = _most_common_non_empty(
         [extraction.vuln_status for extraction in extractions]
@@ -666,6 +706,26 @@ def aggregate_event_data(linked_articles, extractions, source_count):
         region=region,
     )
 
+    classification = resolve_classification(
+        org_lookup_result={
+            "victim_entity_type": victim_entity_type,
+            "industry": industry,
+            "source": "enrichment_aggregate",
+        },
+        industry_value=industry,
+        source_prefix="enrichment",
+    )
+
+    victim_entity_type = classification["victim_entity_type"]
+    industry = classification["industry"]
+
+    attack_type = normalize_attack_type(attack_type)
+    access_vector = normalize_access_vector(access_vector)
+    impact_type = normalize_impact_type(impact_type)
+    actor_type = normalize_actor_type(actor_type)
+    attribution_status = normalize_attribution_status(attribution_status)
+    vuln_status = normalize_vuln_status(vuln_status)
+
     return {
         "canonical_title": primary_article.title,
         "victim_org_name": victim_org_name,
@@ -710,25 +770,41 @@ def update_event(event_id, event_data):
         "victim_org_normalized",
         event.victim_org_normalized,
     )
-    event.victim_entity_type = event_data.get(
-        "victim_entity_type",
-        event.victim_entity_type,
+    resolved = resolve_classification(
+        org_lookup_result={
+            "victim_entity_type": event_data.get("victim_entity_type", event.victim_entity_type),
+            "industry": event_data.get("industry", event.industry),
+            "source": "enrichment_update",
+        },
+        industry_value=event_data.get("industry", event.industry),
+        source_prefix="enrichment_update",
     )
+
+    event.victim_entity_type = resolved["victim_entity_type"]
     event.victim_display_label = event_data.get(
         "victim_display_label",
         event.victim_display_label,
     )
-    event.industry = event_data.get("industry", event.industry)
-    event.attack_type = event_data.get("attack_type", event.attack_type)
-    event.access_vector = event_data.get("access_vector", event.access_vector)
-    event.impact_type = event_data.get("impact_type", event.impact_type)
-    event.actor_name = event_data.get("actor_name", event.actor_name)
-    event.actor_type = event_data.get("actor_type", event.actor_type)
-    event.attribution_status = event_data.get(
-        "attribution_status",
-        event.attribution_status,
+    event.industry = resolved["industry"]
+    event.attack_type = normalize_attack_type(
+        event_data.get("attack_type", event.attack_type)
     )
-    event.vuln_status = event_data.get("vuln_status", event.vuln_status)
+    event.access_vector = normalize_access_vector(
+        event_data.get("access_vector", event.access_vector)
+    )
+    event.impact_type = normalize_impact_type(
+        event_data.get("impact_type", event.impact_type)
+    )
+    event.actor_name = event_data.get("actor_name", event.actor_name)
+    event.actor_type = normalize_actor_type(
+        event_data.get("actor_type", event.actor_type)
+    )
+    event.attribution_status = normalize_attribution_status(
+        event_data.get("attribution_status", event.attribution_status)
+    )
+    event.vuln_status = normalize_vuln_status(
+        event_data.get("vuln_status", event.vuln_status)
+    )
     event.zero_day_flag = event_data.get("zero_day_flag", event.zero_day_flag)
     event.region = event_data.get("region", event.region)
     event.country = event_data.get("country", event.country)

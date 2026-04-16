@@ -45,10 +45,10 @@ def evaluate_signal_strength(event):
     if event.access_vector and event.access_vector != "Unknown Initial Access":
         score += 1
 
-    if event.impact_type:
+    if event.impact_type and event.impact_type != "Unknown":
         score += 2
 
-    if event.industry:
+    if event.industry and event.industry != "Other":
         score += 1
 
     if event.country or event.region:
@@ -90,10 +90,10 @@ def evaluate_uncertainty(event):
     if not event.attack_type or event.attack_type == "Unknown":
         penalty += 2
 
-    if not event.impact_type:
+    if not event.impact_type or event.impact_type == "Unknown":
         penalty += 1
 
-    if not event.industry:
+    if not event.industry or event.industry == "Other":
         penalty += 1
 
     if not event.country and not event.region:
@@ -138,7 +138,7 @@ def derive_verification_level(event, confidence_level):
     return "low"
 
 
-def derive_is_high_impact(event):
+def derive_is_high_impact(event, confidence_level):
     """
     Flag events that are especially meaningful from an impact perspective.
     """
@@ -154,7 +154,7 @@ def derive_is_high_impact(event):
     if (
         event.attack_type == "Data Breach"
         and event.victim_org_name
-        and event.confidence_level in ["medium", "high"]
+        and confidence_level in ["medium", "high"]
     ):
         return True
 
@@ -162,7 +162,7 @@ def derive_is_high_impact(event):
         event.attack_type == "Malware"
         and event.victim_org_name
         and event.access_vector in ["Web", "Third-Party"]
-        and event.confidence_level == "high"
+        and confidence_level == "high"
     ):
         return True
 

@@ -19,7 +19,7 @@ def score_events_job():
     for event in events:
         score, confidence_level = calculate_confidence(event)
         verification_level = derive_verification_level(event, confidence_level)
-        is_high_impact = derive_is_high_impact(event)
+        is_high_impact = derive_is_high_impact(event, confidence_level)
 
         event.confidence_score = score
         event.confidence_level = confidence_level
