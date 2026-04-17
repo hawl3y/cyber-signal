@@ -11,6 +11,8 @@
     --confirmed-border: #b7ebc6;
     --emerging-bg: #fff7e6;
     --emerging-border: #f7d9a8;
+    --signal-pill-bg: #f3f6fb;
+    --signal-pill-text: #486581;
 }
 
 * {
@@ -191,8 +193,44 @@ body {
     border-color: var(--emerging-border);
 }
 
+.event-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.signal-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--signal-pill-bg);
+    border: 1px solid var(--border);
+    color: var(--signal-pill-text);
+    font-size: 11px;
+    line-height: 1.2;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.signal-pill.signal-incident {
+    background: var(--signal-pill-bg);
+    color: var(--signal-pill-text);
+}
+
+.signal-pill.signal-activity {
+    background: #f8fafc;
+    color: #52606d;
+}
+
 .event-card h3 {
-    margin: 0 0 10px 0;
+    margin: 0;
     font-size: 19px;
     line-height: 1.35;
 }
@@ -324,5 +362,10 @@ body {
 
     .event-card h3 {
         font-size: 17px;
+    }
+
+    .event-card-header {
+        flex-direction: column;
+        align-items: flex-start;
     }
 }

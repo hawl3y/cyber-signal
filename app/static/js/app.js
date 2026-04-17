@@ -78,6 +78,12 @@ function formatMetaLabel(value) {
         .join(" ");
 }
 
+function formatSignalTypeLabel(value) {
+    if (!value) return "Incident";
+    if (value === "activity") return "Activity";
+    return "Incident";
+}
+
 function populateSelect(selectId, values) {
     const select = document.getElementById(selectId);
     if (!select) return;
@@ -219,10 +225,19 @@ async function loadEvents() {
                 .map(value => `<span class="meta-pill">${formatMetaLabel(value)}</span>`)
                 .join("");
 
+            const signalTypePill = `
+                <span class="signal-pill signal-${event.event_signal_type || "incident"}">
+                    ${formatSignalTypeLabel(event.event_signal_type)}
+                </span>
+            `;
+
             const secondaryLine = meta.secondary.join(" • ");
 
             el.innerHTML = `
-                <h3>${event.title || "Untitled Event"}</h3>
+                <div class="event-card-header">
+                    <h3>${event.title || "Untitled Event"}</h3>
+                    ${signalTypePill}
+                </div>
                 <p class="event-summary">${event.summary || "No summary available."}</p>
                 <div class="event-meta">${primaryPills}</div>
                 <div class="event-subline">${secondaryLine}</div>

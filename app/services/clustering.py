@@ -181,6 +181,8 @@ def create_event(article, extraction):
     region = extraction.region if extraction else None
     summary_short = extraction.short_event_summary if extraction else None
 
+    event_signal_type = "incident"
+
     event = CyberEvent(
         canonical_title=article.title or "Untitled Event",
         slug=slug,
@@ -191,6 +193,7 @@ def create_event(article, extraction):
         victim_org_normalized=victim_org_normalized,
         industry=industry,
         attack_type=attack_type,
+        event_signal_type=event_signal_type,
         country=country,
         region=region,
         summary_short=summary_short,
@@ -292,6 +295,10 @@ def refresh_event(event_id):
             event.country = extraction.country
         if extraction.region:
             event.region = extraction.region
+
+        # Always treat current pipeline output as incident
+        event.event_signal_type = "incident"
+
         if extraction.short_event_summary:
             event.summary_short = extraction.short_event_summary
 

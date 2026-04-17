@@ -29,6 +29,7 @@ class CyberEvent(db.Model):
     industry = db.Column(db.String(100))
 
     attack_type = db.Column(db.String(100))
+    event_signal_type = db.Column(db.String(50), default="incident")
     access_vector = db.Column(db.String(100))
     impact_type = db.Column(db.String(100))
 

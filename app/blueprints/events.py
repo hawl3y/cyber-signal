@@ -77,6 +77,7 @@ def list_events():
             "country": event.country,
             "region": event.region,
             "attack_type": event.attack_type,
+            "event_signal_type": event.event_signal_type or "incident",
             "status": event.event_status,
             "confidence": event.confidence_level,
             "time": _format_event_time(event),
