@@ -33,10 +33,10 @@ def _detach_article_from_existing_event(article):
         if old_event:
             if remaining_links == 0:
                 db.session.delete(old_event)
+                db.session.flush()
             else:
-                old_event.source_count = remaining_links
-
-        db.session.flush()
+                db.session.flush()
+                refresh_event(old_event_id)
 
 
 def cluster_events_job():

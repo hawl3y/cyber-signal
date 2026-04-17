@@ -2,8 +2,6 @@ from app.models import RawArticle
 from app.services.extraction import (
     get_ready_for_extraction,
     run_rule_extraction,
-    run_ai_extraction,
-    merge_signals,
     save_extraction,
     mark_ready_for_clustering,
 )
@@ -11,10 +9,11 @@ from app.services.extraction import (
 
 def extract_signals_job(force=False):
     """
-    Entry point for extraction stage.
+    Entry point for MVP extraction stage.
 
-    force=True should re-run extraction for articles that already passed
-    processing, not for every non-duplicate raw article.
+    force=True re-runs extraction for already-processed live articles that have
+    not been marked duplicate. Extraction is intentionally deterministic and
+    single-path for the MVP.
     """
     if force:
         articles = RawArticle.query.filter(
@@ -27,12 +26,8 @@ def extract_signals_job(force=False):
         articles = get_ready_for_extraction()
 
     for article in articles:
-        rule_signals = run_rule_extraction(article)
-        ai_signals = run_ai_extraction(article)
-
-        merged = merge_signals(rule_signals, ai_signals)
-
-        save_extraction(article.id, merged)
+        signals = run_rule_extraction(article)
+        save_extraction(article.id, signals)
         mark_ready_for_clustering(article)
 
     return True

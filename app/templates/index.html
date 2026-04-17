@@ -5,149 +5,108 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cyber Signal</title>
     <link rel="stylesheet" href="/static/css/main.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
     <div class="page">
         <header class="header">
             <h1>Cyber Signal</h1>
-            <p>Structured cyber event intelligence dashboard.</p>
+            <p>High-signal cyber incident brief.</p>
         </header>
 
-        <div class="grid">
-            <aside class="panel">
-                <div class="sidebar-section">
+        <main class="layout">
+            <section class="panel filters-panel">
+                <div class="panel-header-simple">
                     <h2>Filters</h2>
+                    <button id="reset-filters" type="button" class="filter-reset-button">
+                        Reset
+                    </button>
+                </div>
 
-                    <div class="filter-grid">
-                        <div>
-                            <label for="filter-industry">Industry</label><br>
-                            <select id="filter-industry" class="filter-select">
-                                <option value="">All</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label for="filter-region">Region</label><br>
-                            <select id="filter-region" class="filter-select">
-                                <option value="">All</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label for="filter-country">Country</label><br>
-                            <select id="filter-country" class="filter-select">
-                                <option value="">All</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label for="filter-attack-type">Attack Type</label><br>
-                            <select id="filter-attack-type" class="filter-select">
-                                <option value="">All</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label for="filter-start-date">Start Date</label><br>
-                            <input id="filter-start-date" class="filter-select" type="date">
-                        </div>
-
-                        <div>
-                            <label for="filter-end-date">End Date</label><br>
-                            <input id="filter-end-date" class="filter-select" type="date">
-                        </div>
+                <div class="filter-row">
+                    <div class="filter-item">
+                        <label for="filter-time-range">Time Range</label>
+                        <select id="filter-time-range" class="filter-select">
+                            <option value="24h">24h</option>
+                            <option value="7d" selected>7d</option>
+                            <option value="30d">30d</option>
+                        </select>
                     </div>
 
-                    <div class="filter-actions">
-                        <button id="reset-filters" type="button" class="filter-reset-button">
-                            Reset Filters
-                        </button>
+                    <div class="filter-item">
+                        <label for="filter-industry">Industry</label>
+                        <select id="filter-industry" class="filter-select">
+                            <option value="">All</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-item">
+                        <label for="filter-region">Region</label>
+                        <select id="filter-region" class="filter-select">
+                            <option value="">All</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-item">
+                        <label for="filter-attack-type">Attack Type</label>
+                        <select id="filter-attack-type" class="filter-select">
+                            <option value="">All</option>
+                        </select>
                     </div>
                 </div>
-            </aside>
+            </section>
 
-            <main class="content-stack">
-                <section class="summary-grid">
-                    <div class="summary-card">
-                        <span class="label">Total Events</span>
-                        <span class="value" id="total-events">--</span>
-                    </div>
-                    <div class="summary-card">
-                        <span class="label">Validated Events</span>
-                        <span class="value" id="validated-events">--</span>
-                    </div>
-                    <div class="summary-card">
-                        <span class="label">Historical Events</span>
-                        <span class="value" id="historical-events">--</span>
-                    </div>
-                    <div class="summary-card">
-                        <span class="label">High Impact Events</span>
-                        <span class="value" id="high-impact-events">--</span>
-                    </div>
+            <section class="summary-strip">
+                <div class="summary-card">
+                    <span class="label">Total Incidents</span>
+                    <span class="value" id="total-incidents">--</span>
+                </div>
+                <div class="summary-card">
+                    <span class="label">Confirmed Incidents</span>
+                    <span class="value" id="confirmed-incidents">--</span>
+                </div>
+                <div class="summary-card">
+                    <span class="label">Emerging</span>
+                    <span class="value" id="emerging-signals">--</span>
+                </div>
+                <div class="summary-card">
+                    <span class="label">Top Attack Type</span>
+                    <span class="value value-text" id="top-attack-type">--</span>
+                </div>
+                <div class="summary-card">
+                    <span class="label">Top Targeted Industry</span>
+                    <span class="value value-text" id="top-targeted-industry">--</span>
+                </div>
+            </section>
 
-                    <div class="summary-card">
-                        <span class="label">Top Industry</span>
-                        <span class="value" id="top-industry">--</span>
-                    </div>
-                    <div class="summary-card">
-                        <span class="label">Top Attack Type</span>
-                        <span class="value" id="top-attack-type">--</span>
-                    </div>
-                    <div class="summary-card">
-                        <span class="label">Top Region</span>
-                        <span class="value" id="top-region">--</span>
-                    </div>
-                    <div class="summary-card">
-                        <span class="label">Top Verification</span>
-                        <span class="value" id="top-verification-level">--</span>
-                    </div>
-                </section>
+            <section class="panel feed-panel">
+                <div class="feed-header">
+                    <h2>High-Signal Events</h2>
+                    <span id="feed-count" class="feed-count"></span>
+                </div>
+                <div id="event-feed" class="feed-list"></div>
+            </section>
 
-                <section class="panel map-placeholder">
-                    <div class="panel-header">
-                        <h2>Map</h2>
-                        <div class="map-legend">
-                            <span class="legend-item">
-                                <span class="legend-swatch legend-swatch-light"></span>
-                                Lower Concentration
-                            </span>
-                            <span class="legend-item">
-                                <span class="legend-swatch legend-swatch-medium"></span>
-                                Medium Concentration
-                            </span>
-                            <span class="legend-item">
-                                <span class="legend-swatch legend-swatch-dark"></span>
-                                Higher Concentration
-                            </span>
-                        </div>
-                    </div>
-                    <div id="map"></div>
-                </section>
+            <section class="panel trends-panel">
+                <div class="panel-header-simple">
+                    <h2>Trend Snapshot</h2>
+                    <span class="panel-subtitle">Last 7 days</span>
+                </div>
 
-                <section class="panel feed-placeholder">
-                    <div class="feed-header">
-                        <h2>Event Feed</h2>
-                        <span id="feed-count" class="feed-count"></span>
+                <div class="trends-grid">
+                    <div class="trend-block">
+                        <h3>Top Attack Types</h3>
+                        <div id="trend-attack-types" class="trend-list"></div>
                     </div>
 
-                    <div id="event-feed" class="feed-list"></div>
-
-                    <div class="pagination" id="pagination-controls">
-                        <button id="pagination-prev" type="button" class="pagination-button">
-                            Previous
-                        </button>
-                        <span id="pagination-status" class="pagination-status">Page 1</span>
-                        <button id="pagination-next" type="button" class="pagination-button">
-                            Next
-                        </button>
+                    <div class="trend-block">
+                        <h3>Top Industries</h3>
+                        <div id="trend-industries" class="trend-list"></div>
                     </div>
-                </section>
-            </main>
-        </div>
+                </div>
+            </section>
+        </main>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

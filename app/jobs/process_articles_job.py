@@ -1,5 +1,6 @@
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction, CyberEvent, EventSourceLink
+from app.services.clustering import refresh_event
 from app.services.processing import (
     clean_article,
     get_pending_articles,
@@ -42,10 +43,10 @@ def _remove_article_from_downstream(article):
 
         if remaining_links == 0:
             db.session.delete(event)
+            db.session.flush()
         else:
-            event.source_count = remaining_links
-
-        db.session.flush()
+            db.session.flush()
+            refresh_event(event_id)
 
 
 def process_articles_job(force=False):

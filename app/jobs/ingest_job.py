@@ -1,5 +1,6 @@
 from app.utils.sources import load_active_sources
-from app.services.ingestion import fetch_source_items, normalize_article, save_raw_article
+from app.services.ingestion import fetch_source_items, save_raw_article
+
 
 def scheduled_ingest_job():
     """
@@ -11,7 +12,6 @@ def scheduled_ingest_job():
         items = fetch_source_items(source)
 
         for item in items:
-            normalized = normalize_article(item)
-            save_raw_article(normalized)
+            save_raw_article(item)
 
     return True

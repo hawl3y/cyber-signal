@@ -8,40 +8,58 @@ from app.services.summary import get_filtered_events, get_event_reference_time
 events_bp = Blueprint("events", __name__, url_prefix="/api/events")
 
 
+def _format_event_time(event):
+    ref = get_event_reference_time(event)
+    if not ref:
+        return None
+
+    now = datetime.utcnow()
+    delta = now - ref
+
+    if delta.days == 0:
+        hours = int(delta.total_seconds() // 3600)
+        if hours <= 0:
+            minutes = int(delta.total_seconds() // 60)
+            return f"{max(minutes, 1)}m ago"
+        return f"{hours}h ago"
+
+    if delta.days < 7:
+        return f"{delta.days}d ago"
+
+    return ref.strftime("%Y-%m-%d")
+
+
+def _event_priority(event):
+    ref = get_event_reference_time(event)
+    timestamp = ref.timestamp() if ref else 0
+    source_count = event.source_count or 0
+
+    if event.event_status == "confirmed":
+        return (0, -source_count, -timestamp)
+
+    return (1, -timestamp)
+
+
 @events_bp.route("/", methods=["GET"])
 def list_events():
     industry = request.args.get("industry")
-    country = request.args.get("country")
     region = request.args.get("region")
     attack_type = request.args.get("attack_type")
     time_range = request.args.get("time_range")
-    start_date = request.args.get("start_date")
-    end_date = request.args.get("end_date")
-    record_origin = request.args.get("record_origin")
     limit = request.args.get("limit", type=int)
     offset = request.args.get("offset", default=0, type=int)
 
     events = get_filtered_events(
         industry=industry,
-        country=country,
         region=region,
         attack_type=attack_type,
         time_range=time_range,
-        start_date=start_date,
-        end_date=end_date,
-        record_origin=record_origin,
     )
 
     if offset is None or offset < 0:
         offset = 0
 
-    events = sorted(
-        events,
-        key=lambda e: (
-            get_event_reference_time(e) is None,
-            -(get_event_reference_time(e).timestamp()) if get_event_reference_time(e) else float("inf"),
-        ),
-    )
+    events = sorted(events, key=_event_priority)
 
     if offset:
         events = events[offset:]
@@ -52,55 +70,32 @@ def list_events():
     results = [
         {
             "id": event.id,
-            "canonical_title": event.canonical_title,
-            "event_status": event.event_status,
-            "verification_level": event.verification_level,
-            "record_origin": event.record_origin,
-            "is_high_impact": event.is_high_impact,
-            "victim_org_name": event.victim_org_name,
-            "victim_org_normalized": event.victim_org_normalized,
-            "victim_entity_type": event.victim_entity_type,
-            "victim_display_label": event.victim_display_label,
+            "title": event.canonical_title,
+            "summary": event.summary_short,
+            "victim_name": event.victim_org_name,
             "industry": event.industry,
             "country": event.country,
             "region": event.region,
-            "geography_type": event.geography_type,
             "attack_type": event.attack_type,
-            "access_vector": event.access_vector,
-            "impact_type": event.impact_type,
-            "actor_name": event.actor_name,
-            "actor_type": event.actor_type,
-            "attribution_status": event.attribution_status,
-            "vuln_status": event.vuln_status,
-            "zero_day_flag": event.zero_day_flag,
-            "recency_bucket": (
-                lambda ref: (
-                    "today"
-                    if ref and (datetime.utcnow() - ref).days == 0
-                    else "recent"
-                    if ref and (datetime.utcnow() - ref).days <= 7
-                    else "older"
-                )
-            )(get_event_reference_time(event)),
-            "summary_short": event.summary_short,
-            "confidence_score": event.confidence_score,
-            "confidence_level": event.confidence_level,
+            "status": event.event_status,
+            "confidence": event.confidence_level,
+            "time": _format_event_time(event),
+            "published_at": get_event_reference_time(event),
             "source_count": event.source_count,
             "primary_source_count": EventSourceLink.query.filter_by(
                 cyber_event_id=event.id,
                 is_primary_source=True,
             ).count(),
-            "secondary_source_count": EventSourceLink.query.filter_by(
-                cyber_event_id=event.id,
-                is_primary_source=False,
-            ).count(),
-            "first_seen_at": event.first_seen_at,
-            "last_seen_at": event.last_seen_at,
-            "event_occurred_at": event.event_occurred_at,
-            "created_at": event.created_at,
-            "updated_at": event.updated_at,
-            "last_enriched_at": event.last_enriched_at,
-            "last_confidence_scored_at": event.last_confidence_scored_at,
+            "source_names": sorted({
+                link.raw_article.source_name
+                for link in event.event_sources
+                if link.raw_article and link.raw_article.source_name
+            }),
+            "publishers": sorted({
+                link.raw_article.publisher
+                for link in event.event_sources
+                if link.raw_article and link.raw_article.publisher
+            }),
         }
         for event in events
     ]

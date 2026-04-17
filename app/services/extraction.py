@@ -4,15 +4,7 @@ from app.extensions import db
 from app.models import RawArticle, ArticleExtraction
 
 from app.services.classification import resolve_classification
-from app.services.taxonomy import (
-    fallback_industry_from_entity_type,
-    normalize_access_vector,
-    normalize_actor_type,
-    normalize_attack_type,
-    normalize_attribution_status,
-    normalize_impact_type,
-    normalize_vuln_status,
-)
+from app.services.taxonomy import fallback_industry_from_entity_type, normalize_attack_type
 
 
 def _combined_article_text(article):
@@ -284,7 +276,7 @@ def _map_entity_type_to_industry(entity_type):
     return fallback_industry_from_entity_type(entity_type)
 
 
-def _resolve_live_victim_classification(victim_org_name, text, extracted_industry):
+def _resolve_live_victim_classification(victim_org_name, extracted_industry):
     org_based_entity_type = _classify_org_from_name(victim_org_name)
 
     if org_based_entity_type:
@@ -342,12 +334,22 @@ def _extract_victim_org_name(article):
         "leak",
     ]
 
+    blocked_action_phrase = re.compile(
+        r"\bto\s+(?:steal|deploy|push|harvest|leak|breach|hack|target|attack|compromise|disrupt|extort)\b",
+        flags=re.IGNORECASE,
+    )
+
     for text in texts:
         for pattern in target_patterns:
             for match in re.finditer(pattern, text, flags=re.IGNORECASE):
                 candidate = _clean_org_name(match.group(1))
-                if candidate:
-                    return candidate
+                if not candidate:
+                    continue
+
+                if blocked_action_phrase.search(candidate):
+                    continue
+
+                return candidate
 
     for text in texts:
         lowered_text = text.lower()
@@ -357,8 +359,13 @@ def _extract_victim_org_name(article):
         for pattern in self_disclosure_patterns:
             for match in re.finditer(pattern, text, flags=re.IGNORECASE):
                 candidate = _clean_org_name(match.group(1))
-                if candidate:
-                    return candidate
+                if not candidate:
+                    continue
+
+                if blocked_action_phrase.search(candidate):
+                    continue
+
+                return candidate
 
     return None
 
@@ -658,135 +665,6 @@ def _has_exploitation_signal(text):
 
     return any(re.search(pattern, text) for pattern in patterns)
 
-def _extract_actor(text):
-    """
-    Extract explicitly named threat actors.
-
-    Supports:
-    - claimed responsibility
-    - attributed / linked patterns
-    - actor-led action patterns (e.g., "ShinyHunters group leaked data")
-    """
-    if not text:
-        return {
-            "actor_name": None,
-            "actor_type": None,
-            "attribution_status": "unattributed",
-        }
-
-    blocked_candidates = {
-        "the company",
-        "company",
-        "the attacker",
-        "attacker",
-        "threat actor",
-        "a threat actor",
-        "the threat actor",
-        "unknown actor",
-        "unknown threat actor",
-        "hackers",
-        "the hackers",
-        "cybercriminals",
-        "the cybercriminals",
-        "criminals",
-        "the criminals",
-        "operators",
-        "the operators",
-        "group",
-        "the group",
-        "gang",
-        "the gang",
-        "employees",
-        "officials",
-        "researchers",
-        "customers",
-        "victims",
-    }
-
-    def normalize_candidate(candidate):
-        cleaned = candidate.strip(" -,:;\"'()[]{}“”‘’")
-        cleaned = re.sub(r"\s+", " ", cleaned).strip()
-
-        if cleaned.lower().startswith("the "):
-            cleaned = cleaned[4:].strip()
-
-        lowered = cleaned.lower()
-
-        if (
-            not cleaned
-            or len(cleaned) < 3
-            or lowered in blocked_candidates
-            or lowered.startswith("company ")
-            or lowered.startswith("threat actor")
-            or lowered.startswith("hackers")
-        ):
-            return None
-
-        if len(cleaned.split()) > 4:
-            return None
-
-        return cleaned
-
-    # 1. claimed
-    claimed_patterns = [
-        r"\b([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\s+(?:cybercrime group|threat group|ransomware group|ransomware gang|hacktivist group)\s+has claimed responsibility\b",
-        r"\b([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\s+has claimed responsibility\b",
-        r"\bclaimed by\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
-    ]
-
-    for pattern in claimed_patterns:
-        match = re.search(pattern, text)
-        if match:
-            candidate = normalize_candidate(match.group(1))
-            if candidate:
-                return {
-                    "actor_name": candidate,
-                    "actor_type": "Cybercrime Group",
-                    "attribution_status": "claimed",
-                }
-
-    # 2. attributed
-    attributed_patterns = [
-        r"\btracked as\s+([A-Z][A-Za-z0-9_-]*(?:-[A-Za-z0-9_-]+)*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
-        r"\battributed to\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
-        r"\blinked to\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
-        r"\bassociated with\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
-        r"\btied to\s+([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\b",
-    ]
-
-    for pattern in attributed_patterns:
-        match = re.search(pattern, text)
-        if match:
-            candidate = normalize_candidate(match.group(1))
-            if candidate:
-                return {
-                    "actor_name": candidate,
-                    "actor_type": "Threat Group",
-                    "attribution_status": "attributed",
-                }
-
-    # 3. actor-led action (NEW)
-    action_patterns = [
-        r"\b([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\s+(?:extortion group|ransomware group|ransomware gang|cybercrime group|hacktivist group)\s+(?:has|have)\s+(?:leaked|stolen|breached|hacked|targeted|attacked|compromised|deployed)\b",
-    ]
-
-    for pattern in action_patterns:
-        match = re.search(pattern, text)
-        if match:
-            candidate = normalize_candidate(match.group(1))
-            if candidate:
-                return {
-                    "actor_name": candidate,
-                    "actor_type": "Cybercrime Group",
-                    "attribution_status": "attributed",
-                }
-
-    return {
-        "actor_name": None,
-        "actor_type": None,
-        "attribution_status": "unattributed",
-    }
-
 def get_ready_for_extraction():
     """
     Fetch articles ready for extraction.
@@ -799,14 +677,6 @@ def run_rule_extraction(article):
     First-pass deterministic extraction from article text.
     """
     text = _combined_article_text(article)
-    original_text = " ".join(
-        [
-            (article.title or "").strip(),
-            (article.summary or "").strip(),
-            (article.content or "").strip(),
-        ]
-    )
-    access_text = original_text.lower()
 
     victim_org_name = _extract_victim_org_name(article)
     if victim_org_name is None and _has_exploitation_signal(text):
@@ -816,15 +686,12 @@ def run_rule_extraction(article):
     extracted_industry = _extract_industry(text)
     classification = _resolve_live_victim_classification(
         victim_org_name,
-        text,
         extracted_industry,
     )
 
     industry = classification["industry"]
-    victim_entity_type = classification["victim_entity_type"]
 
     geography = _extract_geography(text)
-    actor = _extract_actor(original_text)
 
     attack_type = "Unknown"
     if any(keyword in text for keyword in [
@@ -902,238 +769,26 @@ def run_rule_extraction(article):
         "obtained control of credentials",
     ]):
         attack_type = "Account Compromise"
-    elif _has_exploitation_signal(text):
-        attack_type = "Exploitation"
-
-    access_vector = None
-    if any(keyword in access_text for keyword in [
-        "phishing",
-        "spear-phishing",
-        "phishing email",
-        "phishing campaign",
-        "phishing message",
-        "malicious email",
-    ]):
-        access_vector = "Phishing"
-    elif any(keyword in access_text for keyword in [
-        "cloud analytics platform",
-        "third-party platform",
-        "third party platform",
-        "third-party service",
-        "third party service",
-        "supplier",
-        "vendor compromise",
-        "linked to",
-        "via cloud",
-        "software provider",
-        "software vendor",
-    ]):
-        access_vector = "Third-Party"
-    elif any(keyword in access_text for keyword in [
-        "business email compromise",
-        "bec ",
-        "email",
-        "mailbox",
-        "gmail",
-        "inbox",
-        "email account",
-    ]):
-        access_vector = "Email"
-    elif any(keyword in access_text for keyword in [
-        "vpn",
-        "remote access",
-        "rdp",
-        "remote desktop",
-        "citrix",
-        "remote management",
-        "externally exposed service",
-    ]):
-        access_vector = "Remote Access"
-    elif _has_exploitation_signal(access_text):
-        access_vector = "Exploitation"
-    elif any(keyword in access_text for keyword in [
-        "credential",
-        "credentials",
-        "login",
-        "logins",
-        "account takeover",
-        "obtained control of credentials",
-        "stolen credentials",
-        "compromised account",
-        "hijacked account",
-        "password reset",
-        "valid account",
-        "valid accounts",
-        "credential stuffing",
-    ]):
-        access_vector = "Credential Abuse"
-    elif any(keyword in access_text for keyword in [
-        "router",
-        "routers",
-        "network device",
-        "appliance",
-        "firewall",
-        "gateway",
-        "plc",
-        "industrial device",
-        "edge device",
-        "vpn appliance",
-    ]):
-        access_vector = "Network Device"
-    elif any(keyword in access_text for keyword in [
-        "website",
-        "web site",
-        "web portal",
-        "browser",
-        "download link",
-        "official website",
-        "web app",
-        "web application",
-        "internet-facing application",
-    ]):
-        access_vector = "Web"
-    elif attack_type == "Phishing":
-        access_vector = "Phishing"
-    elif attack_type == "Account Compromise":
-        access_vector = "Credential Abuse"
-    elif attack_type == "Exploitation":
-        access_vector = "Exploitation"
-    elif attack_type == "Ransomware":
-        access_vector = "Unknown Initial Access"
-
-    impact_type = None
-    if any(keyword in text for keyword in [
-        "threatening to release",
-        "ransom is not paid",
-        "ransom demand",
-        "double extortion",
-        "blackmail",
-        "extortion",
-    ]):
-        impact_type = "Extortion"
-    elif any(keyword in text for keyword in [
-        "fraud",
-        "wire fraud",
-        "payment diversion",
-        "financial losses",
-        "funds were stolen",
-        "money was stolen",
-        "cash was stolen",
-        "bank transfer",
-        "stole $",
-        "stolen $",
-        "$",
-        "million stolen",
-    ]):
-        impact_type = "Financial Loss"
-    elif any(keyword in text for keyword in [
-        "disruption",
-        "service disruption",
-        "outage",
-        "downtime",
-        "forced offline",
-        "taken offline",
-        "operations were disrupted",
-        "shutdown",
-    ]):
-        impact_type = "Operational Disruption"
-    elif any(keyword in text for keyword in [
-        "stolen credentials",
-        "credential theft",
-        "exfiltrat",
-        "data leak",
-        "data leaked",
-        "data was accessed",
-        "records were accessed",
-        "information was stolen",
-        "customer data was accessed",
-        "downloaded personal data",
-        "breached",
-        "data breach",
-    ]):
-        impact_type = "Data Theft"
-    elif any(keyword in text for keyword in [
-        "obtained control of credentials",
-        "account takeover",
-        "compromised account",
-        "hijacked account",
-        "accounts were compromised",
-    ]):
-        impact_type = "Account Compromise"
-
-    if impact_type is None:
-        if attack_type == "Ransomware":
-            impact_type = "Extortion"
-        elif attack_type == "DDoS":
-            impact_type = "Operational Disruption"
-        elif attack_type == "Data Breach":
-            impact_type = "Data Theft"
-        elif attack_type == "Account Compromise":
-            impact_type = "Account Compromise"
-
-    vuln_status = "unknown"
-    if (
-        "cve-" in text
-        or "vulnerability" in text
-        or "actively exploited" in text
-        or "under active exploitation" in text
-        or "known exploited vulnerability" in text
-    ):
-        vuln_status = "known_vulnerability"
-
-    zero_day_flag = "zero-day" in text or "0day" in text or "0-day" in text
 
     short_event_summary = _clean_summary_text(article.summary) or _clean_summary_text(article.title)
 
     attack_type = normalize_attack_type(attack_type)
-    access_vector = normalize_access_vector(access_vector)
-    impact_type = normalize_impact_type(impact_type)
-    actor_type = normalize_actor_type(actor["actor_type"])
-    attribution_status = normalize_attribution_status(actor["attribution_status"])
-    vuln_status = normalize_vuln_status(vuln_status)
 
     return {
         "victim_org_name": victim_org_name,
         "victim_org_normalized": victim_org_normalized,
-        "victim_entity_type": victim_entity_type,
-        "victim_display_label": victim_org_name,
         "industry": industry,
         "region": geography["region"],
         "country": geography["country"],
         "city": geography["city"],
         "attack_type": attack_type,
-        "access_vector": access_vector,
-        "impact_type": impact_type,
-        "actor_name": actor["actor_name"],
-        "actor_type": actor_type,
-        "attribution_status": attribution_status,
-        "vuln_status": vuln_status,
-        "cve_ids": [],
-        "zero_day_flag": zero_day_flag,
         "short_event_summary": short_event_summary,
-        "extraction_confidence": 0.5,
+        "extraction_confidence": None,
     }
-
-def run_ai_extraction(article):
-    """
-    Placeholder AI extraction.
-    """
-    return {}
-
-
-def merge_signals(rule_signals, ai_signals):
-    """
-    Merge extraction results.
-    """
-    merged = {}
-    merged.update(rule_signals)
-    merged.update(ai_signals)
-    return merged
-
 
 def save_extraction(article_id, signals):
     """
-    Save extracted signals to the database.
+    Save thin MVP extraction signals to the database.
     """
     extraction = ArticleExtraction.query.filter_by(raw_article_id=article_id).first()
 
@@ -1143,21 +798,11 @@ def save_extraction(article_id, signals):
 
     extraction.victim_org_name = signals.get("victim_org_name")
     extraction.victim_org_normalized = signals.get("victim_org_normalized")
-    extraction.victim_entity_type = signals.get("victim_entity_type")
-    extraction.victim_display_label = signals.get("victim_display_label")
     extraction.industry = signals.get("industry")
     extraction.region = signals.get("region")
     extraction.country = signals.get("country")
     extraction.city = signals.get("city")
     extraction.attack_type = signals.get("attack_type")
-    extraction.access_vector = signals.get("access_vector")
-    extraction.impact_type = signals.get("impact_type")
-    extraction.actor_name = signals.get("actor_name")
-    extraction.actor_type = signals.get("actor_type")
-    extraction.attribution_status = signals.get("attribution_status")
-    extraction.vuln_status = signals.get("vuln_status")
-    extraction.cve_ids = signals.get("cve_ids")
-    extraction.zero_day_flag = signals.get("zero_day_flag", False)
     extraction.short_event_summary = signals.get("short_event_summary")
     extraction.extracted_signals = signals
     extraction.extraction_confidence = signals.get("extraction_confidence")

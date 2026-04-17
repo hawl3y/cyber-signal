@@ -8,15 +8,12 @@ from app.automation import start_scheduler
 from app.extensions import db, migrate
 from app.blueprints.events import events_bp
 from app.blueprints.summary import summary_bp
-from app.blueprints.filters import filters_bp
 from app.blueprints.ingestion import ingestion_bp
 from app.blueprints.processing import processing_bp
 from app.blueprints.extraction import extraction_bp
 from app.blueprints.clustering import clustering_bp
-from app.blueprints.enrichment import enrichment_bp
-from app.blueprints.scoring import scoring_bp
 from app.blueprints.automation import automation_bp
-from app.blueprints.historical_ingestion import historical_ingestion_bp
+
 
 def create_app():
     app = Flask(__name__)
@@ -29,16 +26,12 @@ def create_app():
 
     app.register_blueprint(events_bp)
     app.register_blueprint(summary_bp)
-    app.register_blueprint(filters_bp)
     app.register_blueprint(ingestion_bp)
     app.register_blueprint(processing_bp)
     app.register_blueprint(extraction_bp)
     app.register_blueprint(clustering_bp)
-    app.register_blueprint(enrichment_bp)
-    app.register_blueprint(scoring_bp)
     app.register_blueprint(automation_bp)
-    app.register_blueprint(historical_ingestion_bp)
-    
+
     @app.route("/")
     def home():
         return render_template("index.html")
@@ -52,5 +45,5 @@ def create_app():
         return {"error": "Internal server error"}, 500
 
     start_scheduler(app)
-    
+
     return app

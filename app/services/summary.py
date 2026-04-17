@@ -1,46 +1,29 @@
 from collections import Counter
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta
 
 from app.models import CyberEvent
 
+
 def get_event_reference_time(event):
     """
-    Return the best-known event date for filtering and sorting.
-
-    Priority:
-    1. event_occurred_at for historical_dataset and hybrid records
-    2. last_seen_at for live_detection records
-    3. first_seen_at for live_detection records
-    4. updated_at for live_detection records
-    5. created_at for live_detection records
-
-    Historical records with no event_occurred_at remain unknown and return None.
+    Return the best available timestamp for sorting and filtering live MVP events.
     """
-    if event.record_origin in ["historical_dataset", "hybrid"]:
-        return event.event_occurred_at
-
     return event.last_seen_at or event.first_seen_at or event.updated_at or event.created_at
+
 
 def get_filtered_events(
     industry=None,
-    country=None,
     region=None,
     attack_type=None,
     time_range=None,
-    start_date=None,
-    end_date=None,
-    record_origin=None,
 ):
     """
-    Return events filtered by optional structured fields.
+    Return live events filtered by the MVP's minimal structured fields.
     """
     query = CyberEvent.query
 
     if industry:
         query = query.filter(CyberEvent.industry.ilike(industry))
-
-    if country:
-        query = query.filter(CyberEvent.country.ilike(country))
 
     if region:
         query = query.filter(CyberEvent.region.ilike(region))
@@ -48,36 +31,7 @@ def get_filtered_events(
     if attack_type:
         query = query.filter(CyberEvent.attack_type.ilike(attack_type))
 
-    if record_origin:
-        query = query.filter(CyberEvent.record_origin == record_origin)
-
-    if start_date or end_date:
-        events = query.all()
-
-        parsed_start = None
-        parsed_end = None
-
-        if start_date:
-            parsed_start = datetime.fromisoformat(start_date)
-
-        if end_date:
-            parsed_end = datetime.fromisoformat(end_date) + timedelta(days=1)
-
-        filtered = []
-        for event in events:
-            reference_time = get_event_reference_time(event)
-            if not reference_time:
-                continue
-
-            if parsed_start and reference_time < parsed_start:
-                continue
-
-            if parsed_end and reference_time >= parsed_end:
-                continue
-
-            filtered.append(event)
-
-        return filtered
+    events = query.all()
 
     if time_range:
         now = datetime.utcnow()
@@ -88,22 +42,16 @@ def get_filtered_events(
             cutoff = now - timedelta(days=7)
         elif time_range == "30d":
             cutoff = now - timedelta(days=30)
-        elif time_range == "90d":
-            cutoff = now - timedelta(days=90)
-        elif time_range == "1y":
-            cutoff = now - timedelta(days=365)
         else:
             cutoff = None
 
         if cutoff is not None:
-            events = query.all()
-
-            return [
+            events = [
                 event for event in events
                 if get_event_reference_time(event) and get_event_reference_time(event) >= cutoff
             ]
 
-    return query.all()
+    return events
 
 
 def _most_common_non_empty(values):
@@ -114,139 +62,54 @@ def _most_common_non_empty(values):
     return Counter(cleaned).most_common(1)[0][0]
 
 
+def _top_counts(values, limit=5):
+    cleaned = [value for value in values if value]
+    counts = Counter(cleaned)
+    return [
+        {"label": label, "count": count}
+        for label, count in counts.most_common(limit)
+    ]
+
+
 def build_summary(
     industry=None,
-    country=None,
     region=None,
     attack_type=None,
     time_range=None,
-    start_date=None,
-    end_date=None,
 ):
     events = get_filtered_events(
         industry=industry,
-        country=country,
         region=region,
         attack_type=attack_type,
         time_range=time_range,
-        start_date=start_date,
-        end_date=end_date,
     )
 
-    total_events = len(events)
+    total_incidents = len(events)
+    confirmed_incidents = len([e for e in events if e.event_status == "confirmed"])
+    emerging_signals = len([e for e in events if e.event_status == "emerging"])
 
-    industries = [e.industry for e in events if e.industry]
     attack_types = [e.attack_type for e in events if e.attack_type]
-    countries = [e.country for e in events if e.country]
-    regions = [e.region for e in events if e.region]
-    statuses = [e.event_status for e in events if e.event_status]
-    verification_levels = [e.verification_level for e in events if e.verification_level]
-    origins = [e.record_origin for e in events if e.record_origin]
-
-    top_industry = _most_common_non_empty(industries)
-    top_attack_type = _most_common_non_empty(attack_types)
-    top_country = _most_common_non_empty(countries)
-    top_region = _most_common_non_empty(regions)
-    top_event_status = _most_common_non_empty(statuses)
-    top_verification_level = _most_common_non_empty(verification_levels)
-    top_record_origin = _most_common_non_empty(origins)
-
-    high_impact_events = len(
-        [
-            e for e in events
-            if e.is_high_impact
-        ]
-    )
-
-    validated_events = len(
-        [
-            e for e in events
-            if e.record_origin == "historical_dataset"
-            or e.event_status in ["confirmed", "enriched", "resolved", "historical"]
-        ]
-    )
-
-    enriched_events = len(
-        [
-            e for e in events
-            if e.event_status == "enriched"
-        ]
-    )
-
-    historical_events = len(
-        [
-            e for e in events
-            if e.record_origin == "historical_dataset"
-        ]
-    )
-
-    hybrid_events = len(
-        [
-            e for e in events
-            if e.record_origin == "hybrid"
-        ]
-    )
-
-    mapped_event_count = len(
-        [
-            e for e in events
-            if e.latitude is not None and e.longitude is not None
-        ]
-    )
+    industries = [e.industry for e in events if e.industry]
 
     return {
-        "total_events": total_events,
-        "mapped_event_count": mapped_event_count,
-        "top_industry": top_industry,
-        "top_attack_type": top_attack_type,
-        "top_country": top_country,
-        "top_region": top_region,
-        "top_event_status": top_event_status,
-        "top_verification_level": top_verification_level,
-        "top_record_origin": top_record_origin,
-        "high_impact_events": high_impact_events,
-        "validated_events": validated_events,
-        "enriched_events": enriched_events,
-        "historical_events": historical_events,
-        "hybrid_events": hybrid_events,
+        "total_incidents": total_incidents,
+        "confirmed_incidents": confirmed_incidents,
+        "emerging_signals": emerging_signals,
+        "top_attack_type": _most_common_non_empty(attack_types),
+        "top_targeted_industry": _most_common_non_empty(industries),
     }
 
 
-def build_map(
-    industry=None,
-    country=None,
-    region=None,
-    attack_type=None,
-    time_range=None,
-    start_date=None,
-    end_date=None,
-):
-    events = get_filtered_events(
-        industry=industry,
-        country=country,
-        region=region,
-        attack_type=attack_type,
-        time_range=time_range,
-        start_date=start_date,
-        end_date=end_date,
-    )
+def build_trends():
+    """
+    Return the lightweight 7-day trend snapshot for the single-page MVP.
+    """
+    events = get_filtered_events(time_range="7d")
 
-    return [
-        {
-            "event_id": e.id,
-            "lat": e.latitude,
-            "lng": e.longitude,
-            "title": e.canonical_title,
-            "industry": e.industry,
-            "country": e.country,
-            "region": e.region,
-            "attack_type": e.attack_type,
-            "event_status": e.event_status,
-            "verification_level": e.verification_level,
-            "confidence_level": e.confidence_level,
-            "is_high_impact": e.is_high_impact,
-            "source_count": e.source_count,
-        }
-        for e in events
-        if e.country or (e.latitude is not None and e.longitude is not None)
-    ]
+    attack_types = [e.attack_type for e in events if e.attack_type]
+    industries = [e.industry for e in events if e.industry]
+
+    return {
+        "top_attack_types": _top_counts(attack_types, limit=5),
+        "top_industries": _top_counts(industries, limit=5),
+    }

@@ -1,12 +1,5 @@
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction, CyberEvent, EventSourceLink
-from app.services.enrichment import (
-    _infer_victim_entity_type_and_display_label,
-    _resolve_org_home_geography,
-    _infer_org_geography_from_articles,
-    _infer_geography_from_articles,
-    _coordinates_for_location,
-)
 
 
 def _is_primary_source_article(article):
@@ -130,9 +123,6 @@ def attach_to_event(article, event):
     """
     Link article to event if not already linked, mark article as clustered,
     and keep source_count aligned with actual links.
-
-    If a live article attaches to a historical event, promote the record origin
-    to hybrid.
     """
     existing_link = EventSourceLink.query.filter_by(
         cyber_event_id=event.id,
@@ -163,17 +153,17 @@ def attach_to_event(article, event):
     if seen_at and (event.last_seen_at is None or seen_at > event.last_seen_at):
         event.last_seen_at = seen_at
 
-    if event.record_origin == "historical_dataset":
-        event.record_origin = "hybrid"
-
     db.session.commit()
     return existing_link if existing_link else link
 
 
 def create_event(article, extraction):
     """
-    Create a new cyber event from article + extraction, or return the
-    existing event for this article slug if it already exists.
+    Create a new MVP-style cyber event from article + extraction,
+    or return the existing event for this article slug if it already exists.
+
+    This intentionally avoids enrichment-time inference and only uses
+    fields directly available from the article and thin extraction layer.
     """
     slug = f"event-{article.id}"
 
@@ -184,76 +174,26 @@ def create_event(article, extraction):
     seen_at = article.published_at or article.created_at
 
     victim_org_name = extraction.victim_org_name if extraction else None
+    victim_org_normalized = extraction.victim_org_normalized if extraction else None
     industry = extraction.industry if extraction else None
+    attack_type = extraction.attack_type if extraction else None
     country = extraction.country if extraction else None
     region = extraction.region if extraction else None
-    city = extraction.city if extraction else None
-
-    victim_entity_type, victim_display_label = _infer_victim_entity_type_and_display_label(
-        victim_org_name,
-        industry,
-        country,
-    )
-
-    linked_articles = [article] if article else []
-
-    if not country and not region and victim_org_name:
-        org_geo = _resolve_org_home_geography(victim_org_name)
-        country = org_geo["country"]
-        region = org_geo["region"]
-
-    if not country and not region and victim_org_name:
-        org_fallback_geo = _infer_org_geography_from_articles(
-            linked_articles,
-            victim_org_name,
-        )
-        country = org_fallback_geo["country"]
-        region = org_fallback_geo["region"]
-
-    if not country and not region:
-        fallback_geo = _infer_geography_from_articles(linked_articles)
-        country = fallback_geo["country"]
-        region = fallback_geo["region"]
-
-    if country:
-        geography_type = "country"
-    elif region:
-        geography_type = "region"
-    else:
-        geography_type = None
-
-    latitude, longitude = _coordinates_for_location(
-        city=city,
-        country=country,
-        region=region,
-    )
+    summary_short = extraction.short_event_summary if extraction else None
 
     event = CyberEvent(
         canonical_title=article.title or "Untitled Event",
         slug=slug,
-        event_status="open",
+        event_status="emerging",
+        confidence_level="medium",
+        record_origin="live_detection",
         victim_org_name=victim_org_name,
-        victim_org_normalized=(
-            extraction.victim_org_normalized if extraction else None
-        ),
-        victim_entity_type=victim_entity_type,
-        victim_display_label=victim_display_label,
+        victim_org_normalized=victim_org_normalized,
         industry=industry,
-        attack_type=extraction.attack_type if extraction else None,
-        access_vector=extraction.access_vector if extraction else None,
-        impact_type=extraction.impact_type if extraction else None,
-        attribution_status=(
-            extraction.attribution_status if extraction else "unattributed"
-        ),
-        vuln_status=extraction.vuln_status if extraction else None,
-        zero_day_flag=extraction.zero_day_flag if extraction else False,
-        region=region,
+        attack_type=attack_type,
         country=country,
-        city=city,
-        geography_type=geography_type,
-        latitude=latitude,
-        longitude=longitude,
-        summary_short=extraction.short_event_summary if extraction else None,
+        region=region,
+        summary_short=summary_short,
         source_count=0,
         first_seen_at=seen_at,
         last_seen_at=seen_at,
@@ -273,16 +213,106 @@ def create_event(article, extraction):
     article.processing_status = "clustered"
     db.session.flush()
 
-    event.source_count = EventSourceLink.query.filter_by(
-        cyber_event_id=event.id
-    ).count()
-
     db.session.commit()
+    refresh_event(event.id)
     return event
 
+def _latest_linked_extraction(event_id):
+    """
+    Return the most recent linked extraction for an event based on article publish
+    time first, then article creation time, then extraction creation time.
+    """
+    links = (
+        EventSourceLink.query.filter_by(cyber_event_id=event_id)
+        .order_by(EventSourceLink.linked_at.desc())
+        .all()
+    )
+
+    ranked = []
+    for link in links:
+        article = RawArticle.query.get(link.raw_article_id)
+        if not article:
+            continue
+
+        extraction = ArticleExtraction.query.filter_by(
+            raw_article_id=article.id
+        ).first()
+
+        if not extraction:
+            continue
+
+        rank_time = (
+            article.published_at
+            or article.created_at
+            or extraction.created_at
+        )
+
+        ranked.append((rank_time, article, extraction))
+
+    ranked.sort(key=lambda item: item[0] or 0, reverse=True)
+
+    if not ranked:
+        return None, None
+
+    _, article, extraction = ranked[0]
+    return article, extraction
 
 def refresh_event(event_id):
     """
-    Minimal placeholder for event refresh.
+    Refresh an event using MVP rules only.
+
+    This keeps event state deterministic and lightweight:
+    - source_count is derived from actual linked evidence
+    - status is based on corroboration
+    - confidence is based on simple source-count thresholds
+    - core display fields are refreshed from the latest linked extraction
     """
+    event = CyberEvent.query.get(event_id)
+    if not event:
+        return False
+
+    source_count = EventSourceLink.query.filter_by(
+        cyber_event_id=event.id
+    ).count()
+
+    event.source_count = source_count
+
+    article, extraction = _latest_linked_extraction(event.id)
+
+    if extraction:
+        if extraction.victim_org_name:
+            event.victim_org_name = extraction.victim_org_name
+        if extraction.victim_org_normalized:
+            event.victim_org_normalized = extraction.victim_org_normalized
+        if extraction.industry:
+            event.industry = extraction.industry
+        if extraction.attack_type:
+            event.attack_type = extraction.attack_type
+        if extraction.country:
+            event.country = extraction.country
+        if extraction.region:
+            event.region = extraction.region
+        if extraction.short_event_summary:
+            event.summary_short = extraction.short_event_summary
+
+    if article:
+        seen_at = article.published_at or article.created_at
+        if event.first_seen_at is None:
+            event.first_seen_at = seen_at
+        if seen_at and (event.last_seen_at is None or seen_at > event.last_seen_at):
+            event.last_seen_at = seen_at
+
+    if source_count >= 2:
+        event.event_status = "confirmed"
+    else:
+        event.event_status = "emerging"
+
+    if source_count >= 2:
+        event.confidence_level = "high"
+    elif source_count == 1:
+        event.confidence_level = "medium"
+    else:
+        event.confidence_level = None
+
+    db.session.commit()
     return True
