@@ -33,11 +33,15 @@ def _event_priority(event):
     ref = get_event_reference_time(event)
     timestamp = ref.timestamp() if ref else 0
     source_count = event.source_count or 0
+    signal_type = event.event_signal_type or "incident"
 
-    if event.event_status == "confirmed":
-        return (0, -source_count, -timestamp)
+    signal_rank = 0 if signal_type == "incident" else 1
+    status_rank = 0 if event.event_status == "confirmed" else 1
 
-    return (1, -timestamp)
+    if signal_type == "incident" and event.event_status == "confirmed":
+        return (signal_rank, status_rank, -source_count, -timestamp)
+
+    return (signal_rank, status_rank, -timestamp)
 
 
 @events_bp.route("/", methods=["GET"])

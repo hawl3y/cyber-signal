@@ -70,6 +70,7 @@ def _fetch_rss_items(source):
     feed = feedparser.parse(source.get("url"))
     fetched_at = datetime.utcnow()
     ingestion_batch_id = fetched_at.strftime("%Y%m%d%H%M%S")
+    recent_cutoff = fetched_at.replace(hour=0, minute=0, second=0, microsecond=0)
     items = []
 
     for entry in feed.entries:
@@ -149,6 +150,9 @@ def _fetch_cisa_kev_items(source):
                 published_at = datetime.fromisoformat(date_added)
             except ValueError:
                 published_at = fetched_at
+
+        if (fetched_at - published_at).days > 90:
+            continue
 
         content = " ".join(
             part for part in [

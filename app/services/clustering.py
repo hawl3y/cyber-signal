@@ -1,5 +1,6 @@
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction, CyberEvent, EventSourceLink
+from app.utils.sources import get_source_config
 
 
 def _is_primary_source_article(article):
@@ -181,7 +182,12 @@ def create_event(article, extraction):
     region = extraction.region if extraction else None
     summary_short = extraction.short_event_summary if extraction else None
 
-    event_signal_type = "incident"
+    source_config = get_source_config(article.source_name)
+    event_signal_type = (
+        source_config.get("signal_kind")
+        if source_config and source_config.get("signal_kind") in {"incident", "activity"}
+        else "incident"
+    )
 
     event = CyberEvent(
         canonical_title=article.title or "Untitled Event",
@@ -297,7 +303,24 @@ def refresh_event(event_id):
             event.region = extraction.region
 
         # Always treat current pipeline output as incident
-        event.event_signal_type = "incident"
+        linked_source_names = {
+            link.raw_article.source_name
+            for link in event.event_sources
+            if link.raw_article and link.raw_article.source_name
+        }
+
+        signal_types = set()
+        for source_name in linked_source_names:
+            source_config = get_source_config(source_name)
+            if source_config and source_config.get("signal_kind") in {"incident", "activity"}:
+                signal_types.add(source_config.get("signal_kind"))
+
+        if "incident" in signal_types:
+            event.event_signal_type = "incident"
+        elif "activity" in signal_types:
+            event.event_signal_type = "activity"
+        else:
+            event.event_signal_type = "incident"
 
         if extraction.short_event_summary:
             event.summary_short = extraction.short_event_summary
