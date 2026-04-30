@@ -34,6 +34,28 @@ def is_relevant_incident(article):
     summary = (article.summary or "").strip().lower()
     title_and_summary = " ".join([title, summary]).strip()
 
+    if article.source_name == "cisa-alerts-advisories":
+        advisory_noise_patterns = [
+            "defending against",
+            "recommended practices",
+            "appendix:",
+            "mitre att&ck",
+            "version history",
+            "legal notice and terms of use",
+            "acknowledgments",
+            "incident response",
+            "protective advice",
+            "all organizations",
+            "u.s. fceb agencies",
+            "uk organizations",
+            "largest or most at-risk organizations",
+            "cyber security best practices",
+            "malware analysis report at a glance",
+        ]
+
+        if any(pattern in title_and_summary for pattern in advisory_noise_patterns):
+            return False
+
     legal_followup_patterns = [
         "sentenced to",
         "sentenced for",

@@ -32,7 +32,7 @@ SOURCE_REGISTRY = [
         "signal_kind": "activity",
         "ingest_type": "rss",
         "url": "https://www.cisa.gov/cybersecurity-advisories/all.xml",
-        "active": False,
+        "active": True,
         "tier": "curated",
     },
     {

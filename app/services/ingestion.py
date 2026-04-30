@@ -78,6 +78,23 @@ def _fetch_rss_items(source):
         title = _clean_html_text(entry.get("title", ""))
         summary = _clean_html_text(entry.get("summary", ""))
 
+        if source.get("name") == "cisa-alerts-advisories":
+            raw_summary = _clean_html_text(entry.get("summary", ""))
+            raw_summary = re.sub(r"^\s*View CSAF Summary\s*", "", raw_summary, flags=re.IGNORECASE)
+            raw_summary = re.sub(r"\s+", " ", raw_summary).strip()
+
+            sentence_parts = re.findall(r".+?[.!?](?=\s|$)", raw_summary)
+
+            if sentence_parts:
+                summary = sentence_parts[0].strip()
+            else:
+                summary = None
+
+            if not summary or len(summary) < 40:
+                summary = f"{title} vulnerability advisory from CISA."
+        else:
+            summary = _clean_html_text(entry.get("summary", ""))
+
         if not article_url or not title:
             continue
 
