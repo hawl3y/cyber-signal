@@ -2,7 +2,7 @@ const FILTER_STORAGE_KEY = "cyber_signal_filters_mvp";
 
 function getDefaultFilters() {
     return {
-        time_range: "7d",
+        time_range: "30d",
         industry: "",
         region: "",
         attack_type: "",
@@ -10,11 +10,16 @@ function getDefaultFilters() {
 }
 
 function getCurrentFilters() {
+    const timeRangeEl = document.getElementById("filter-time-range");
+    const industryEl = document.getElementById("filter-industry");
+    const regionEl = document.getElementById("filter-region");
+    const attackTypeEl = document.getElementById("filter-attack-type");
+
     return {
-        time_range: document.getElementById("filter-time-range")?.value || "7d",
-        industry: document.getElementById("filter-industry")?.value || "",
-        region: document.getElementById("filter-region")?.value || "",
-        attack_type: document.getElementById("filter-attack-type")?.value || "",
+        time_range: timeRangeEl ? timeRangeEl.value : "30d",
+        industry: industryEl ? industryEl.value : "",
+        region: regionEl ? regionEl.value : "",
+        attack_type: attackTypeEl ? attackTypeEl.value : "",
     };
 }
 
@@ -49,7 +54,9 @@ function applyFiltersToControls(filters) {
     const regionEl = document.getElementById("filter-region");
     const attackTypeEl = document.getElementById("filter-attack-type");
 
-    if (timeRangeEl) timeRangeEl.value = filters.time_range || "7d";
+    if (timeRangeEl) {
+        timeRangeEl.value = filters.time_range !== undefined ? filters.time_range : "30d";
+    }
     if (industryEl) industryEl.value = filters.industry || "";
     if (regionEl) regionEl.value = filters.region || "";
     if (attackTypeEl) attackTypeEl.value = filters.attack_type || "";
@@ -134,9 +141,9 @@ async function loadSummary() {
         const attackEl = document.getElementById("top-attack-type");
         const industryEl = document.getElementById("top-targeted-industry");
 
-        if (totalEl) totalEl.textContent = data.total_incidents ?? "--";
-        if (confirmedEl) confirmedEl.textContent = data.confirmed_incidents ?? "--";
-        if (emergingEl) emergingEl.textContent = data.emerging_signals ?? "--";
+        if (totalEl) totalEl.textContent = data.total_events ?? "--";
+        if (confirmedEl) confirmedEl.textContent = data.confirmed_events ?? "--";
+        if (emergingEl) emergingEl.textContent = data.emerging_events ?? "--";
         if (attackEl) attackEl.textContent = data.top_attack_type || "—";
         if (industryEl) industryEl.textContent = data.top_targeted_industry || "—";
     } catch (err) {
@@ -168,7 +175,8 @@ function renderTrendList(containerId, items) {
 
 async function loadTrends() {
     try {
-        const response = await fetch("/api/summary/trends");
+        const query = buildQueryString(getCurrentFilters());
+        const response = await fetch(`/api/summary/trends${query}`);
         const data = await response.json();
 
         renderTrendList("trend-attack-types", data.top_attack_types || []);
@@ -182,6 +190,7 @@ function buildEventMeta(event) {
     return {
         primary: [
             event.victim_name,
+            event.industry && event.industry !== "Unknown" ? event.industry : null,
             event.attack_type,
             event.country || event.region,
         ].filter(Boolean),
@@ -189,7 +198,6 @@ function buildEventMeta(event) {
             formatMetaLabel(event.status),
             formatMetaLabel(event.confidence),
             event.time,
-            `${event.source_count ?? 0} source${(event.source_count ?? 0) === 1 ? "" : "s"}`,
         ].filter(Boolean),
     };
 }
@@ -207,11 +215,11 @@ async function loadEvents() {
         container.innerHTML = "";
 
         if (countEl) {
-            countEl.textContent = `${events.length} incident${events.length === 1 ? "" : "s"}`;
+            countEl.textContent = `${events.length} event${events.length === 1 ? "" : "s"}`;
         }
 
         if (!events.length) {
-            container.innerHTML = "<p class='placeholder-text'>No incidents found.</p>";
+            container.innerHTML = "<p class='placeholder-text'>No events found.</p>";
             return;
         }
 
@@ -232,6 +240,8 @@ async function loadEvents() {
             `;
 
             const secondaryLine = meta.secondary.join(" • ");
+            const metaRow = primaryPills ? `<div class="event-meta">${primaryPills}</div>` : "";
+            const sublineRow = secondaryLine ? `<div class="event-subline">${secondaryLine}</div>` : "";
 
             el.innerHTML = `
                 <div class="event-card-header">
@@ -239,8 +249,8 @@ async function loadEvents() {
                     ${signalTypePill}
                 </div>
                 <p class="event-summary">${event.summary || "No summary available."}</p>
-                <div class="event-meta">${primaryPills}</div>
-                <div class="event-subline">${secondaryLine}</div>
+                ${metaRow}
+                ${sublineRow}
             `;
 
             container.appendChild(el);
@@ -312,6 +322,35 @@ async function resetFilters() {
 const resetButton = document.getElementById("reset-filters");
 if (resetButton) {
     resetButton.addEventListener("click", resetFilters);
+}
+
+const toggleFiltersBtn = document.getElementById("toggle-filters");
+const filtersPanel = document.querySelector(".filters-panel");
+
+function updateFilterToggleLabel() {
+    if (!toggleFiltersBtn || !filtersPanel) return;
+
+    if (filtersPanel.classList.contains("expanded")) {
+        toggleFiltersBtn.textContent = "Hide Filters";
+    } else {
+        toggleFiltersBtn.textContent = "Show Filters";
+    }
+}
+
+if (toggleFiltersBtn && filtersPanel) {
+    toggleFiltersBtn.addEventListener("click", () => {
+        filtersPanel.classList.toggle("expanded");
+        updateFilterToggleLabel();
+    });
+
+    // Default: collapsed on mobile, expanded on desktop
+    if (window.innerWidth > 640) {
+        filtersPanel.classList.add("expanded");
+    } else {
+        filtersPanel.classList.remove("expanded");
+    }
+
+    updateFilterToggleLabel();
 }
 
 setLoading(true);

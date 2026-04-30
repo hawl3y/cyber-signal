@@ -34,6 +34,33 @@ def is_relevant_incident(article):
     summary = (article.summary or "").strip().lower()
     title_and_summary = " ".join([title, summary]).strip()
 
+    legal_followup_patterns = [
+        "sentenced to",
+        "sentenced for",
+        "sentenced after",
+        "pleaded guilty",
+        "pleads guilty",
+        "plead guilty",
+        "convicted",
+        "prison sentence",
+        "gets 30 months",
+        "gets 24 months",
+        "gets 12 months",
+        "jailed",
+        "indicted",
+        "charged with",
+        "arrested",
+        "arrest",
+        "law enforcement",
+        "seized",
+        "seizure",
+        "takedown",
+        "take down",
+    ]
+
+    if any(pattern in title_and_summary for pattern in legal_followup_patterns):
+        return False
+
     negative_title_patterns = [
         "webinar",
         "podcast",
@@ -199,10 +226,7 @@ def is_relevant_incident(article):
         "site",
         "sites",
         "plugin suite",
-        "users",
-        "customers",
-        "accounts",
-    ])
+])
 
     has_only_advisory_exploitation = (
         _has_exploitation_signal(text)

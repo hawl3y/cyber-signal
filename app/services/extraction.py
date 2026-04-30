@@ -3,8 +3,7 @@ import re
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction
 
-from app.services.classification import resolve_classification
-from app.services.taxonomy import fallback_industry_from_entity_type, normalize_attack_type
+from app.services.taxonomy import normalize_attack_type
 
 
 def _combined_article_text(article):
@@ -142,7 +141,7 @@ def _clean_org_name(value):
     if not value:
         return None
 
-    cleaned = value.strip(" -,:;\"'()[]{}“”‘’")
+    cleaned = value.strip(" -,:;\"'[]{}“”‘’")
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
 
     if not cleaned:
@@ -150,7 +149,7 @@ def _clean_org_name(value):
 
     cleaned = re.sub(r"^(?:the)\s+", "", cleaned, flags=re.IGNORECASE)
     cleaned = ORG_CLAUSE_BOUNDARY_RE.split(cleaned, maxsplit=1)[0].strip()
-    cleaned = re.sub(r"\s+", " ", cleaned).strip(" -,:;\"'()[]{}“”‘’")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" -,:;\"'[]{}“”‘’")
 
     if not cleaned:
         return None
@@ -162,6 +161,12 @@ def _clean_org_name(value):
         "",
         cleaned,
         flags=re.IGNORECASE,
+    ).strip()
+
+    cleaned = re.sub(
+        r"^([A-Z][A-Za-z0-9&._-]*(?:\s+[A-Z][A-Za-z0-9&._-]*){0,3})\s+[a-z][a-z0-9&._-]*(?:\s+[a-z][a-z0-9&._-]*)*$",
+        r"\1",
+        cleaned,
     ).strip()
 
     lowered = cleaned.lower()
@@ -224,77 +229,6 @@ def _normalize_org_name(value):
 
     return normalized or None
 
-def _classify_org_from_name(org_name):
-    if not org_name:
-        return None
-
-    lowered = org_name.lower().strip()
-
-    if re.search(
-        r"\b(bank of france|banque de france|federal reserve|central bank)\b",
-        lowered,
-        flags=re.IGNORECASE,
-    ):
-        return "government"
-
-    government_patterns = [
-        r"\b(ministry|government|parliament|senate|supreme\s*court|court|municipality|municipal|city of |town of |state department|embassy|agency|department)\b",
-        r"\b(army|navy|air force|defence|defense|military)\b",
-    ]
-
-    critical_infrastructure_patterns = [
-        r"\b(airport|airline|aviation|rail|railway|transit|metro|port authority|shipping|logistics|freight|utility|power grid|power plant|pipeline|water utility|electric company|energy)\b",
-    ]
-
-    private_sector_patterns = [
-        r"\b(university hospital|hospital|medical center|health system|clinic|health sciences center|bank|credit union|financial|insurance|insurer|exchange|cryptocurrency platform|crypto exchange|telecom|telecommunications|carrier|mobile network|broadband|internet provider|internet service provider|isp|hosting provider|platform|technology|software|newspaper|news outlet|media company|broadcaster|television network|radio station|publisher|university|college|school|schools|school district|public school|public schools|grammar school|campus|research institute|laboratory|research center)\b",
-    ]
-
-    for pattern in government_patterns:
-        if re.search(pattern, lowered, flags=re.IGNORECASE):
-            return "government"
-
-    for pattern in critical_infrastructure_patterns:
-        if re.search(pattern, lowered, flags=re.IGNORECASE):
-            return "critical_infrastructure"
-
-    for pattern in private_sector_patterns:
-        if re.search(pattern, lowered, flags=re.IGNORECASE):
-            return "private_sector"
-
-    if re.search(r"\b(inc|corp|corporation|llc|ltd|plc|gmbh|ag|sa|bv|nv)\b", lowered, flags=re.IGNORECASE):
-        return "private_sector"
-
-    tokens = lowered.split()
-    if len(tokens) == 1 and re.search(r"[a-z]", lowered):
-        return "private_sector"
-
-    return None
-
-
-def _map_entity_type_to_industry(entity_type):
-    return fallback_industry_from_entity_type(entity_type)
-
-
-def _resolve_live_victim_classification(victim_org_name, extracted_industry):
-    org_based_entity_type = _classify_org_from_name(victim_org_name)
-
-    if org_based_entity_type:
-        resolved = resolve_classification(
-            org_lookup_result={
-                "victim_entity_type": org_based_entity_type,
-                "industry": _map_entity_type_to_industry(org_based_entity_type),
-                "source": "live_org_name",
-            },
-            source_prefix="live",
-        )
-        if resolved["victim_entity_type"] != "unknown" or resolved["industry"] != "Other":
-            return resolved
-
-    return resolve_classification(
-        industry_value=extracted_industry,
-        source_prefix="live",
-    )
 
 def _extract_victim_org_name(article):
     title = (article.title or "").strip()
@@ -306,32 +240,11 @@ def _extract_victim_org_name(article):
     if title.lower().startswith("webinar:"):
         return None
 
-    texts = [title]
-    if summary:
-        texts.append(summary)
-
     target_patterns = [
         r"\b(?:breach|hack|attack|cyberattack|cyber attack|ransomware attack)\s+(?:at|on|against|of)\s+([^,.;:]+)",
+        r"\b(?:breach|attack|cyberattack|cyber attack|ransomware attack)\s+affecting\s+(?:the\s+)?([^,.;:]+)",
+        r"\b(?:confirms|confirmed|reports|reported|discloses|disclosed)\s+(?:a\s+)?(?:data\s+)?breach\s+(?:at|of)\s+([^,.;:]+)",
         r"\b([^,.;:]+?)\s+(?:was|were|has been|have been)\s+(?:breached|hacked|attacked|targeted|compromised|disrupted|extorted)\b",
-        r"\b(?:hit|targeted|breached|hacked|attacked|compromised|disrupted|extorted)\s+([^,.;:]+)",
-    ]
-
-    self_disclosure_patterns = [
-        r"\b([^,.;:]+?)\s+(?:said|says|confirmed|confirms|announced|disclosed|reported)\b",
-    ]
-
-    incident_terms = [
-        "breach",
-        "data leak",
-        "data breach",
-        "misconfiguration",
-        "hacked",
-        "breached",
-        "attacked",
-        "compromised",
-        "ransomware",
-        "extortion",
-        "leak",
     ]
 
     blocked_action_phrase = re.compile(
@@ -339,7 +252,27 @@ def _extract_victim_org_name(article):
         flags=re.IGNORECASE,
     )
 
-    for text in texts:
+    generic_org_terms = {
+        "agency",
+        "bank",
+        "company",
+        "firm",
+        "government",
+        "group",
+        "hospital",
+        "ministry",
+        "organization",
+        "organisation",
+        "provider",
+        "school",
+        "service",
+        "university",
+        "vendor",
+    }
+
+    def extract_candidates(text):
+        candidates = []
+
         for pattern in target_patterns:
             for match in re.finditer(pattern, text, flags=re.IGNORECASE):
                 candidate = _clean_org_name(match.group(1))
@@ -349,25 +282,39 @@ def _extract_victim_org_name(article):
                 if blocked_action_phrase.search(candidate):
                     continue
 
-                return candidate
+                candidates.append(candidate)
 
-    for text in texts:
-        lowered_text = text.lower()
-        if not any(term in lowered_text for term in incident_terms):
-            continue
+        return candidates
 
-        for pattern in self_disclosure_patterns:
-            for match in re.finditer(pattern, text, flags=re.IGNORECASE):
-                candidate = _clean_org_name(match.group(1))
-                if not candidate:
-                    continue
+    def is_generic_descriptor(value):
+        tokens = value.lower().split()
+        if not tokens:
+            return True
 
-                if blocked_action_phrase.search(candidate):
-                    continue
+        if len(tokens) <= 3 and tokens[-1] in generic_org_terms:
+            return True
 
-                return candidate
+        return False
+
+    title_candidates = extract_candidates(title)
+    summary_candidates = extract_candidates(summary) if summary else []
+
+    for candidate in summary_candidates:
+        if not is_generic_descriptor(candidate):
+            return candidate
+
+    for candidate in title_candidates:
+        if not is_generic_descriptor(candidate):
+            return candidate
+
+    if summary_candidates:
+        return summary_candidates[0]
+
+    if title_candidates:
+        return title_candidates[0]
 
     return None
+
 
 def _extract_exploitation_subject(article):
     title = (article.title or "").strip()
@@ -679,17 +626,43 @@ def run_rule_extraction(article):
     text = _combined_article_text(article)
 
     victim_org_name = _extract_victim_org_name(article)
-    if victim_org_name is None and _has_exploitation_signal(text):
-        victim_org_name = _extract_exploitation_subject(article)
 
     victim_org_normalized = _normalize_org_name(victim_org_name)
-    extracted_industry = _extract_industry(text)
-    classification = _resolve_live_victim_classification(
-        victim_org_name,
-        extracted_industry,
-    )
+    victim_context_text = ""
+    if victim_org_name:
+        parts = [
+            article.title or "",
+            article.summary or "",
+            article.content or "",
+        ]
+        victim_context_parts = [part for part in parts if victim_org_name.lower() in part.lower()]
+        victim_context_text = " ".join(victim_context_parts).lower()
 
-    industry = classification["industry"]
+    industry = _extract_industry(victim_context_text) if victim_context_text else None
+
+    if not industry:
+        industry = _extract_industry(text)
+
+    if not industry:
+        combined_text = " ".join([
+            article.title or "",
+            article.summary or "",
+            article.content or "",
+        ]).lower()
+
+        if any(term in combined_text for term in ["hospital", "healthcare", "medical", "medtech", "clinic"]):
+            industry = "Healthcare"
+        elif any(term in combined_text for term in ["bank", "financial", "fintech", "payment", "credit card"]):
+            industry = "Financial Services"
+        elif any(term in combined_text for term in ["school", "university", "education", "student"]):
+            industry = "Education"
+        elif any(term in combined_text for term in ["government", "ministry", "agency", "municipality", "city of"]):
+            industry = "Government"
+        elif any(term in combined_text for term in ["software vendor", "software provider", "tech company", "tech firm", "saas", "hosting provider", "managed service provider", "msp", "data center", "developer tool", "application framework"]):
+            industry = "Technology"
+
+    if not industry:
+        industry = "Unknown"
 
     geography = _extract_geography(text)
 

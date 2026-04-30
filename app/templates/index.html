@@ -10,25 +10,32 @@
     <div class="page">
         <header class="header">
             <h1>Cyber Signal</h1>
-            <p>High-signal cyber incident brief.</p>
+            <p>High-signal cyber event brief.</p>
         </header>
 
         <main class="layout">
             <section class="panel filters-panel">
                 <div class="panel-header-simple">
                     <h2>Filters</h2>
-                    <button id="reset-filters" type="button" class="filter-reset-button">
-                        Reset
-                    </button>
+                    <div class="filter-actions">
+                        <button id="toggle-filters" type="button" class="filter-reset-button">
+                            Show Filters
+                        </button>
+                        <button id="reset-filters" type="button" class="filter-reset-button">
+                            Reset
+                        </button>
+                    </div>
                 </div>
 
-                <div class="filter-row">
+                <div id="filters-content" class="filter-row">
                     <div class="filter-item">
                         <label for="filter-time-range">Time Range</label>
                         <select id="filter-time-range" class="filter-select">
                             <option value="24h">24h</option>
-                            <option value="7d" selected>7d</option>
-                            <option value="30d">30d</option>
+                            <option value="7d">7d</option>
+                            <option value="30d" selected>30d</option>
+                            <option value="90d">90d</option>
+                            <option value="">All time</option>
                         </select>
                     </div>
 
@@ -57,15 +64,15 @@
 
             <section class="summary-strip">
                 <div class="summary-card">
-                    <span class="label">Total Incidents</span>
+                    <span class="label">Total Events</span>
                     <span class="value" id="total-incidents">--</span>
                 </div>
                 <div class="summary-card">
-                    <span class="label">Confirmed Incidents</span>
+                    <span class="label">Confirmed Events</span>
                     <span class="value" id="confirmed-incidents">--</span>
                 </div>
                 <div class="summary-card">
-                    <span class="label">Emerging</span>
+                    <span class="label">Emerging Events</span>
                     <span class="value" id="emerging-signals">--</span>
                 </div>
                 <div class="summary-card">
@@ -89,7 +96,7 @@
             <section class="panel trends-panel">
                 <div class="panel-header-simple">
                     <h2>Trend Snapshot</h2>
-                    <span class="panel-subtitle">Last 7 days</span>
+                    <span class="panel-subtitle">Using active filters</span>
                 </div>
 
                 <div class="trends-grid">

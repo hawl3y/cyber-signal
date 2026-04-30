@@ -1,3 +1,5 @@
+import os
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -44,6 +46,8 @@ def create_app():
     def server_error(error):
         return {"error": "Internal server error"}, 500
 
-    start_scheduler(app)
+    run_scheduler = os.environ.get("RUN_SCHEDULER", "false").lower() == "true"
+    if run_scheduler:
+        start_scheduler(app)
 
     return app

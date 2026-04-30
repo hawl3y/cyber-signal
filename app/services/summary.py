@@ -42,6 +42,8 @@ def get_filtered_events(
             cutoff = now - timedelta(days=7)
         elif time_range == "30d":
             cutoff = now - timedelta(days=30)
+        elif time_range == "90d":
+            cutoff = now - timedelta(days=90)
         else:
             cutoff = None
 
@@ -54,20 +56,54 @@ def get_filtered_events(
     return events
 
 
+def _is_unknown_or_other(value):
+    return (value or "").strip().lower() in {"unknown", "other"}
+
+
 def _most_common_non_empty(values):
-    cleaned = [value for value in values if value]
+    cleaned = [value.strip() for value in values if value and value.strip()]
+
     if not cleaned:
         return None
 
-    return Counter(cleaned).most_common(1)[0][0]
+    counts = Counter(cleaned)
+    known = {label: count for label, count in counts.items() if not _is_unknown_or_other(label)}
+
+    if known:
+        ordered_known = sorted(
+            known.items(),
+            key=lambda item: (-item[1], item[0].lower()),
+        )
+        return ordered_known[0][0]
+
+    return "Unknown"
 
 
 def _top_counts(values, limit=5):
-    cleaned = [value for value in values if value]
+    cleaned = [value.strip() for value in values if value and value.strip()]
+
     counts = Counter(cleaned)
+
+    if not counts:
+        return []
+
+    known = {label: count for label, count in counts.items() if not _is_unknown_or_other(label)}
+    unknown = {label: count for label, count in counts.items() if _is_unknown_or_other(label)}
+
+    ordered = sorted(
+        known.items(),
+        key=lambda item: (-item[1], item[0].lower()),
+    )
+
+    if unknown:
+        ordered += sorted(
+            unknown.items(),
+            key=lambda item: (-item[1], item[0].lower()),
+        )
+
     return [
         {"label": label, "count": count}
-        for label, count in counts.most_common(limit)
+        for label, count in ordered[:limit]
     ]
 
 
@@ -79,6 +115,7 @@ def build_summary(
 ):
     events = get_filtered_events(
         industry=industry,
+        
         region=region,
         attack_type=attack_type,
         time_range=time_range,
@@ -92,19 +129,29 @@ def build_summary(
     industries = [e.industry for e in events if e.industry]
 
     return {
-        "total_incidents": total_incidents,
-        "confirmed_incidents": confirmed_incidents,
-        "emerging_signals": emerging_signals,
+        "total_events": total_incidents,
+        "confirmed_events": confirmed_incidents,
+        "emerging_events": emerging_signals,
         "top_attack_type": _most_common_non_empty(attack_types),
         "top_targeted_industry": _most_common_non_empty(industries),
     }
 
 
-def build_trends():
+def build_trends(
+    industry=None,
+    region=None,
+    attack_type=None,
+    time_range=None,
+):
     """
-    Return the lightweight 7-day trend snapshot for the single-page MVP.
+    Return the lightweight trend snapshot using the active feed filters.
     """
-    events = get_filtered_events(time_range="7d")
+    events = get_filtered_events(
+        industry=industry,
+        region=region,
+        attack_type=attack_type,
+        time_range=time_range,
+    )
 
     attack_types = [e.attack_type for e in events if e.attack_type]
     industries = [e.industry for e in events if e.industry]
