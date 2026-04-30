@@ -440,7 +440,6 @@ def _extract_industry(text):
         "energy",
         "utility",
         "power grid",
-        "electric",
         "substation",
         "water utility",
         "water treatment",
