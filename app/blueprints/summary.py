@@ -24,4 +24,16 @@ def get_summary():
 
 @summary_bp.route("/trends", methods=["GET"])
 def get_trends():
-    return jsonify(build_trends())
+    industry = request.args.get("industry")
+    region = request.args.get("region")
+    attack_type = request.args.get("attack_type")
+    time_range = request.args.get("time_range")
+
+    return jsonify(
+        build_trends(
+            industry=industry,
+            region=region,
+            attack_type=attack_type,
+            time_range=time_range,
+        )
+    )

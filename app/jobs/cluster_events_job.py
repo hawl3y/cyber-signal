@@ -11,45 +11,41 @@ from app.services.clustering import (
 )
 
 
-def _detach_article_from_existing_event(article):
+def _get_existing_event_for_article(article):
     """
-    Remove any existing event link for this article so reclustering is clean.
-    Delete orphaned events left behind by the detach.
+    Return the currently linked event for this article, if one exists.
+
+    Clustering should be additive and stable. We do not detach or delete
+    existing event state during routine pipeline runs.
     """
-    existing_links = EventSourceLink.query.filter_by(
+    existing_link = EventSourceLink.query.filter_by(
         raw_article_id=article.id
-    ).all()
+    ).first()
 
-    for link in existing_links:
-        old_event_id = link.cyber_event_id
-        db.session.delete(link)
-        db.session.flush()
+    if not existing_link:
+        return None
 
-        remaining_links = EventSourceLink.query.filter_by(
-            cyber_event_id=old_event_id
-        ).count()
-
-        old_event = CyberEvent.query.get(old_event_id)
-        if old_event:
-            if remaining_links == 0:
-                db.session.delete(old_event)
-                db.session.flush()
-            else:
-                db.session.flush()
-                refresh_event(old_event_id)
+    return CyberEvent.query.get(existing_link.cyber_event_id)
 
 
 def cluster_events_job():
     """
     Entry point for clustering stage.
 
-    This supports clean reclustering by removing any existing event links
-    for an article before assigning it again.
+    This stage is additive and idempotent:
+    - keep existing article-event links stable
+    - refresh existing events in place
+    - only create a new event when no current link and no valid match exist
     """
     articles = get_ready_for_clustering()
 
     for article in articles:
-        _detach_article_from_existing_event(article)
+        existing_event = _get_existing_event_for_article(article)
+        if existing_event:
+            article.processing_status = "clustered"
+            db.session.flush()
+            refresh_event(existing_event.id)
+            continue
 
         extraction = get_extraction(article)
 
@@ -60,7 +56,7 @@ def cluster_events_job():
             event = CyberEvent.query.get(best_match.event_id)
             if event:
                 attach_to_event(article, event)
-                refresh_event(best_match.event_id)
+                refresh_event(event.id)
             else:
                 new_event = create_event(article, extraction)
                 refresh_event(new_event.id)

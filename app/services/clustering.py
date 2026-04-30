@@ -332,16 +332,61 @@ def refresh_event(event_id):
         if seen_at and (event.last_seen_at is None or seen_at > event.last_seen_at):
             event.last_seen_at = seen_at
 
-    if source_count >= 2:
-        event.event_status = "confirmed"
-    else:
-        event.event_status = "emerging"
+    single_source_confirmed_incident = False
+
+    if (
+        source_count == 1
+        and event.event_signal_type == "incident"
+        and event.victim_org_name
+        and article
+    ):
+        incident_text = " ".join(
+            [
+                (article.title or "").strip(),
+                (article.summary or "").strip(),
+                (article.content or "").strip(),
+            ]
+        ).lower()
+
+        strong_completed_incident_terms = [
+            "data breach",
+            "security breach",
+            "breached",
+            "was breached",
+            "was hacked",
+            "was compromised",
+            "confirmed a breach",
+            "confirmed a cyberattack",
+            "confirmed a ransomware attack",
+            "disclosed a breach",
+            "reported a breach",
+            "forced offline",
+            "taken offline",
+            "operational disruption",
+            "service disruption",
+            "extortion",
+            "data-wiping attack",
+            "wiper attack",
+        ]
+
+        if any(term in incident_text for term in strong_completed_incident_terms):
+            single_source_confirmed_incident = True
 
     if source_count >= 2:
+        event.event_status = "confirmed"
         event.confidence_level = "high"
     elif source_count == 1:
-        event.confidence_level = "medium"
+        if event.event_signal_type == "activity":
+            event.event_status = "emerging"
+            event.confidence_level = "medium"
+        elif single_source_confirmed_incident:
+            event.event_status = "confirmed"
+            event.confidence_level = "medium"
+        else:
+            event.event_status = "emerging"
+            event.confidence_level = "medium"
     else:
+        event.event_status = "emerging"
         event.confidence_level = None
 
     db.session.commit()

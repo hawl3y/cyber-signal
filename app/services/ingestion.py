@@ -130,16 +130,45 @@ def _fetch_cisa_kev_items(source):
         if not cve_id:
             continue
 
-        title_parts = [cve_id]
+        display_name_parts = []
         if vendor_project:
-            title_parts.append(vendor_project)
+            display_name_parts.append(vendor_project)
         if product and product.lower() != vendor_project.lower():
-            title_parts.append(product)
-        if vulnerability_name:
-            title_parts.append(vulnerability_name)
+            display_name_parts.append(product)
 
-        title = " | ".join(part for part in title_parts if part)
-        summary = short_description or f"{cve_id} added to the CISA KEV catalog."
+        display_name = " ".join(part for part in display_name_parts if part).strip()
+        if not display_name:
+            display_name = "KEV Entry"
+
+        cleaned_vulnerability_name = vulnerability_name
+        if cleaned_vulnerability_name:
+            prefix_to_strip = display_name.lower().strip()
+            lowered_vuln_name = cleaned_vulnerability_name.lower().strip()
+
+            if prefix_to_strip and lowered_vuln_name.startswith(prefix_to_strip):
+                cleaned_vulnerability_name = cleaned_vulnerability_name[len(display_name):].strip(" -|:")
+
+        if cleaned_vulnerability_name:
+            title = f"{display_name} {cleaned_vulnerability_name} ({cve_id})"
+        else:
+            title = f"{display_name} Vulnerability ({cve_id})"
+
+        title = re.sub(r"\s+", " ", title).strip()
+
+        summary = short_description.strip()
+        if summary:
+            summary = re.sub(r"\s+", " ", summary)
+
+            sentence_parts = re.findall(r".+?[.!?](?=\s|$)", summary)
+            if sentence_parts:
+                summary = " ".join(sentence_parts[:2]).strip()
+            elif len(summary) > 320:
+                trimmed = summary[:320].rstrip()
+                if " " in trimmed:
+                    trimmed = trimmed.rsplit(" ", 1)[0]
+                summary = trimmed.rstrip(" ,;:") + "."
+        else:
+            summary = f"{display_name} was added to the CISA KEV catalog under {cve_id}."
 
         article_url = f"{source.get('url')}#{cve_id}"
 
