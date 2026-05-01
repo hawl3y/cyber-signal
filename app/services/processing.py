@@ -83,6 +83,26 @@ def is_relevant_incident(article):
     if any(pattern in title_and_summary for pattern in legal_followup_patterns):
         return False
 
+    retraction_noise_patterns = [
+        "story retracted",
+        "this story was retracted",
+        "this article was retracted",
+        "retracted",
+        "correction:",
+        "corrected:",
+        "editor's note:",
+        "editors note:",
+        "we were wrong",
+        "published in error",
+        "article has been removed",
+        "post has been removed",
+        "incorrectly reported",
+        "incorrect report",
+    ]
+
+    if any(pattern in title_and_summary for pattern in retraction_noise_patterns):
+        return False
+
     negative_title_patterns = [
         "webinar",
         "podcast",

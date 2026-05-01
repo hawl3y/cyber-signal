@@ -25,6 +25,22 @@ def _clean_summary_text(value):
 
     return cleaned or None
 
+def _build_short_event_summary(article):
+    summary = _clean_summary_text(article.summary)
+    if summary:
+        return summary
+
+    title = _clean_summary_text(article.title)
+    if title:
+        return title
+
+    content = _clean_summary_text(article.content)
+    if not content:
+        return None
+
+    first_sentence = re.split(r"(?<=[.!?])\s+", content, maxsplit=1)[0].strip()
+    return first_sentence or None
+
 def _is_plausible_org_candidate(value):
     if not value:
         return False
@@ -245,6 +261,9 @@ def _extract_victim_org_name(article):
         r"\b(?:breach|attack|cyberattack|cyber attack|ransomware attack)\s+affecting\s+(?:the\s+)?([^,.;:]+)",
         r"\b(?:confirms|confirmed|reports|reported|discloses|disclosed)\s+(?:a\s+)?(?:data\s+)?breach\s+(?:at|of)\s+([^,.;:]+)",
         r"\b([^,.;:]+?)\s+(?:was|were|has been|have been)\s+(?:breached|hacked|attacked|targeted|compromised|disrupted|extorted)\b",
+        r"\b([^,.;:]+?)\s+(?:confirms|confirmed|reports|reported|discloses|disclosed)\s+(?:a\s+)?(?:data\s+)?breach\b",
+        r"\b([^,.;:]+?)\s+(?:hit by|suffered|suffers)\s+(?:a\s+)?(?:ransomware attack|cyberattack|cyber attack|data breach|security breach)\b",
+        r"\b([^,.;:]+?)\s+(?:falls victim to|fell victim to)\s+(?:a\s+)?(?:ransomware attack|cyberattack|cyber attack|data breach|security breach)\b",
     ]
 
     blocked_action_phrase = re.compile(
@@ -742,7 +761,7 @@ def run_rule_extraction(article):
     ]):
         attack_type = "Account Compromise"
 
-    short_event_summary = _clean_summary_text(article.summary) or _clean_summary_text(article.title)
+    short_event_summary = _build_short_event_summary(article)
 
     attack_type = normalize_attack_type(attack_type)
 
