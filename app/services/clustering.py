@@ -1,3 +1,5 @@
+import re 
+
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction, CyberEvent, EventSourceLink
 from app.utils.sources import get_source_config
@@ -47,6 +49,62 @@ def _is_primary_source_article(article):
 
     return any(signal in text for signal in primary_signals)
 
+def _extract_org_acronym(value):
+    if not value:
+        return None
+
+    match = re.search(r"\(([A-Z0-9&.-]{2,})\)", value)
+    if match:
+        return match.group(1)
+
+    uppercase_tokens = re.findall(r"\b[A-Z][A-Z0-9&.-]{1,}\b", value)
+    if len(uppercase_tokens) == 1:
+        return uppercase_tokens[0]
+
+    return None
+
+
+def _country_matches(extraction, candidate):
+    if not extraction or not candidate:
+        return False
+
+    if not extraction.country or not candidate.country:
+        return False
+
+    return extraction.country == candidate.country
+
+
+def _attack_type_matches(extraction, candidate):
+    if not extraction or not candidate:
+        return False
+
+    if not extraction.attack_type or not candidate.attack_type:
+        return False
+
+    return extraction.attack_type == candidate.attack_type
+
+
+def _acronym_alias_matches(extraction, candidate):
+    if not extraction or not candidate:
+        return False
+
+    extraction_acronym = _extract_org_acronym(extraction.victim_org_name)
+    candidate_acronym = _extract_org_acronym(candidate.victim_org_name)
+
+    if not extraction_acronym or not candidate_acronym:
+        return False
+
+    if extraction_acronym != candidate_acronym:
+        return False
+
+    if not _country_matches(extraction, candidate):
+        return False
+
+    if not _attack_type_matches(extraction, candidate):
+        return False
+
+    return True
+
 
 def get_ready_for_clustering():
     """
@@ -64,9 +122,8 @@ def get_extraction(article):
 
 def find_candidate_events(extraction):
     """
-    Find candidate events using victim organization only.
-
-    Keep this strict for now to prevent false merges.
+    Find candidate events using strict victim matches first, then safe narrowed
+    fallback matching for acronym-based aliases.
     """
     if not extraction:
         return []
@@ -85,14 +142,25 @@ def find_candidate_events(extraction):
         if candidates:
             return candidates
 
-    return []
+    narrowed = CyberEvent.query
+
+    if extraction.country:
+        narrowed = narrowed.filter_by(country=extraction.country)
+
+    if extraction.attack_type:
+        narrowed = narrowed.filter_by(attack_type=extraction.attack_type)
+
+    return narrowed.all()
 
 
 def find_best_match(extraction, candidates):
     """
-    Return a strict deterministic match result.
+    Return a deterministic match result.
 
-    Only allow a match when victim organization aligns exactly.
+    Match order:
+    1. exact normalized victim match
+    2. exact victim display-name match
+    3. acronym-based alias match with country + attack-type guardrails
     """
     class Result:
         def __init__(self, score=0, event_id=None):
@@ -110,12 +178,17 @@ def find_best_match(extraction, candidates):
         ):
             return Result(score=1.0, event_id=candidate.id)
 
+    for candidate in candidates:
         if (
             extraction.victim_org_name
             and candidate.victim_org_name
             and extraction.victim_org_name == candidate.victim_org_name
         ):
             return Result(score=0.95, event_id=candidate.id)
+
+    for candidate in candidates:
+        if _acronym_alias_matches(extraction, candidate):
+            return Result(score=0.9, event_id=candidate.id)
 
     return Result(score=0, event_id=None)
 
