@@ -459,6 +459,9 @@ def refresh_event(event_id):
         else:
             event.event_signal_type = "incident"
 
+        if article and article.title:
+            event.canonical_title = article.title
+
         if extraction.short_event_summary:
             event.summary_short = extraction.short_event_summary
 
