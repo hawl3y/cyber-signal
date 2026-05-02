@@ -361,7 +361,7 @@ def _extract_industry(text):
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(hospital|hospitals|healthcare|clinic|health system|medical)\b", "Healthcare"),
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(school|schools|university|universities|college|education|educational|student|campus|district)\b", "Education"),
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(bank|banks|financial|credit union|insurance|brokerage|payment processor)\b", "Financial Services"),
-        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(utility|utilities|power grid|electric|water utility|pipeline|energy)\b", "Energy"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(utility|utilities|power grid|water utility|pipeline|energy)\b", "Energy"),
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(airport|airline|aviation|rail|railway|transit|metro|shipping|logistics|freight|port authority)\b", "Transportation"),
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(newspaper|news outlet|media company|broadcaster|television network|radio station|publisher)\b", "Media"),
     ]
@@ -370,128 +370,125 @@ def _extract_industry(text):
         if re.search(pattern, text, flags=re.IGNORECASE):
             return industry
 
-    if any(keyword in text for keyword in [
-        "software provider",
-        "software vendor",
-        "technology",
-        "tech company",
-        "tech firm",
-        "it provider",
-        "cloud",
-        "saas",
-        "hosting provider",
-        "managed service provider",
-        "msp",
-        "it services",
-        "data center",
-        "software",
-        "plugin",
-        "browser",
-        "developer tool",
-        "video game developer",
-        "application framework",
-        "platform",
-        "telematics",
-        "fleet management",
-        "fleet management company",
-        "gps tracking",
-        "tracking platform",
-    ]):
-        return "Technology"
+    industry_keywords = {
+        "Technology": [
+            "software provider",
+            "software vendor",
+            "technology",
+            "tech company",
+            "tech firm",
+            "it provider",
+            "cloud",
+            "saas",
+            "hosting provider",
+            "managed service provider",
+            "msp",
+            "it services",
+            "data center",
+            "software",
+            "suite",
+            "control panel",
+            "platform",
+            "plugin",
+            "browser",
+            "developer tool",
+            "application framework",
+            "firmware",
+            "virtual machines",
+            "vendor:",
+            "product:",
+            "video game developer",
+            "telematics",
+            "fleet management",
+            "fleet management company",
+            "gps tracking",
+            "tracking platform",
+        ],
+        "Healthcare": [
+            "hospital",
+            "healthcare",
+            "patient",
+            "medical",
+            "clinic",
+            "health system",
+            "health service",
+        ],
+        "Financial Services": [
+            "bank",
+            "banking",
+            "financial",
+            "atm",
+            "cryptocurrency",
+            "exchange",
+            "fintech",
+            "payment processor",
+            "credit union",
+            "brokerage",
+            "insurance",
+        ],
+        "Education": [
+            "school",
+            "university",
+            "college",
+            "education",
+            "educational",
+            "edtech",
+            "student",
+            "campus",
+            "district",
+        ],
+        "Government": [
+            "government",
+            "agency",
+            "ministry",
+            "public sector",
+            "municipal",
+            "city of ",
+            "county",
+            "state government",
+            "federal",
+            "department of",
+            "public service",
+            "township",
+            "parish",
+        ],
+        "Energy": [
+            "energy",
+            "utility",
+            "power grid",
+            "substation",
+            "water utility",
+            "water treatment",
+            "gas utility",
+            "pipeline",
+        ],
+        "Transportation": [
+            "airport",
+            "airline",
+            "aviation",
+            "rail",
+            "railway",
+            "transit",
+            "metro",
+            "port authority",
+            "shipping",
+            "logistics",
+            "freight",
+        ],
+        "Media": [
+            "newspaper",
+            "news outlet",
+            "media company",
+            "broadcaster",
+            "television network",
+            "radio station",
+            "publisher",
+        ],
+    }
 
-    if any(keyword in text for keyword in [
-        "hospital",
-        "healthcare",
-        "patient",
-        "medical",
-        "clinic",
-        "health system",
-        "health service",
-    ]):
-        return "Healthcare"
-
-    if any(keyword in text for keyword in [
-        "bank",
-        "banking",
-        "financial",
-        "atm",
-        "cryptocurrency",
-        "exchange",
-        "fintech",
-        "payment processor",
-        "credit union",
-        "brokerage",
-        "insurance",
-    ]):
-        return "Financial Services"
-
-    if any(keyword in text for keyword in [
-        "school",
-        "university",
-        "college",
-        "education",
-        "educational",
-        "edtech",
-        "student",
-        "campus",
-        "district",
-    ]):
-        return "Education"
-
-    if any(keyword in text for keyword in [
-        "government",
-        "agency",
-        "ministry",
-        "public sector",
-        "municipal",
-        "city of ",
-        "county",
-        "state government",
-        "federal",
-        "department of",
-        "public service",
-        "township",
-        "parish",
-    ]):
-        return "Government"
-
-    if any(keyword in text for keyword in [
-        "energy",
-        "utility",
-        "power grid",
-        "substation",
-        "water utility",
-        "water treatment",
-        "gas utility",
-        "pipeline",
-    ]):
-        return "Energy"
-
-    if any(keyword in text for keyword in [
-        "airport",
-        "airline",
-        "aviation",
-        "rail",
-        "railway",
-        "transit",
-        "metro",
-        "port authority",
-        "shipping",
-        "logistics",
-        "freight",
-    ]):
-        return "Transportation"
-
-    if any(keyword in text for keyword in [
-        "newspaper",
-        "news outlet",
-        "media company",
-        "broadcaster",
-        "television network",
-        "radio station",
-        "publisher",
-    ]):
-        return "Media"
+    for industry, keywords in industry_keywords.items():
+        if any(keyword in text for keyword in keywords):
+            return industry
 
     return None
 
