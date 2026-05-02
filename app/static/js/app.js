@@ -368,11 +368,16 @@ function formatEasternTimestamp(value) {
 }
 
 function setFooterStatusText(timestamp) {
-    const textEl = document.getElementById("footer-status-text");
-    if (!textEl) return;
+    const yearEl = document.getElementById("footer-year");
+    const updatedEl = document.getElementById("footer-updated");
 
-    textEl.textContent =
-        `Copyright ${new Date().getFullYear()} Cyber Signal - Last Updated ${formatEasternTimestamp(timestamp)}`;
+    if (yearEl) {
+        yearEl.textContent = new Date().getFullYear();
+    }
+
+    if (updatedEl) {
+        updatedEl.textContent = formatEasternTimestamp(timestamp);
+    }
 }
 
 async function loadFooterStatus() {

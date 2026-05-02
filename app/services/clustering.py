@@ -1,4 +1,4 @@
-import re 
+import re
 
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction, CyberEvent, EventSourceLink
@@ -6,12 +6,6 @@ from app.utils.sources import get_source_config
 
 
 def _is_primary_source_article(article):
-    """
-    Lightweight evidence-role classification.
-
-    Primary source means the article appears to contain direct disclosure
-    or first-hand reporting from the victim, regulator, or official body.
-    """
     if not article:
         return False
 
@@ -48,62 +42,6 @@ def _is_primary_source_article(article):
     ]
 
     return any(signal in text for signal in primary_signals)
-
-def _extract_org_acronym(value):
-    if not value:
-        return None
-
-    match = re.search(r"\(([A-Z0-9&.-]{2,})\)", value)
-    if match:
-        return match.group(1)
-
-    uppercase_tokens = re.findall(r"\b[A-Z][A-Z0-9&.-]{1,}\b", value)
-    if len(uppercase_tokens) == 1:
-        return uppercase_tokens[0]
-
-    return None
-
-
-def _country_matches(extraction, candidate):
-    if not extraction or not candidate:
-        return False
-
-    if not extraction.country or not candidate.country:
-        return False
-
-    return extraction.country == candidate.country
-
-
-def _attack_type_matches(extraction, candidate):
-    if not extraction or not candidate:
-        return False
-
-    if not extraction.attack_type or not candidate.attack_type:
-        return False
-
-    return extraction.attack_type == candidate.attack_type
-
-
-def _acronym_alias_matches(extraction, candidate):
-    if not extraction or not candidate:
-        return False
-
-    extraction_acronym = _extract_org_acronym(extraction.victim_org_name)
-    candidate_acronym = _extract_org_acronym(candidate.victim_org_name)
-
-    if not extraction_acronym or not candidate_acronym:
-        return False
-
-    if extraction_acronym != candidate_acronym:
-        return False
-
-    if not _country_matches(extraction, candidate):
-        return False
-
-    if not _attack_type_matches(extraction, candidate):
-        return False
-
-    return True
 
 
 def _extract_org_acronym(value):
@@ -164,26 +102,14 @@ def _acronym_alias_matches(extraction, candidate):
 
 
 def get_ready_for_clustering():
-    """
-    Fetch articles ready for clustering.
-    """
     return RawArticle.query.filter_by(processing_status="ready_for_clustering").all()
 
 
 def get_extraction(article):
-    """
-    Retrieve extraction data for an article.
-    """
     return ArticleExtraction.query.filter_by(raw_article_id=article.id).first()
 
 
 def find_candidate_events(extraction):
-    """
-    Find candidate events using exact victim matches first, but do not stop there.
-
-    We include narrowed fallback candidates as well so forced reconciliation can
-    detect alias cases like different full names sharing the same acronym.
-    """
     if not extraction:
         return []
 
@@ -218,14 +144,6 @@ def find_candidate_events(extraction):
 
 
 def find_best_match(extraction, candidates):
-    """
-    Return a deterministic match result.
-
-    Match order:
-    1. exact normalized victim match
-    2. exact victim display-name match
-    3. acronym-based alias match with country + attack-type guardrails
-    """
     class Result:
         def __init__(self, score=0, event_id=None):
             self.score = score
@@ -258,10 +176,6 @@ def find_best_match(extraction, candidates):
 
 
 def attach_to_event(article, event):
-    """
-    Link article to event if not already linked, mark article as clustered,
-    and keep source_count aligned with actual links.
-    """
     existing_link = EventSourceLink.query.filter_by(
         cyber_event_id=event.id,
         raw_article_id=article.id,
@@ -296,13 +210,6 @@ def attach_to_event(article, event):
 
 
 def create_event(article, extraction):
-    """
-    Create a new MVP-style cyber event from article + extraction,
-    or return the existing event for this article slug if it already exists.
-
-    This intentionally avoids enrichment-time inference and only uses
-    fields directly available from the article and thin extraction layer.
-    """
     slug = f"event-{article.id}"
 
     existing_event = CyberEvent.query.filter_by(slug=slug).first()
@@ -363,11 +270,8 @@ def create_event(article, extraction):
     refresh_event(event.id)
     return event
 
+
 def _latest_linked_extraction(event_id):
-    """
-    Return the most recent linked extraction for an event based on article publish
-    time first, then article creation time, then extraction creation time.
-    """
     links = (
         EventSourceLink.query.filter_by(cyber_event_id=event_id)
         .order_by(EventSourceLink.linked_at.desc())
@@ -403,16 +307,8 @@ def _latest_linked_extraction(event_id):
     _, article, extraction = ranked[0]
     return article, extraction
 
-def refresh_event(event_id):
-    """
-    Refresh an event using MVP rules only.
 
-    This keeps event state deterministic and lightweight:
-    - source_count is derived from actual linked evidence
-    - status is based on corroboration
-    - confidence is based on simple source-count thresholds
-    - core display fields are refreshed from the latest linked extraction
-    """
+def refresh_event(event_id):
     event = CyberEvent.query.get(event_id)
     if not event:
         return False
@@ -439,7 +335,6 @@ def refresh_event(event_id):
         if extraction.region:
             event.region = extraction.region
 
-        # Always treat current pipeline output as incident
         linked_source_names = {
             link.raw_article.source_name
             for link in event.event_sources
