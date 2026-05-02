@@ -179,25 +179,29 @@ def get_extraction(article):
 
 def find_candidate_events(extraction):
     """
-    Find candidate events using strict victim matches first, then safe narrowed
-    fallback matching for acronym-based aliases.
+    Find candidate events using exact victim matches first, but do not stop there.
+
+    We include narrowed fallback candidates as well so forced reconciliation can
+    detect alias cases like different full names sharing the same acronym.
     """
     if not extraction:
         return []
 
+    candidates_by_id = {}
+
     if extraction.victim_org_normalized:
-        candidates = CyberEvent.query.filter_by(
+        exact_normalized = CyberEvent.query.filter_by(
             victim_org_normalized=extraction.victim_org_normalized
         ).all()
-        if candidates:
-            return candidates
+        for candidate in exact_normalized:
+            candidates_by_id[candidate.id] = candidate
 
     if extraction.victim_org_name:
-        candidates = CyberEvent.query.filter_by(
+        exact_name = CyberEvent.query.filter_by(
             victim_org_name=extraction.victim_org_name
         ).all()
-        if candidates:
-            return candidates
+        for candidate in exact_name:
+            candidates_by_id[candidate.id] = candidate
 
     narrowed = CyberEvent.query
 
@@ -207,7 +211,10 @@ def find_candidate_events(extraction):
     if extraction.attack_type:
         narrowed = narrowed.filter_by(attack_type=extraction.attack_type)
 
-    return narrowed.all()
+    for candidate in narrowed.all():
+        candidates_by_id[candidate.id] = candidate
+
+    return list(candidates_by_id.values())
 
 
 def find_best_match(extraction, candidates):
