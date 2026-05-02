@@ -85,15 +85,14 @@ def cluster_events_job(force=False):
         extraction = get_extraction(article)
 
         candidates = find_candidate_events(extraction)
+
+        if existing_event and force:
+            candidates = [candidate for candidate in candidates if candidate.id != existing_event.id]
+
         best_match = find_best_match(extraction, candidates)
 
         if existing_event:
-            if (
-                force
-                and best_match.score >= 0.8
-                and best_match.event_id is not None
-                and best_match.event_id != existing_event.id
-            ):
+            if force and best_match.score >= 0.8 and best_match.event_id is not None:
                 better_event = CyberEvent.query.get(best_match.event_id)
                 if better_event:
                     _reassign_article_to_event(article, existing_event, better_event)
