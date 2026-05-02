@@ -353,10 +353,48 @@ if (toggleFiltersBtn && filtersPanel) {
     updateFilterToggleLabel();
 }
 
+function formatEasternTimestamp(value) {
+    const date = value ? new Date(value) : new Date();
+
+    return new Intl.DateTimeFormat("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "America/New_York",
+        timeZoneName: "short",
+    }).format(date);
+}
+
+function setFooterStatusText(timestamp) {
+    const textEl = document.getElementById("footer-status-text");
+    if (!textEl) return;
+
+    textEl.textContent =
+        `Copyright ${new Date().getFullYear()} Cyber Signal - Last Updated ${formatEasternTimestamp(timestamp)}`;
+}
+
+async function loadFooterStatus() {
+    try {
+        const response = await fetch("/api/automation/status");
+        const data = await response.json();
+
+        const timestamp = data.last_run_finished_at || new Date().toISOString();
+        setFooterStatusText(timestamp);
+    } catch (err) {
+        console.error("Failed to load footer status:", err);
+        setFooterStatusText(new Date().toISOString());
+    }
+}
+
 setLoading(true);
 
 loadFilterOptions()
-    .then(refreshDashboard)
+    .then(async () => {
+        await refreshDashboard();
+        await loadFooterStatus();
+    })
     .finally(() => {
         setLoading(false);
     });
