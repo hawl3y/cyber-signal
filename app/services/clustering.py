@@ -106,6 +106,63 @@ def _acronym_alias_matches(extraction, candidate):
     return True
 
 
+def _extract_org_acronym(value):
+    if not value:
+        return None
+
+    match = re.search(r"\(([A-Z0-9&.-]{2,})\)", value)
+    if match:
+        return match.group(1)
+
+    uppercase_tokens = re.findall(r"\b[A-Z][A-Z0-9&.-]{1,}\b", value)
+    if len(uppercase_tokens) == 1:
+        return uppercase_tokens[0]
+
+    return None
+
+
+def _country_matches(extraction, candidate):
+    if not extraction or not candidate:
+        return False
+
+    if not extraction.country or not candidate.country:
+        return False
+
+    return extraction.country == candidate.country
+
+
+def _attack_type_matches(extraction, candidate):
+    if not extraction or not candidate:
+        return False
+
+    if not extraction.attack_type or not candidate.attack_type:
+        return False
+
+    return extraction.attack_type == candidate.attack_type
+
+
+def _acronym_alias_matches(extraction, candidate):
+    if not extraction or not candidate:
+        return False
+
+    extraction_acronym = _extract_org_acronym(extraction.victim_org_name)
+    candidate_acronym = _extract_org_acronym(candidate.victim_org_name)
+
+    if not extraction_acronym or not candidate_acronym:
+        return False
+
+    if extraction_acronym != candidate_acronym:
+        return False
+
+    if not _country_matches(extraction, candidate):
+        return False
+
+    if not _attack_type_matches(extraction, candidate):
+        return False
+
+    return True
+
+
 def get_ready_for_clustering():
     """
     Fetch articles ready for clustering.
