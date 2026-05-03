@@ -380,22 +380,17 @@ function setFooterStatusText(timestamp) {
     }
 }
 
-function loadFooterStatus() {
-    fetch("/api/automation/status")
-        .then(res => res.json())
-        .then(data => {
-            let timestamp = data.last_run_finished_at;
+async function loadFooterStatus() {
+    try {
+        const response = await fetch("/api/automation/status");
+        const data = await response.json();
 
-            if (!timestamp) {
-                // fallback: do nothing if no run yet
-                return;
-            }
-
-            setFooterStatusText(timestamp);
-        })
-        .catch(() => {
-            // do nothing on failure
-        });
+        if (data.last_data_updated_at) {
+            setFooterStatusText(data.last_data_updated_at);
+        }
+    } catch (err) {
+        console.error("Failed to load footer status:", err);
+    }
 }
 
 setLoading(true);
