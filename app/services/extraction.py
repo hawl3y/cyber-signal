@@ -260,6 +260,7 @@ def _extract_victim_org_name(article):
         r"\b(?:breach|hack|attack|cyberattack|cyber attack|ransomware attack)\s+(?:at|on|against|of)\s+([^,.;:]+)",
         r"\b(?:breach|attack|cyberattack|cyber attack|ransomware attack)\s+affecting\s+(?:the\s+)?([^,.;:]+)",
         r"\b(?:confirms|confirmed|reports|reported|discloses|disclosed)\s+(?:a\s+)?(?:data\s+)?breach\s+(?:at|of)\s+([^,.;:]+)",
+        r"\b([A-Z][A-Za-z0-9&._' -]{1,80}?)\s+(?:confirms|confirmed|acknowledges|acknowledged)\s+(?:the\s+)?(?:incident|cyberattack|cyber attack|attack|breach)\b",
         r"\b([^,.;:]+?)\s+(?:was|were|has been|have been)\s+(?:breached|hacked|attacked|targeted|compromised|disrupted|extorted)\b",
         r"\b([^,.;:]+?)\s+(?:confirms|confirmed|reports|reported|discloses|disclosed)\s+(?:a\s+)?(?:data\s+)?breach\b",
         r"\b([^,.;:]+?)\s+(?:hit by|suffered|suffers)\s+(?:a\s+)?(?:ransomware attack|cyberattack|cyber attack|data breach|security breach)\b",
