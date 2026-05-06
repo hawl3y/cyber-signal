@@ -334,12 +334,14 @@ def refresh_event(event_id):
             event.country = extraction.country
         if extraction.region:
             event.region = extraction.region
-        if extraction.actor_name:
+        if event.victim_org_name:
             event.actor_name = extraction.actor_name
-        if extraction.actor_type:
             event.actor_type = extraction.actor_type
-        if extraction.attribution_status:
             event.attribution_status = extraction.attribution_status
+        else:
+            event.actor_name = None
+            event.actor_type = None
+            event.attribution_status = None
 
         linked_source_names = {
             link.raw_article.source_name
