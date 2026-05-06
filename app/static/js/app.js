@@ -188,7 +188,7 @@ async function loadTrends() {
 
 function buildEventMeta(event) {
     const actorName = event.actor_name
-        ? `Actor: ${formatMetaLabel(event.actor_name)}`
+        ? formatMetaLabel(event.actor_name)
         : null;
 
     return {
