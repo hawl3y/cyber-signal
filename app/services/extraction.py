@@ -4,6 +4,7 @@ from app.extensions import db
 from app.models import RawArticle, ArticleExtraction
 
 from app.services.taxonomy import normalize_attack_type
+from app.services.ai_enrichment import enrich_with_ai_if_needed
 
 
 def _combined_article_text(article):
@@ -787,7 +788,7 @@ def run_rule_extraction(article):
 
     attack_type = normalize_attack_type(attack_type)
 
-    return {
+    signals = {
         "victim_org_name": victim_org_name,
         "victim_org_normalized": victim_org_normalized,
         "industry": industry,
@@ -798,6 +799,14 @@ def run_rule_extraction(article):
         "short_event_summary": short_event_summary,
         "extraction_confidence": None,
     }
+
+    signals = enrich_with_ai_if_needed(article, signals)
+
+    signals["victim_org_normalized"] = _normalize_org_name(
+        signals.get("victim_org_name")
+    )
+
+    return signals
 
 def save_extraction(article_id, signals):
     """
@@ -819,6 +828,9 @@ def save_extraction(article_id, signals):
     extraction.short_event_summary = signals.get("short_event_summary")
     extraction.extracted_signals = signals
     extraction.extraction_confidence = signals.get("extraction_confidence")
+    extraction.actor_name = signals.get("actor_name")
+    extraction.actor_type = signals.get("actor_type")
+    extraction.attribution_status = signals.get("attribution_status")
 
     db.session.commit()
     return extraction
