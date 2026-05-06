@@ -633,10 +633,10 @@ def _merge_existing_web_enrichment(article, signals):
 
 
 def enrich_with_ai_if_needed(article, rule_signals):
-    if not current_app.config.get("AI_ENRICHMENT_ENABLED"):
-        return rule_signals
+    merged = _merge_existing_web_enrichment(article, dict(rule_signals))
 
-    merged = dict(rule_signals)
+    if not current_app.config.get("AI_ENRICHMENT_ENABLED"):
+        return merged
 
     if _needs_article_ai_enrichment(merged):
         try:
