@@ -373,6 +373,24 @@ def _extract_industry(text):
         if re.search(pattern, text, flags=re.IGNORECASE):
             return industry
 
+    organization_type_patterns = [
+        (
+            r"\b(?:cybersecurity|security|threat intelligence|endpoint security|network security)\s+"
+            r"(?:company|firm|vendor|provider|platform)\b",
+            "Technology",
+        ),
+        (
+            r"\b(?:company|firm|vendor|provider|platform)\s+"
+            r"(?:specializing in|focused on|providing|offering)\s+"
+            r"(?:cybersecurity|security|threat intelligence|endpoint security|network security)\b",
+            "Technology",
+        ),
+    ]
+
+    for pattern, industry in organization_type_patterns:
+        if re.search(pattern, text, flags=re.IGNORECASE):
+            return industry
+
     industry_keywords = {
         "Technology": [
             "software provider",

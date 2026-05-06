@@ -97,9 +97,9 @@ def list_events():
                 if link.raw_article and link.raw_article.source_name
             }),
             "publishers": sorted({
-                link.raw_article.publisher
+                link.raw_article.publisher or link.raw_article.source_name
                 for link in event.event_sources
-                if link.raw_article and link.raw_article.publisher
+                if link.raw_article and (link.raw_article.publisher or link.raw_article.source_name)
             }),
         }
         for event in events
