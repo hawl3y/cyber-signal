@@ -187,12 +187,17 @@ async function loadTrends() {
 }
 
 function buildEventMeta(event) {
+    const actorName = event.actor_name
+        ? `Actor: ${formatMetaLabel(event.actor_name)}`
+        : null;
+
     return {
         primary: [
             event.victim_name,
             event.industry && event.industry !== "Unknown" ? event.industry : null,
             event.attack_type,
             event.country || event.region,
+            actorName,
         ].filter(Boolean),
         secondary: [
             formatMetaLabel(event.status),
