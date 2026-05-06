@@ -86,7 +86,11 @@ def list_events():
             "confidence": event.confidence_level,
             "time": _format_event_time(event),
             "published_at": get_event_reference_time(event),
-            "source_count": event.source_count,
+            "source_count": len({
+                link.raw_article.source_name
+                for link in event.event_sources
+                if link.raw_article and link.raw_article.source_name
+            }),
             "primary_source_count": EventSourceLink.query.filter_by(
                 cyber_event_id=event.id,
                 is_primary_source=True,
