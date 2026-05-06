@@ -808,10 +808,16 @@ def run_rule_extraction(article):
 
     return signals
 
+
 def save_extraction(article_id, signals):
     """
     Save thin MVP extraction signals to the database.
     """
+    if not signals.get("victim_org_name"):
+        signals["actor_name"] = None
+        signals["actor_type"] = None
+        signals["attribution_status"] = None
+
     extraction = ArticleExtraction.query.filter_by(raw_article_id=article_id).first()
 
     if extraction is None:
