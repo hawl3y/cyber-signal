@@ -115,5 +115,9 @@ def cluster_events_job(force=False):
             new_event = create_event(article, extraction)
             refresh_event(new_event.id)
 
+    if force:
+        for event in CyberEvent.query.all():
+            refresh_event(event.id)
+
     db.session.commit()
     return True
