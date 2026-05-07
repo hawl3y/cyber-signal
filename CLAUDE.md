@@ -58,7 +58,7 @@ Avoid: guessing, over-engineering, one-off fixes.
 
 - **Backend**: Flask with Flask-SQLAlchemy, Flask-Migrate
 - **Database**: PostgreSQL
-- **Automation**: APScheduler (in-process background scheduler)
+- **Scheduling**: External cron job (Render cron service) — no in-process scheduler
 - **Server**: Gunicorn
 - **Frontend**: Vanilla JavaScript (client-side filtering, localStorage)
 - **Data Processing**: feedparser, requests for ingestion
@@ -143,28 +143,30 @@ Requires `.env` with:
 ```
 SECRET_KEY=<random-string>
 DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<dbname>
-AUTOMATION_ENABLED=true|false
-AUTOMATION_INTERVAL_MINUTES=<int>
-RUN_SCHEDULER=true|false
 AI_ENRICHMENT_ENABLED=true|false (optional)
 XAI_API_KEY=<grok-api-key> (optional)
 ```
 
 ### Running the App
 
-**Without scheduler** (development, single manual runs):
+**Web service** (API + UI, no pipeline execution):
 ```bash
-RUN_SCHEDULER=false gunicorn --bind 0.0.0.0:5001 "app:create_app()"
-```
-
-**With scheduler** (production, automated pipeline every N minutes):
-```bash
-RUN_SCHEDULER=true python run.py
+gunicorn --bind 0.0.0.0:5001 "app:create_app()"
 ```
 
 **Development with hot reload** (for frontend/route changes):
 ```bash
-python run.py  # Uses Flask debug mode via app.run()
+python run.py
+```
+
+**Run the pipeline once** (as the Render cron job does):
+```bash
+python scripts/run_pipeline_once.py
+```
+
+**Local dev with in-process scheduler** (APScheduler code still exists but is not used in production):
+```bash
+RUN_SCHEDULER=true AUTOMATION_ENABLED=true AUTOMATION_INTERVAL_MINUTES=60 python run.py
 ```
 
 ### Database Migrations
@@ -181,26 +183,6 @@ flask db downgrade
 
 # Check current migration status
 flask db current
-```
-
-### Running the Pipeline
-
-To manually execute the full pipeline once:
-```bash
-python scripts/run_pipeline_once.py
-```
-
-Or inline:
-```bash
-python - <<'PY'
-from app import create_app
-from app.jobs import run_full_pipeline
-
-app = create_app()
-with app.app_context():
-    result = run_full_pipeline(force_extract=False)
-    print(result)
-PY
 ```
 
 ### Resetting Content
@@ -310,7 +292,7 @@ events = get_filtered_events(
 
 ## Deployment Notes
 
-- **Scheduler**: Only one process should run with `RUN_SCHEDULER=true` to avoid duplicate jobs
+- **Scheduling**: Render cron service runs `python scripts/run_pipeline_once.py` on a fixed schedule — the web service process never runs the pipeline
 - **Database**: PostgreSQL backing store; migrations must be run before app start
 - **Single-Instance**: MVP designed for single-instance deployment; clustering logic assumes no race conditions
 - **Environment**: All secrets and URLs via `.env`; no hardcoded credentials
