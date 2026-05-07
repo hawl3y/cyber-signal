@@ -147,6 +147,25 @@ def _is_valid_actor_name(value):
     return has_proper_case or has_acronym or has_handle_style
 
 
+def _clean_actor_name(value):
+    if not value:
+        return None
+
+    cleaned = re.sub(r"\s+", " ", str(value).strip())
+    cleaned = cleaned.strip(" -,:;\"'[]{}“”‘’")
+
+    if not cleaned:
+        return None
+
+    if _is_generic_actor_name(cleaned):
+        return None
+
+    if not _is_valid_actor_name(cleaned):
+        return None
+
+    return cleaned
+
+
 def _is_enrichment_complete(signals):
     return (
         signals.get("victim_org_name")
@@ -501,7 +520,7 @@ def _merge_article_ai_signals(rule_signals, ai_signals):
     if not merged.get("short_event_summary") and ai_signals.get("short_event_summary"):
         merged["short_event_summary"] = ai_signals.get("short_event_summary")
 
-    actor_name = ai_signals.get("actor_name")
+    actor_name = _clean_actor_name(ai_signals.get("actor_name"))
     if _is_valid_actor_name(actor_name) and not merged.get("actor_name"):
         merged["actor_name"] = actor_name
 
@@ -552,7 +571,7 @@ def _merge_web_enrichment_signals(current_signals, web_signals, source_urls):
             web_signals.get("short_event_summary")
         )
 
-    web_actor_name = web_signals.get("actor_name")
+    web_actor_name = _clean_actor_name(web_signals.get("actor_name"))
     if _is_valid_actor_name(web_actor_name) and (
         not merged.get("actor_name") or _is_generic_actor_name(merged.get("actor_name"))
     ):
