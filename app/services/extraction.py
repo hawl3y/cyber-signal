@@ -405,6 +405,18 @@ def _extract_event_anchor(article, victim_org_name=None, actor_name=None):
     if cve_match:
         return cve_match.group(1).upper(), "vulnerability"
 
+    descriptive_incident_patterns = [
+        r"^(.+?)\s+(?:heaped|enabled|launched|conducted|carried out|fueled)\s+attacks?\b",
+        r"^(.+?)\s+(?:hit|hits|targeted|attacked|breached|compromised)\b",
+    ]
+
+    for pattern in descriptive_incident_patterns:
+        match = re.search(pattern, title, flags=re.IGNORECASE)
+        if match:
+            candidate = _clean_anchor_candidate(match.group(1))
+            if candidate:
+                return candidate, "campaign"
+
     campaign_patterns = [
         r"\bin\s+['\"]?([^'\"]+?)['\"]?\s+ransomware\s+attacks?\b",
         r"\b([^,.;:]+?)\s+campaign\b",

@@ -51,11 +51,13 @@ def _event_priority(event):
 
 
 def _display_context(event):
+    if event.victim_entity_type == "vulnerability":
+        return "Vulnerability"
+
+    if event.victim_entity_type == "product_or_platform":
+        return "Product / Platform"
+
     if event.event_signal_type == "activity":
-        if event.victim_entity_type == "vulnerability":
-            return "Vulnerability"
-        if event.victim_entity_type == "product_or_platform":
-            return "Product / Platform"
         return "Security Activity"
 
     if event.industry and event.industry != "Unknown":
