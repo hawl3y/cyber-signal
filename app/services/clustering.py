@@ -441,16 +441,27 @@ def refresh_event(event_id):
         "widespread",
         "large-scale",
         "millions",
-        "critical",
-        "ransomware",
+        "critical infrastructure",
         "data breach",
         "wiper",
     ]
 
-    event.is_high_impact = bool(
-        event.actor_name
-        or any(term in text for term in high_impact_terms)
-    )
+    activity_high_impact_terms = [
+        "mass-exploited",
+        "mass exploited",
+        "actively exploited",
+        "known exploited vulnerability",
+        "critical infrastructure",
+    ]
+
+    if event.event_signal_type == "activity":
+        event.is_high_impact = any(term in text for term in activity_high_impact_terms)
+    else:
+        event.is_high_impact = bool(
+            event.actor_name
+            or any(term in text for term in high_impact_terms)
+            or event.attack_type in {"Ransomware", "Data Breach", "Malware"}
+        )
 
     if event.actor_name and event.event_signal_type == "incident":
         event.confidence_level = "high"

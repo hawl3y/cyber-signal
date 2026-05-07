@@ -212,7 +212,10 @@ def _needs_web_enrichment(article, signals):
         if not victim:
             return False
 
-        if industry in {None, "Unknown"} or attack_type in {None, "Unknown"}:
+        if industry in {None, "Unknown"}:
+            return True
+
+        if attack_type in {None, "Unknown"}:
             return True
 
         if _needs_actor_upgrade(actor_name):
@@ -224,7 +227,10 @@ def _needs_web_enrichment(article, signals):
         return False
 
     if signal_kind == "activity":
-        if industry in {None, "Unknown"} or attack_type in {None, "Unknown"}:
+        if industry in {None, "Unknown"}:
+            return True
+
+        if attack_type in {None, "Unknown"}:
             return True
 
         if not signals.get("country") and not signals.get("region"):
