@@ -821,6 +821,9 @@ def save_extraction(article_id, signals):
     if not signals.get("actor_name"):
         signals["actor_type"] = None
         signals["attribution_status"] = None
+    else:
+        if signals.get("attribution_status") == "unknown":
+            signals["attribution_status"] = None
 
     extraction = ArticleExtraction.query.filter_by(raw_article_id=article_id).first()
 

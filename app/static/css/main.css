@@ -226,7 +226,7 @@ body {
 
 .event-card.high-signal {
     border-width: 2px;
-    box-shadow: 0 0 0 1px rgba(16, 42, 67, 0.05);
+    box-shadow: 0 0 0 2px rgba(16, 42, 67, 0.08);
 }
 
 .signal-pill {
