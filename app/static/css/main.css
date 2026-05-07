@@ -224,6 +224,10 @@ body {
     margin-bottom: 8px;
 }
 
+.event-card.high-signal {
+    border-width: 2px;
+}
+
 .signal-pill {
     display: inline-flex;
     align-items: center;

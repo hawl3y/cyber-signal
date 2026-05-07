@@ -231,6 +231,9 @@ async function loadEvents() {
         events.forEach(event => {
             const el = document.createElement("article");
             el.className = `event-card status-${event.status || "unknown"}`;
+            if (event.actor_name) {
+                el.classList.add("high-signal");
+            }
 
             const meta = buildEventMeta(event);
 
