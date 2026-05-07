@@ -432,5 +432,28 @@ def refresh_event(event_id):
         event.event_status = "emerging"
         event.confidence_level = None
 
+    text = f"{(event.canonical_title or '').lower()} {(event.summary_short or '').lower()}"
+
+    high_impact_terms = [
+        "mass-exploited",
+        "mass exploited",
+        "actively exploited",
+        "widespread",
+        "large-scale",
+        "millions",
+        "critical",
+        "ransomware",
+        "data breach",
+        "wiper",
+    ]
+
+    event.is_high_impact = bool(
+        event.actor_name
+        or any(term in text for term in high_impact_terms)
+    )
+
+    if event.actor_name and event.event_signal_type == "incident":
+        event.confidence_level = "high"
+
     db.session.commit()
     return True
