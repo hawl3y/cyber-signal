@@ -220,6 +220,8 @@ def create_event(article, extraction):
 
     victim_org_name = extraction.victim_org_name if extraction else None
     victim_org_normalized = extraction.victim_org_normalized if extraction else None
+    victim_display_label = extraction.victim_display_label if extraction else None
+    victim_entity_type = extraction.victim_entity_type if extraction else None
     industry = extraction.industry if extraction else None
     attack_type = extraction.attack_type if extraction else None
     country = extraction.country if extraction else None
@@ -241,6 +243,8 @@ def create_event(article, extraction):
         record_origin="live_detection",
         victim_org_name=victim_org_name,
         victim_org_normalized=victim_org_normalized,
+        victim_display_label=victim_display_label,
+        victim_entity_type=victim_entity_type,
         industry=industry,
         attack_type=attack_type,
         event_signal_type=event_signal_type,
@@ -326,6 +330,10 @@ def refresh_event(event_id):
             event.victim_org_name = extraction.victim_org_name
         if extraction.victim_org_normalized:
             event.victim_org_normalized = extraction.victim_org_normalized
+        if extraction.victim_display_label:
+            event.victim_display_label = extraction.victim_display_label
+        if extraction.victim_entity_type:
+            event.victim_entity_type = extraction.victim_entity_type
         if extraction.industry:
             event.industry = extraction.industry
         if extraction.attack_type:
@@ -361,6 +369,13 @@ def refresh_event(event_id):
             event.event_signal_type = "activity"
         else:
             event.event_signal_type = "incident"
+
+        if event.event_signal_type == "activity":
+            event.victim_org_name = None
+            event.victim_org_normalized = None
+            event.actor_name = None
+            event.actor_type = None
+            event.attribution_status = None
 
         if article and article.title:
             event.canonical_title = article.title

@@ -2,8 +2,8 @@ import re
 
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction
-
-from app.services.taxonomy import normalize_attack_type
+from app.utils.sources import get_source_config
+from app.services.taxonomy import normalize_attack_type, normalize_event_anchor_type
 from app.services.ai_enrichment import enrich_with_ai_if_needed
 
 
@@ -359,6 +359,90 @@ def _extract_exploitation_subject(article):
 
     return None
 
+
+def _clean_anchor_candidate(value):
+    if not value:
+        return None
+
+    cleaned = re.sub(r"\s+", " ", str(value)).strip(" -,:;\"'[]{}“”‘’")
+
+    if not cleaned:
+        return None
+
+    if len(cleaned) < 2 or len(cleaned) > 120:
+        return None
+
+    blocked = {
+        "critical",
+        "high-severity",
+        "new",
+        "severe",
+        "flaw",
+        "vulnerability",
+        "bug",
+        "attack",
+        "attacks",
+        "campaign",
+        "ransomware",
+        "malware",
+    }
+
+    if cleaned.lower() in blocked:
+        return None
+
+    return cleaned
+
+
+def _extract_event_anchor(article, victim_org_name=None, actor_name=None):
+    if victim_org_name:
+        return victim_org_name, "organization"
+
+    title = (article.title or "").strip()
+    summary = (article.summary or "").strip()
+    text = f"{title} {summary}"
+
+    cve_match = re.search(r"\b(CVE-\d{4}-\d+)\b", text, flags=re.IGNORECASE)
+    if cve_match:
+        return cve_match.group(1).upper(), "vulnerability"
+
+    campaign_patterns = [
+        r"\bin\s+['\"]?([^'\"]+?)['\"]?\s+ransomware\s+attacks?\b",
+        r"\b([^,.;:]+?)\s+campaign\b",
+    ]
+
+    for pattern in campaign_patterns:
+        match = re.search(pattern, title, flags=re.IGNORECASE)
+        if match:
+            candidate = _clean_anchor_candidate(match.group(1))
+            if candidate:
+                return candidate, "campaign"
+
+    if article.source_name in {"cisa-kev", "cisa-alerts-advisories"} and title:
+        return title, "product_or_platform"
+
+    product_patterns = [
+        r"\b(?:flaw|vulnerability|bug)\s+in\s+([^,.;:]+)",
+        r"\b([^,.;:]+?)\s+(?:flaw|vulnerability|bug)\b",
+        r"\b([^,.;:]+?)\s+(?:zero-day|0-day)\b",
+    ]
+
+    for pattern in product_patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            candidate = _clean_anchor_candidate(match.group(1))
+            if candidate:
+                return candidate, "product_or_platform"
+
+    subject = _extract_exploitation_subject(article)
+    if subject:
+        return subject, "product_or_platform"
+
+    if actor_name:
+        return actor_name, "actor"
+
+    return None, "unknown"
+
+
 def _extract_industry(text):
     target_context_patterns = [
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(government|govt|agency|ministry|municipalit(?:y|ies)|federal|state government|department)\b", "Government"),
@@ -672,6 +756,12 @@ def run_rule_extraction(article):
 
     victim_org_name = _extract_victim_org_name(article)
 
+    source_config = get_source_config(article.source_name)
+    signal_kind = source_config.get("signal_kind") if source_config else None
+
+    if signal_kind == "activity":
+        victim_org_name = None
+
     victim_org_normalized = _normalize_org_name(victim_org_name)
     victim_context_text = ""
     if victim_org_name:
@@ -804,6 +894,7 @@ def run_rule_extraction(article):
         "country": geography["country"],
         "city": geography["city"],
         "attack_type": attack_type,
+        "event_signal_type": signal_kind or "incident",
         "short_event_summary": short_event_summary,
         "extraction_confidence": None,
     }
@@ -813,6 +904,15 @@ def run_rule_extraction(article):
     signals["victim_org_normalized"] = _normalize_org_name(
         signals.get("victim_org_name")
     )
+
+    anchor_name, anchor_type = _extract_event_anchor(
+        article,
+        victim_org_name=signals.get("victim_org_name"),
+        actor_name=signals.get("actor_name"),
+    )
+
+    signals["victim_display_label"] = anchor_name
+    signals["victim_entity_type"] = normalize_event_anchor_type(anchor_type)
 
     return signals
 
@@ -841,6 +941,8 @@ def save_extraction(article_id, signals):
 
     extraction.victim_org_name = signals.get("victim_org_name")
     extraction.victim_org_normalized = signals.get("victim_org_normalized")
+    extraction.victim_display_label = signals.get("victim_display_label")
+    extraction.victim_entity_type = signals.get("victim_entity_type")
     extraction.industry = signals.get("industry")
     extraction.region = signals.get("region")
     extraction.country = signals.get("country")

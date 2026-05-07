@@ -189,13 +189,14 @@ async function loadTrends() {
 function buildEventMeta(event) {
     return {
         primary: [
-            event.victim_name ? { value: event.victim_name } : null,
-            event.industry && event.industry !== "Unknown" ? { value: event.industry } : null,
+            event.display_entity ? { value: event.display_entity } : null,
+            event.display_context ? { value: event.display_context } : null,
             event.attack_type ? { value: event.attack_type } : null,
-            event.country || event.region ? { value: event.country || event.region } : null,
-            event.actor_name ? { value: event.actor_name, className: "actor-pill" } : null,
+            event.display_location ? { value: event.display_location } : null,
+            event.display_attribution ? { value: event.display_attribution, className: "actor-pill" } : null,
         ].filter(Boolean),
         secondary: [
+            event.entity_type ? formatMetaLabel(event.entity_type) : null,
             formatMetaLabel(event.status),
             formatMetaLabel(event.confidence),
             event.time,

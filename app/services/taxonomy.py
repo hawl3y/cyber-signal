@@ -39,3 +39,19 @@ def normalize_attack_type(value):
         ATTACK_TYPES,
         "Unknown",
     )
+
+
+EVENT_ANCHOR_TYPES = {
+    "organization",
+    "product_or_platform",
+    "vulnerability",
+    "campaign",
+    "actor",
+    "unknown",
+}
+
+
+def normalize_event_anchor_type(value):
+    if value in EVENT_ANCHOR_TYPES:
+        return value
+    return "unknown"

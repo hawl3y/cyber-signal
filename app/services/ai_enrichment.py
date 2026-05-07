@@ -504,7 +504,11 @@ def _merge_article_ai_signals(rule_signals, ai_signals):
 
     merged = dict(rule_signals)
 
-    if not merged.get("victim_org_name") and ai_signals.get("victim_org_name"):
+    if (
+        merged.get("event_signal_type") != "activity"
+        and not merged.get("victim_org_name")
+        and ai_signals.get("victim_org_name")
+    ):
         merged["victim_org_name"] = ai_signals.get("victim_org_name")
 
     if merged.get("industry") in {None, "Unknown"}:
@@ -553,7 +557,11 @@ def _merge_web_enrichment_signals(current_signals, web_signals, source_urls):
 
     merged = dict(current_signals)
 
-    if not merged.get("victim_org_name") and web_signals.get("victim_org_name"):
+    if (
+        merged.get("event_signal_type") != "activity"
+        and not merged.get("victim_org_name")
+        and web_signals.get("victim_org_name")
+    ):
         merged["victim_org_name"] = web_signals.get("victim_org_name")
 
     if merged.get("industry") in {None, "Unknown"}:
@@ -632,9 +640,9 @@ def _merge_existing_web_enrichment(article, signals):
         return signals
 
     merged = dict(signals)
+    is_activity = merged.get("event_signal_type") == "activity"
 
-    for field in [
-        "victim_org_name",
+    fields_to_restore = [
         "industry",
         "attack_type",
         "actor_name",
@@ -643,7 +651,12 @@ def _merge_existing_web_enrichment(article, signals):
         "country",
         "region",
         "short_event_summary",
-    ]:
+    ]
+
+    if not is_activity:
+        fields_to_restore.insert(0, "victim_org_name")
+
+    for field in fields_to_restore:
         if previous.get(field) and (
             not merged.get(field) or merged.get(field) == "Unknown"
         ):

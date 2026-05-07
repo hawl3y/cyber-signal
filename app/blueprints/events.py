@@ -50,6 +50,20 @@ def _event_priority(event):
     )
 
 
+def _display_context(event):
+    if event.event_signal_type == "activity":
+        if event.victim_entity_type == "vulnerability":
+            return "Vulnerability"
+        if event.victim_entity_type == "product_or_platform":
+            return "Product / Platform"
+        return "Security Activity"
+
+    if event.industry and event.industry != "Unknown":
+        return event.industry
+
+    return None
+
+
 @events_bp.route("/", methods=["GET"])
 def list_events():
     industry = request.args.get("industry")
@@ -83,6 +97,11 @@ def list_events():
             "title": event.canonical_title,
             "summary": event.summary_short,
             "victim_name": event.victim_org_name,
+            "display_entity": event.victim_display_label or event.victim_org_name,
+            "entity_type": event.victim_entity_type or "unknown",
+            "display_context": _display_context(event),
+            "display_location": event.country or event.region,
+            "display_attribution": event.actor_name,
             "industry": event.industry,
             "country": event.country,
             "region": event.region,
