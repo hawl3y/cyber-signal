@@ -187,17 +187,13 @@ async function loadTrends() {
 }
 
 function buildEventMeta(event) {
-    const actorName = event.actor_name
-        ? formatMetaLabel(event.actor_name)
-        : null;
-
     return {
         primary: [
-            event.victim_name,
-            event.industry && event.industry !== "Unknown" ? event.industry : null,
-            event.attack_type,
-            event.country || event.region,
-            actorName,
+            event.victim_name ? { value: event.victim_name } : null,
+            event.industry && event.industry !== "Unknown" ? { value: event.industry } : null,
+            event.attack_type ? { value: event.attack_type } : null,
+            event.country || event.region ? { value: event.country || event.region } : null,
+            event.actor_name ? { value: event.actor_name, className: "actor-pill" } : null,
         ].filter(Boolean),
         secondary: [
             formatMetaLabel(event.status),
@@ -238,7 +234,7 @@ async function loadEvents() {
             const meta = buildEventMeta(event);
 
             const primaryPills = meta.primary
-                .map(value => `<span class="meta-pill">${formatMetaLabel(value)}</span>`)
+                .map(item => `<span class="meta-pill ${item.className || ""}">${formatMetaLabel(item.value)}</span>`)
                 .join("");
 
             const signalTypePill = `

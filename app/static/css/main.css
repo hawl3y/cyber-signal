@@ -226,6 +226,7 @@ body {
 
 .event-card.high-signal {
     border-width: 2px;
+    box-shadow: 0 0 0 1px rgba(16, 42, 67, 0.05);
 }
 
 .signal-pill {
@@ -292,6 +293,10 @@ body {
     color: var(--text);
     line-height: 1.2;
     font-weight: 500;
+}
+
+.meta-pill.actor-pill {
+    font-weight: 700;
 }
 
 .event-subline {
