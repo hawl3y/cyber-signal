@@ -181,9 +181,6 @@ def _needs_web_enrichment(article, signals):
     source_config = get_source_config(article.source_name)
     signal_kind = source_config.get("signal_kind") if source_config else None
 
-    if signal_kind != "incident":
-        return False
-
     if signals.get("ai_web_enriched"):
         return False
 
@@ -192,17 +189,29 @@ def _needs_web_enrichment(article, signals):
     industry = signals.get("industry")
     actor_name = signals.get("actor_name")
 
-    if not victim:
+    if signal_kind == "incident":
+        if not victim:
+            return False
+
+        if industry in {None, "Unknown"} or attack_type in {None, "Unknown"}:
+            return True
+
+        if _needs_actor_upgrade(actor_name):
+            return True
+
+        if not signals.get("actor_type") or not signals.get("attribution_status"):
+            return True
+
         return False
 
-    if industry in {None, "Unknown"} or attack_type in {None, "Unknown"}:
-        return True
+    if signal_kind == "activity":
+        if industry in {None, "Unknown"} or attack_type in {None, "Unknown"}:
+            return True
 
-    if _needs_actor_upgrade(actor_name):
-        return True
+        if not signals.get("country") and not signals.get("region"):
+            return True
 
-    if not signals.get("actor_type") or not signals.get("attribution_status"):
-        return True
+        return False
 
     return False
 
