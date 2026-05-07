@@ -2,7 +2,6 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
-from app.models import EventSourceLink
 from app.services.summary import get_filtered_events, get_event_reference_time
 
 events_bp = Blueprint("events", __name__, url_prefix="/api/events")
@@ -122,10 +121,9 @@ def list_events():
                 for link in event.event_sources
                 if link.raw_article and link.raw_article.source_name
             }),
-            "primary_source_count": EventSourceLink.query.filter_by(
-                cyber_event_id=event.id,
-                is_primary_source=True,
-            ).count(),
+            "primary_source_count": sum(
+                1 for link in event.event_sources if link.is_primary_source
+            ),
             "source_names": sorted({
                 link.raw_article.source_name
                 for link in event.event_sources

@@ -1,7 +1,9 @@
 from collections import Counter
 from datetime import datetime, timedelta
 
-from app.models import CyberEvent
+from sqlalchemy.orm import joinedload, selectinload
+
+from app.models import CyberEvent, EventSourceLink
 
 
 def get_event_reference_time(event):
@@ -20,7 +22,9 @@ def get_filtered_events(
     """
     Return live events filtered by the MVP's minimal structured fields.
     """
-    query = CyberEvent.query
+    query = CyberEvent.query.options(
+        selectinload(CyberEvent.event_sources).joinedload(EventSourceLink.raw_article)
+    )
 
     if industry:
         query = query.filter(CyberEvent.industry.ilike(industry))
