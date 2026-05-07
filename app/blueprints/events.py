@@ -34,42 +34,17 @@ def _event_priority(event):
     timestamp = ref.timestamp() if ref else 0
     source_count = event.source_count or 0
     signal_type = event.event_signal_type or "incident"
-    title = (event.canonical_title or "").lower()
-    summary = (event.summary_short or "").lower()
-    text = f"{title} {summary}"
 
     signal_rank = 0 if signal_type == "incident" else 1
     actor_rank = 0 if event.actor_name else 1
+    impact_rank = 0 if event.is_high_impact else 1
     status_rank = 0 if event.event_status == "confirmed" else 1
-
-    high_impact_terms = [
-        "mass-exploited",
-        "mass exploited",
-        "actively exploited",
-        "widespread",
-        "large-scale",
-        "critical",
-        "millions",
-        "ransomware",
-        "data breach",
-        "wiper",
-    ]
-
-    high_impact_rank = 0 if any(term in text for term in high_impact_terms) else 1
-
-    activity_context_rank = 0
-    if signal_type == "activity":
-        if not event.industry or event.industry == "Unknown":
-            activity_context_rank = 1
-        if not event.attack_type or event.attack_type == "Unknown":
-            activity_context_rank = 1
 
     return (
         signal_rank,
         actor_rank,
-        high_impact_rank,
+        impact_rank,
         status_rank,
-        activity_context_rank,
         -source_count,
         -timestamp,
     )
@@ -117,6 +92,7 @@ def list_events():
             "attribution_status": None if event.attribution_status == "unknown" else event.attribution_status,
             "event_signal_type": event.event_signal_type or "incident",
             "status": event.event_status,
+            "high_impact": event.is_high_impact,
             "confidence": event.confidence_level,
             "time": _format_event_time(event),
             "published_at": get_event_reference_time(event),
