@@ -101,9 +101,12 @@ def _top_counts(values, limit=5):
             key=lambda item: (-item[1], item[0].lower()),
         )
 
+    if limit is not None:
+        ordered = ordered[:limit]
+
     return [
         {"label": label, "count": count}
-        for label, count in ordered[:limit]
+        for label, count in ordered
     ]
 
 
@@ -158,5 +161,5 @@ def build_trends(
 
     return {
         "top_attack_types": _top_counts(attack_types, limit=5),
-        "top_industries": _top_counts(industries, limit=5),
+        "top_industries": _top_counts(industries, limit=None),
     }
