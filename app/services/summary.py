@@ -50,7 +50,8 @@ def get_filtered_events(
         if cutoff is not None:
             events = [
                 event for event in events
-                if get_event_reference_time(event) and get_event_reference_time(event) >= cutoff
+                if get_event_reference_time(event)
+                and get_event_reference_time(event) >= cutoff
             ]
 
     return events
@@ -67,7 +68,11 @@ def _most_common_non_empty(values):
         return None
 
     counts = Counter(cleaned)
-    known = {label: count for label, count in counts.items() if not _is_unknown_or_other(label)}
+    known = {
+        label: count
+        for label, count in counts.items()
+        if not _is_unknown_or_other(label)
+    }
 
     if known:
         ordered_known = sorted(
@@ -87,8 +92,16 @@ def _top_counts(values, limit=5):
     if not counts:
         return []
 
-    known = {label: count for label, count in counts.items() if not _is_unknown_or_other(label)}
-    unknown = {label: count for label, count in counts.items() if _is_unknown_or_other(label)}
+    known = {
+        label: count
+        for label, count in counts.items()
+        if not _is_unknown_or_other(label)
+    }
+    unknown = {
+        label: count
+        for label, count in counts.items()
+        if _is_unknown_or_other(label)
+    }
 
     ordered = sorted(
         known.items(),
@@ -110,6 +123,30 @@ def _top_counts(values, limit=5):
     ]
 
 
+def _event_context(event):
+    if event.victim_entity_type == "vulnerability":
+        return "Vulnerability"
+
+    if event.victim_entity_type == "product_or_platform":
+        return "Product / Platform"
+
+    if event.event_signal_type == "activity":
+        return "Security Activity"
+
+    if event.industry and event.industry != "Unknown":
+        return event.industry
+
+    return None
+
+
+def _event_contexts(events):
+    return [
+        context
+        for event in events
+        if (context := _event_context(event))
+    ]
+
+
 def build_summary(
     industry=None,
     region=None,
@@ -118,7 +155,6 @@ def build_summary(
 ):
     events = get_filtered_events(
         industry=industry,
-        
         region=region,
         attack_type=attack_type,
         time_range=time_range,
@@ -129,14 +165,20 @@ def build_summary(
     emerging_signals = len([e for e in events if e.event_status == "emerging"])
 
     attack_types = [e.attack_type for e in events if e.attack_type]
-    industries = [e.industry for e in events if e.industry]
+    org_industries = [
+        e.industry
+        for e in events
+        if e.industry
+        and e.industry != "Unknown"
+        and e.victim_entity_type == "organization"
+    ]
 
     return {
         "total_events": total_incidents,
         "confirmed_events": confirmed_incidents,
         "emerging_events": emerging_signals,
         "top_attack_type": _most_common_non_empty(attack_types),
-        "top_targeted_industry": _most_common_non_empty(industries),
+        "top_targeted_industry": _most_common_non_empty(org_industries),
     }
 
 
@@ -157,9 +199,9 @@ def build_trends(
     )
 
     attack_types = [e.attack_type for e in events if e.attack_type]
-    industries = [e.industry for e in events if e.industry]
+    contexts = _event_contexts(events)
 
     return {
         "top_attack_types": _top_counts(attack_types, limit=5),
-        "top_industries": _top_counts(industries, limit=None),
+        "top_industries": _top_counts(contexts, limit=None),
     }
