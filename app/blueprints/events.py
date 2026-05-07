@@ -37,11 +37,15 @@ def _event_priority(event):
 
     signal_rank = 0 if signal_type == "incident" else 1
     status_rank = 0 if event.event_status == "confirmed" else 1
+    actor_rank = 0 if event.actor_name else 1
 
-    if signal_type == "incident" and event.event_status == "confirmed":
-        return (signal_rank, status_rank, -source_count, -timestamp)
-
-    return (signal_rank, status_rank, -timestamp)
+    return (
+        signal_rank,
+        status_rank,
+        actor_rank,
+        -source_count,
+        -timestamp
+    )
 
 
 @events_bp.route("/", methods=["GET"])
