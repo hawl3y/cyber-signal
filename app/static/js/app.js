@@ -235,7 +235,8 @@ async function loadEvents() {
         events.forEach(event => {
             const el = document.createElement("article");
             el.className = `event-card status-${event.status || "unknown"}`;
-            if (event.actor_name) {
+            const highTrust = typeof event.confidence_score === "number" && event.confidence_score >= 80;
+            if (event.actor_name || highTrust) {
                 el.classList.add("high-signal");
             }
 

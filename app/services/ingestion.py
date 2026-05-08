@@ -231,27 +231,98 @@ def _fetch_cisa_kev_items(source):
 
 
 _KEEP_UPPER_TOKENS = {"LLC", "PLC", "GMBH", "USA", "UK", "EU", "II", "III", "IV", "VI"}
+_TITLE_CASE_TOKENS = {"INC", "CORP", "LTD", "CO", "COMPANY", "CORPORATION"}
+
+
+def _title_case_word(word):
+    """
+    Decide casing for a single token. Order of precedence:
+    1. Corporate suffixes (Inc, Corp, Ltd) -> title-case.
+    2. Known keep-upper tokens (LLC, USA, etc.) -> upper.
+    3. Already mixed-case -> leave alone.
+    4. All-caps with non-alpha (AT&T, 8-K) -> preserved.
+    5. All-caps short (<=3) -> preserved (IBM, NCR, HP, SEC).
+    6. All-caps longer -> title-case (EQUIFAX, HONEYWELL).
+    """
+    bare = word.rstrip(".,;:")
+    upper = bare.upper()
+
+    if upper in _TITLE_CASE_TOKENS:
+        return word.title()
+
+    if upper in _KEEP_UPPER_TOKENS:
+        return word.upper()
+
+    if not bare.isupper():
+        return word
+
+    if not bare.isalpha():
+        return word
+
+    if len(bare) <= 3:
+        return word
+
+    return word.title()
 
 
 def _title_case_company_name(name):
     """
-    SEC display_names come in legal/SCREAMING_CAPS format. Title-case all-caps
-    tokens for display, but keep known uppercase suffixes (LLC, PLC, etc.) and
-    leave already-mixed-case tokens alone.
+    SEC display_names come in legal SCREAMING_CAPS. Title-case the all-caps
+    tokens that look like real words (EQUIFAX, HONEYWELL, INTERNATIONAL),
+    keep acronyms (IBM, NCR, SEC, AT&T) intact, leave mixed-case alone.
+    Safe to apply to whole sentences from SEC summaries.
     """
     if not name:
         return name
+    return " ".join(_title_case_word(w) for w in name.split())
 
-    parts = []
-    for word in name.split():
-        upper_stripped = word.rstrip(".,;:").upper()
-        if upper_stripped in _KEEP_UPPER_TOKENS:
-            parts.append(word.upper())
-        elif word.isupper():
-            parts.append(word.title())
-        else:
-            parts.append(word)
-    return " ".join(parts)
+
+_SIC_TO_INDUSTRY_HINT = {
+    "Technology": "Filer is a technology company.",
+    "Healthcare": "Filer is a healthcare provider.",
+    "Financial Services": "Filer is a financial services company.",
+    "Education": "Filer is an education provider.",
+    "Government": "Filer is a government agency.",
+    "Energy": "Filer is an energy company.",
+    "Transportation": "Filer is a transportation and logistics company.",
+    "Media": "Filer is a media company.",
+}
+
+
+def _industry_from_sic(sic_code):
+    """
+    Map a SEC SIC code to our industry taxonomy. Returns None for SIC ranges
+    that don't fit (e.g. industrial manufacturing, retail) — caller falls
+    through to the regular extraction pipeline.
+    """
+    if not sic_code:
+        return None
+    try:
+        sic = int(sic_code)
+    except (ValueError, TypeError):
+        return None
+
+    if (
+        7370 <= sic <= 7379
+        or sic in {3576, 3577, 3578, 3669, 3674, 3825, 3827}
+        or 4810 <= sic <= 4829
+    ):
+        return "Technology"
+    if 6000 <= sic <= 6799:
+        return "Financial Services"
+    if 8000 <= sic <= 8099 or 2830 <= sic <= 2839:
+        return "Healthcare"
+    if 8200 <= sic <= 8299:
+        return "Education"
+    if 9100 <= sic <= 9999:
+        return "Government"
+    if 1300 <= sic <= 1389 or 4900 <= sic <= 4999:
+        return "Energy"
+    if 4000 <= sic <= 4789 or sic in {3711, 3713, 3714, 3715}:
+        return "Transportation"
+    if 2700 <= sic <= 2799 or 4830 <= sic <= 4899:
+        return "Media"
+    return None
 
 
 def _fetch_sec_edgar_cyber_items(source):
@@ -303,6 +374,10 @@ def _fetch_sec_edgar_cyber_items(source):
         if not company_name:
             continue
 
+        sics = src.get("sics") or []
+        industry = _industry_from_sic(sics[0]) if sics else None
+        industry_hint = _SIC_TO_INDUSTRY_HINT.get(industry, "")
+
         cik = (ciks[0] if ciks else None)
         accession_no_dash = adsh.replace("-", "") if adsh else ""
 
@@ -326,12 +401,18 @@ def _fetch_sec_edgar_cyber_items(source):
             continue
 
         title = f"{company_name} discloses breach in SEC 8-K filing"
-        summary = (
+        summary_parts = [
             f"{company_name} disclosed a data breach in a Form 8-K filing "
-            f"with the SEC on {file_date}. Filed in a statement to investors. "
-            f"Direct primary-source disclosure from the affected company under "
-            f"SEC reporting rules."
+            f"with the SEC on {file_date}.",
+            "Filed in a statement to investors.",
+        ]
+        if industry_hint:
+            summary_parts.append(industry_hint)
+        summary_parts.append(
+            "Direct primary-source disclosure from the affected company "
+            "under SEC reporting rules."
         )
+        summary = " ".join(summary_parts)
 
         items.append(
             _build_raw_article_payload(
