@@ -73,7 +73,6 @@ def is_relevant_incident(article):
         "charged with",
         "arrested",
         "arrest",
-        "law enforcement",
         "seized",
         "seizure",
         "takedown",
