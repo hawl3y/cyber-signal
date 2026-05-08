@@ -164,9 +164,20 @@ def build_summary(
         time_range=time_range,
     )
 
-    total_incidents = len(events)
-    confirmed_incidents = len([e for e in events if e.event_status == "confirmed"])
-    emerging_signals = len([e for e in events if e.event_status == "emerging"])
+    total_events = len(events)
+    confirmed_events = sum(1 for e in events if e.event_status == "confirmed")
+    emerging_events = sum(1 for e in events if e.event_status == "emerging")
+    high_trust_events = sum(
+        1 for e in events
+        if e.confidence_score is not None and e.confidence_score >= 75
+    )
+    high_impact_events = sum(1 for e in events if e.is_high_impact)
+
+    cutoff_24h = datetime.utcnow() - timedelta(hours=24)
+    new_today_events = sum(
+        1 for e in events
+        if (ref := get_event_reference_time(e)) and ref >= cutoff_24h
+    )
 
     attack_types = [e.attack_type for e in events if e.attack_type]
     industries = [
@@ -176,9 +187,13 @@ def build_summary(
     ]
 
     return {
-        "total_events": total_incidents,
-        "confirmed_events": confirmed_incidents,
-        "emerging_events": emerging_signals,
+        "total_events": total_events,
+        "high_trust_events": high_trust_events,
+        "high_impact_events": high_impact_events,
+        "new_today_events": new_today_events,
+        # Legacy fields kept for API stability — no longer rendered in cards
+        "confirmed_events": confirmed_events,
+        "emerging_events": emerging_events,
         "top_attack_type": _most_common_non_empty(attack_types),
         "top_targeted_industry": _most_common_non_empty(industries),
     }

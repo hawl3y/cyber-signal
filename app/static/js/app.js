@@ -142,17 +142,15 @@ async function loadSummary() {
         const response = await fetch(`/api/summary/${query}`);
         const data = await response.json();
 
-        const totalEl = document.getElementById("total-incidents");
-        const confirmedEl = document.getElementById("confirmed-incidents");
-        const emergingEl = document.getElementById("emerging-signals");
-        const attackEl = document.getElementById("top-attack-type");
-        const industryEl = document.getElementById("top-targeted-industry");
+        const totalEl = document.getElementById("total-events");
+        const highTrustEl = document.getElementById("high-trust-events");
+        const highImpactEl = document.getElementById("high-impact-events");
+        const newTodayEl = document.getElementById("new-today-events");
 
         if (totalEl) totalEl.textContent = data.total_events ?? "--";
-        if (confirmedEl) confirmedEl.textContent = data.confirmed_events ?? "--";
-        if (emergingEl) emergingEl.textContent = data.emerging_events ?? "--";
-        if (attackEl) attackEl.textContent = data.top_attack_type || "—";
-        if (industryEl) industryEl.textContent = data.top_targeted_industry || "—";
+        if (highTrustEl) highTrustEl.textContent = data.high_trust_events ?? "--";
+        if (highImpactEl) highImpactEl.textContent = data.high_impact_events ?? "--";
+        if (newTodayEl) newTodayEl.textContent = data.new_today_events ?? "--";
     } catch (err) {
         console.error("Failed to load summary:", err);
     }
