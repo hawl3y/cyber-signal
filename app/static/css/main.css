@@ -299,6 +299,46 @@ body {
     font-weight: 700;
 }
 
+.event-card-header-pills {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.score-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 26px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    border: 1px solid transparent;
+    font-variant-numeric: tabular-nums;
+}
+
+.score-pill.score-high {
+    background: #d1fadf;
+    color: #054f31;
+    border-color: #6ce9a6;
+}
+
+.score-pill.score-med {
+    background: #fef0c7;
+    color: #93370d;
+    border-color: #fec84b;
+}
+
+.score-pill.score-low {
+    background: #fee4e2;
+    color: #912018;
+    border-color: #fda29b;
+}
+
 .event-subline {
     font-size: 12px;
     color: var(--muted);

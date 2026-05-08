@@ -88,6 +88,46 @@ def _event_has_primary_source_evidence(event):
     return any(link.is_primary_source for link in event.event_sources)
 
 
+def _max_source_class_score(event):
+    best = 0
+    for link in event.event_sources:
+        if not link.raw_article:
+            continue
+        config = get_source_config(link.raw_article.source_name) or {}
+        source_class = config.get("source_class")
+        if source_class == "primary_disclosure":
+            best = max(best, 90)
+        elif source_class in {"official_alert", "exploited_vulnerability"}:
+            best = max(best, 85)
+        elif config.get("tier_trusted_alone"):
+            best = max(best, 80)
+    return best
+
+
+def _compute_confidence_score(event, source_count, has_primary_evidence):
+    """
+    Numeric trust score (0-100) derived deterministically from the same
+    inputs as event_status. Designed to align with the categorical level:
+    high >= 75, medium 50-74, low < 50.
+    """
+    base = 0
+
+    if source_count == 1:
+        base = 25
+    elif source_count >= 2:
+        base = 75 + min(source_count - 2, 3) * 3
+
+    base = max(base, _max_source_class_score(event))
+
+    if has_primary_evidence:
+        base = max(base, 60)
+
+    if event.actor_name and event.event_signal_type == "incident":
+        base += 5
+
+    return max(0, min(100, base))
+
+
 def _country_matches(extraction, candidate):
     if not extraction or not candidate:
         return False
@@ -437,6 +477,10 @@ def refresh_event(event_id):
     else:
         event.event_status = "emerging"
         event.confidence_level = None
+
+    event.confidence_score = _compute_confidence_score(
+        event, source_count, has_primary_evidence
+    )
 
     text = f"{(event.canonical_title or '').lower()} {(event.summary_short or '').lower()}"
 

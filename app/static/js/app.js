@@ -91,6 +91,13 @@ function formatSignalTypeLabel(value) {
     return "Incident";
 }
 
+function scoreBandFor(score) {
+    if (score === null || score === undefined) return null;
+    if (score >= 75) return "high";
+    if (score >= 50) return "med";
+    return "low";
+}
+
 function populateSelect(selectId, values) {
     const select = document.getElementById(selectId);
     if (!select) return;
@@ -244,6 +251,11 @@ async function loadEvents() {
                 </span>
             `;
 
+            const scoreBand = scoreBandFor(event.confidence_score);
+            const scorePill = scoreBand
+                ? `<span class="score-pill score-${scoreBand}" title="Trust score: ${event.confidence_score}/100">${event.confidence_score}</span>`
+                : "";
+
             const secondaryLine = meta.secondary.join(" • ");
             const metaRow = primaryPills ? `<div class="event-meta">${primaryPills}</div>` : "";
             const sublineRow = secondaryLine ? `<div class="event-subline">${secondaryLine}</div>` : "";
@@ -251,7 +263,10 @@ async function loadEvents() {
             el.innerHTML = `
                 <div class="event-card-header">
                     <h3>${event.title || "Untitled Event"}</h3>
-                    ${signalTypePill}
+                    <div class="event-card-header-pills">
+                        ${scorePill}
+                        ${signalTypePill}
+                    </div>
                 </div>
                 <p class="event-summary">${event.summary || "No summary available."}</p>
                 ${metaRow}

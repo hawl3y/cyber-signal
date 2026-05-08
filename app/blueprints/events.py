@@ -114,6 +114,7 @@ def list_events():
             "status": event.event_status,
             "high_impact": event.is_high_impact,
             "confidence": event.confidence_level,
+            "confidence_score": int(event.confidence_score) if event.confidence_score is not None else None,
             "time": _format_event_time(event),
             "published_at": get_event_reference_time(event),
             "source_count": len({
