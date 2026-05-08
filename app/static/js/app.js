@@ -445,9 +445,11 @@ async function resetFilters() {
     try {
         const defaults = getDefaultFilters();
         saveFilters(defaults);
+        activeCardFilter = null;
         await loadFilterOptions(defaults);
         applyFiltersToControls(defaults);
         renderFilterChips(defaults);
+        updateCardActiveStates();
         await refreshDashboard();
     } finally {
         setLoading(false);
