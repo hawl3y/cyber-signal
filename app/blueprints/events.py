@@ -33,19 +33,17 @@ def _event_priority(event):
     timestamp = ref.timestamp() if ref else 0
     source_count = event.source_count or 0
     signal_type = event.event_signal_type or "incident"
+    score = event.confidence_score or 0
 
     signal_rank = 0 if signal_type == "incident" else 1
-    actor_rank = 0 if event.actor_name else 1
     impact_rank = 0 if event.is_high_impact else 1
-    status_rank = 0 if event.event_status == "confirmed" else 1
 
     return (
-        signal_rank,
-        actor_rank,
-        impact_rank,
-        status_rank,
-        -source_count,
-        -timestamp,
+        signal_rank,        # incidents before activity
+        -score,             # higher trust score first
+        impact_rank,        # high-impact first within trust band
+        -source_count,      # more corroboration first
+        -timestamp,         # most recent first
     )
 
 
