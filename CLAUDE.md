@@ -145,6 +145,7 @@ SECRET_KEY=<random-string>
 DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<dbname>
 AI_ENRICHMENT_ENABLED=true|false (optional)
 XAI_API_KEY=<grok-api-key> (optional)
+SEC_USER_AGENT="Cyber Signal contact@yourdomain" (optional, identifies you to SEC EDGAR per their fair-use policy)
 ```
 
 ### Running the App

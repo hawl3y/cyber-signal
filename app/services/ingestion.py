@@ -5,6 +5,8 @@ from html import unescape
 from urllib.request import urlopen
 
 import feedparser
+import requests
+from flask import current_app
 
 from app.extensions import db
 from app.models import RawArticle
@@ -228,6 +230,101 @@ def _fetch_cisa_kev_items(source):
     return items
 
 
+def _fetch_sec_edgar_cyber_items(source):
+    """
+    Fetch SEC 8-K filings that disclose a material cybersecurity incident.
+
+    Uses the EDGAR full-text search index for the canonical legal phrase
+    used in Item 1.05 (and older Item 8.01) cyber filings. The filer is
+    the victim by definition, so the title/summary uses regex-friendly
+    language so deterministic extraction picks up victim_org_name.
+    """
+    fetched_at = datetime.utcnow()
+    ingestion_batch_id = fetched_at.strftime("%Y%m%d%H%M%S")
+    items = []
+
+    user_agent = current_app.config.get(
+        "SEC_USER_AGENT", "Cyber Signal cyber-signal@example.com"
+    )
+
+    response = requests.get(
+        "https://efts.sec.gov/LATEST/search-index",
+        params={
+            "q": '"material cybersecurity incident"',
+            "forms": "8-K",
+            "size": 100,
+        },
+        headers={"User-Agent": user_agent},
+        timeout=30,
+    )
+    response.raise_for_status()
+    data = response.json()
+
+    publisher = "SEC EDGAR (8-K cyber disclosures)"
+
+    for hit in data.get("hits", {}).get("hits", []):
+        src = hit.get("_source", {}) or {}
+        display_names = src.get("display_names") or []
+        file_date = src.get("file_date")
+        adsh = src.get("adsh")
+        ciks = src.get("ciks") or []
+
+        if not display_names or not file_date or not adsh:
+            continue
+
+        raw_company = display_names[0]
+        company_name = re.sub(r"\s*\([^)]*\)\s*", "", raw_company).strip()
+        company_name = company_name.rstrip(".,;:").strip()
+        if not company_name:
+            continue
+
+        cik = (ciks[0] if ciks else None)
+        accession_no_dash = adsh.replace("-", "") if adsh else ""
+
+        if cik and accession_no_dash:
+            article_url = (
+                f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/"
+                f"{accession_no_dash}/{adsh}-index.htm"
+            )
+        else:
+            article_url = (
+                "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
+                f"&CIK={cik or ''}&type=8-K"
+            )
+
+        try:
+            published_at = datetime.fromisoformat(file_date)
+        except (ValueError, TypeError):
+            published_at = fetched_at
+
+        if (fetched_at - published_at).days > 60:
+            continue
+
+        title = f"{company_name} discloses breach in SEC 8-K filing"
+        summary = (
+            f"{company_name} disclosed a data breach in a Form 8-K filing "
+            f"with the SEC on {file_date}. Filed in a statement to investors. "
+            f"Direct primary-source disclosure from the affected company under "
+            f"SEC reporting rules."
+        )
+
+        items.append(
+            _build_raw_article_payload(
+                source=source,
+                article_url=article_url,
+                title=title,
+                summary=summary,
+                content=summary,
+                published_at=published_at,
+                fetched_at=fetched_at,
+                ingestion_batch_id=ingestion_batch_id,
+                publisher=publisher,
+            )
+        )
+
+    return items
+
+
 def fetch_source_items(source):
     """
     Fetch and normalize items from a configured source based on ingest type.
@@ -239,6 +336,9 @@ def fetch_source_items(source):
 
     if ingest_type == "json" and source.get("name") == "cisa-kev":
         return _fetch_cisa_kev_items(source)
+
+    if ingest_type == "sec_edgar_cyber":
+        return _fetch_sec_edgar_cyber_items(source)
 
     raise ValueError(
         f"Unsupported source ingest_type '{ingest_type}' for source '{source.get('name')}'"

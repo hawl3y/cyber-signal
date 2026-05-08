@@ -45,6 +45,16 @@ SOURCE_REGISTRY = [
         "active": True,
         "tier": "curated",
     },
+    {
+        "name": "sec-edgar-cyber-8k",
+        "source_class": "primary_disclosure",
+        "signal_kind": "incident",
+        "ingest_type": "sec_edgar_cyber",
+        "url": "https://efts.sec.gov/LATEST/search-index?q=%22material+cybersecurity+incident%22&forms=8-K",
+        "active": True,
+        "tier": "official",
+        "tier_trusted_alone": True,
+    },
 ]
 
 
