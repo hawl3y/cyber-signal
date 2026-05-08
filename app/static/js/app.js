@@ -98,6 +98,14 @@ function scoreBandFor(score) {
     return "low";
 }
 
+const SHIELD_SVG = '<svg class="score-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3z"/></svg>';
+
+function buildScoreTooltip(score, factors) {
+    const base = `Trust ${score}/100`;
+    if (!factors || !factors.length) return base;
+    return `${base} — ${factors.join(" · ")}`;
+}
+
 const FACET_KEYS = ["industry", "region", "attack_type"];
 const FACET_SELECT_IDS = {
     industry: "filter-industry",
@@ -289,11 +297,41 @@ function buildEventMeta(event) {
     };
 }
 
+let activeCardFilter = null;
+
+function applyCardFilter(events) {
+    if (!activeCardFilter || activeCardFilter === "total") return events;
+    if (activeCardFilter === "high_trust") {
+        return events.filter(e => typeof e.confidence_score === "number" && e.confidence_score >= 75);
+    }
+    if (activeCardFilter === "high_impact") {
+        return events.filter(e => e.high_impact);
+    }
+    if (activeCardFilter === "new") {
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        return events.filter(e => {
+            if (!e.published_at) return false;
+            const t = new Date(e.published_at).getTime();
+            return Number.isFinite(t) && t >= cutoff;
+        });
+    }
+    return events;
+}
+
+function updateCardActiveStates() {
+    document.querySelectorAll(".summary-card").forEach(card => {
+        const key = card.getAttribute("data-card-filter");
+        const isActive = activeCardFilter && activeCardFilter !== "total" && key === activeCardFilter;
+        card.classList.toggle("active", Boolean(isActive));
+    });
+}
+
 async function loadEvents() {
     try {
         const query = buildQueryString(getCurrentFilters());
         const response = await fetch(`/api/events/${query}`);
-        const events = await response.json();
+        const allEvents = await response.json();
+        const events = applyCardFilter(allEvents);
 
         const container = document.getElementById("event-feed");
         const countEl = document.getElementById("feed-count");
@@ -302,7 +340,10 @@ async function loadEvents() {
         container.innerHTML = "";
 
         if (countEl) {
-            countEl.textContent = `${events.length} event${events.length === 1 ? "" : "s"}`;
+            const totalNote = activeCardFilter && activeCardFilter !== "total"
+                ? ` of ${allEvents.length}`
+                : "";
+            countEl.textContent = `${events.length} event${events.length === 1 ? "" : "s"}${totalNote}`;
         }
 
         if (!events.length) {
@@ -312,7 +353,9 @@ async function loadEvents() {
 
         events.forEach(event => {
             const el = document.createElement("article");
-            el.className = `event-card status-${event.status || "unknown"}`;
+            const scoreBand = scoreBandFor(event.confidence_score);
+            el.className = `event-card score-${scoreBand || "low"}`;
+
             const highTrust = typeof event.confidence_score === "number" && event.confidence_score >= 80;
             if (event.actor_name || highTrust) {
                 el.classList.add("high-signal");
@@ -330,9 +373,9 @@ async function loadEvents() {
                 </span>
             `;
 
-            const scoreBand = scoreBandFor(event.confidence_score);
+            const tooltip = buildScoreTooltip(event.confidence_score, event.score_factors);
             const scorePill = scoreBand
-                ? `<span class="score-pill score-${scoreBand}" title="Trust score: ${event.confidence_score}/100">${event.confidence_score}</span>`
+                ? `<span class="score-pill score-${scoreBand}" title="${tooltip}">${SHIELD_SVG}${event.confidence_score}</span>`
                 : "";
 
             const secondaryLine = meta.secondary.join(" • ");
@@ -427,6 +470,31 @@ const resetButton = document.getElementById("reset-filters");
 if (resetButton) {
     resetButton.addEventListener("click", resetFilters);
 }
+
+async function handleCardClick(cardFilter) {
+    if (cardFilter === "total") {
+        activeCardFilter = null;
+        const filters = { ...getDefaultFilters(), time_range: getCurrentFilters().time_range };
+        saveFilters(filters);
+        await loadFilterOptions(filters);
+        applyFiltersToControls(filters);
+        renderFilterChips(filters);
+        updateCardActiveStates();
+        await refreshDashboard();
+        return;
+    }
+
+    activeCardFilter = activeCardFilter === cardFilter ? null : cardFilter;
+    updateCardActiveStates();
+    await loadEvents();
+}
+
+document.querySelectorAll(".summary-card[data-card-filter]").forEach(card => {
+    card.addEventListener("click", () => {
+        const key = card.getAttribute("data-card-filter");
+        handleCardClick(key);
+    });
+});
 
 const toggleFiltersBtn = document.getElementById("toggle-filters");
 const filtersPanel = document.querySelector(".filters-panel");

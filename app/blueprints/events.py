@@ -3,6 +3,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 
 from app.services.summary import get_filtered_events, get_event_reference_time
+from app.utils.sources import get_source_config
 
 events_bp = Blueprint("events", __name__, url_prefix="/api/events")
 
@@ -45,6 +46,57 @@ def _event_priority(event):
         -source_count,      # more corroboration first
         -timestamp,         # most recent first
     )
+
+
+_SOURCE_CLASS_FACTOR_LABELS = {
+    "primary_disclosure": "primary-source disclosure",
+    "official_alert": "official alert",
+    "exploited_vulnerability": "known exploited vuln",
+}
+
+
+def _score_factors(event):
+    """
+    Human-readable inputs that produced the event's confidence_score.
+    Mirrors the deterministic logic in clustering._compute_confidence_score.
+    """
+    factors = []
+
+    distinct_sources = len({
+        link.raw_article.source_name
+        for link in event.event_sources
+        if link.raw_article and link.raw_article.source_name
+    })
+    if distinct_sources >= 2:
+        factors.append(f"{distinct_sources} sources")
+    elif distinct_sources == 1:
+        factors.append("1 source")
+
+    seen_class_labels = set()
+    has_trusted_alone = False
+    for link in event.event_sources:
+        if not link.raw_article:
+            continue
+        config = get_source_config(link.raw_article.source_name) or {}
+        klass = config.get("source_class")
+        label = _SOURCE_CLASS_FACTOR_LABELS.get(klass)
+        if label and label not in seen_class_labels:
+            factors.append(label)
+            seen_class_labels.add(label)
+        if config.get("tier_trusted_alone"):
+            has_trusted_alone = True
+
+    if has_trusted_alone and not seen_class_labels:
+        factors.append("tier-1 trusted source")
+
+    if any(link.is_primary_source for link in event.event_sources):
+        if "primary-source disclosure" not in seen_class_labels:
+            factors.append("primary statement")
+
+    if event.actor_name and event.event_signal_type == "incident":
+        factors.append("attributed actor")
+
+    return factors
 
 
 def _display_context(event):
@@ -113,6 +165,7 @@ def list_events():
             "high_impact": event.is_high_impact,
             "confidence": event.confidence_level,
             "confidence_score": int(event.confidence_score) if event.confidence_score is not None else None,
+            "score_factors": _score_factors(event),
             "time": _format_event_time(event),
             "published_at": get_event_reference_time(event),
             "source_count": len({

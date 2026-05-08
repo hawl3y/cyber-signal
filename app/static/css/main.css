@@ -7,10 +7,10 @@
     --text: #102a43;
     --muted: #627d98;
     --accent: #0f172a;
-    --confirmed-bg: #ecfdf3;
-    --confirmed-border: #b7ebc6;
-    --emerging-bg: #fff7e6;
-    --emerging-border: #f7d9a8;
+    --score-high-bg: #ecfdf3;
+    --score-high-border: #b7ebc6;
+    --score-med-bg: #fff7e6;
+    --score-med-border: #f7d9a8;
     --signal-pill-bg: #f3f6fb;
     --signal-pill-text: #486581;
 }
@@ -217,6 +217,25 @@ select option:disabled {
     border-radius: 14px;
     padding: 14px 16px;
     min-height: 88px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    color: inherit;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.summary-card:hover {
+    border-color: var(--accent);
+}
+
+.summary-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.summary-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.12);
 }
 
 .summary-card .label {
@@ -272,14 +291,19 @@ select option:disabled {
     background: var(--panel-soft);
 }
 
-.event-card.status-confirmed {
-    background: var(--confirmed-bg);
-    border-color: var(--confirmed-border);
+.event-card.score-high {
+    background: var(--score-high-bg);
+    border-color: var(--score-high-border);
 }
 
-.event-card.status-emerging {
-    background: var(--emerging-bg);
-    border-color: var(--emerging-border);
+.event-card.score-med {
+    background: var(--score-med-bg);
+    border-color: var(--score-med-border);
+}
+
+.event-card.score-low {
+    background: var(--panel-soft);
+    border-color: var(--border);
 }
 
 .event-card-header {
@@ -376,7 +400,8 @@ select option:disabled {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 36px;
+    gap: 4px;
+    min-width: 44px;
     height: 26px;
     padding: 0 8px;
     border-radius: 999px;
@@ -385,6 +410,12 @@ select option:disabled {
     line-height: 1;
     border: 1px solid transparent;
     font-variant-numeric: tabular-nums;
+}
+
+.score-pill .score-icon {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
 }
 
 .score-pill.score-high {
