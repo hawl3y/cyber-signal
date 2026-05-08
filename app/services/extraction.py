@@ -257,6 +257,10 @@ def _extract_victim_org_name(article):
         return None
 
     target_patterns = [
+        # Strong: subject of a disclosure verb at the start of the headline.
+        # In cyber-news headlines the subject of confirms/discloses/acknowledges/admits
+        # is virtually always the victim org.
+        r"^\s*([^,.;:]+?)\s+(?:confirms|confirmed|discloses|disclosed|acknowledges|acknowledged|admits|admitted)\b",
         r"\b(?:breach|hack|attack|cyberattack|cyber attack|data theft)\s+at\s+(?:[a-z][a-z0-9&._' -]*\s+){0,5}([A-Z][A-Za-z0-9&._'-]*(?:\s+[A-Z][A-Za-z0-9&._'-]*){0,3})\b",
         r"\b([A-Z][A-Za-z0-9&._'-]*(?:\s+[A-Z][A-Za-z0-9&._'-]*){0,3})\s+hacker\s+claims\s+data\s+theft\b",
         r"\b(?:breach|hack|attack|cyberattack|cyber attack|ransomware attack)\s+(?:at|on|against|of)\s+([^,.;:]+)",
@@ -268,6 +272,16 @@ def _extract_victim_org_name(article):
         r"\b([^,.;:]+?)\s+(?:hit by|suffered|suffers)\s+(?:a\s+)?(?:ransomware attack|cyberattack|cyber attack|data breach|security breach)\b",
         r"\b([^,.;:]+?)\s+(?:falls victim to|fell victim to)\s+(?:a\s+)?(?:ransomware attack|cyberattack|cyber attack|data breach|security breach)\b",
     ]
+
+    # Captures ending in audience nouns (e.g. "Armenian users", "Russian citizens")
+    # describe who was affected, never the victim org. Drop the whole match.
+    audience_tail_re = re.compile(
+        r"\b(?:users?|customers?|citizens?|people|visitors?|clients?|"
+        r"residents?|nationals?|workers?|members?|subscribers?|patients?|"
+        r"students?|employees?|consumers?|tenants?|guests?|riders?|"
+        r"shoppers?|viewers?|readers?|listeners?)\s*$",
+        flags=re.IGNORECASE,
+    )
 
     blocked_action_phrase = re.compile(
         r"\bto\s+(?:steal|deploy|push|harvest|leak|breach|hack|target|attack|compromise|disrupt|extort)\b",
@@ -297,7 +311,11 @@ def _extract_victim_org_name(article):
 
         for pattern in target_patterns:
             for match in re.finditer(pattern, text, flags=re.IGNORECASE):
-                candidate = _clean_org_name(match.group(1))
+                raw_capture = (match.group(1) or "").strip()
+                if audience_tail_re.search(raw_capture):
+                    continue
+
+                candidate = _clean_org_name(raw_capture)
                 if not candidate:
                     continue
 
