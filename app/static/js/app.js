@@ -98,39 +98,55 @@ function scoreBandFor(score) {
     return "low";
 }
 
-function populateSelect(selectId, values) {
+function populateSelectWithCounts(selectId, countsMap) {
     const select = document.getElementById(selectId);
     if (!select) return;
 
     const currentValue = select.value || "";
     select.innerHTML = '<option value="">All</option>';
 
-    values.forEach(value => {
+    const sorted = [...countsMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    sorted.forEach(([value, count]) => {
         const option = document.createElement("option");
         option.value = value;
-        option.textContent = value;
+        option.textContent = `${value} (${count})`;
         select.appendChild(option);
     });
+
+    if (currentValue && ![...select.options].some(o => o.value === currentValue)) {
+        const stale = document.createElement("option");
+        stale.value = currentValue;
+        stale.textContent = `${currentValue} (0)`;
+        select.appendChild(stale);
+    }
 
     if ([...select.options].some(option => option.value === currentValue)) {
         select.value = currentValue;
     }
 }
 
-function getUniqueValues(events, key) {
-    return [...new Set(events.map(event => event[key]).filter(Boolean))].sort();
+function buildCountsForFacet(events, key) {
+    const counts = new Map();
+    events.forEach(event => {
+        const value = event[key];
+        if (value) {
+            counts.set(value, (counts.get(value) || 0) + 1);
+        }
+    });
+    return counts;
 }
 
-async function loadFilterOptions() {
+async function loadFilterOptions(timeRange) {
     try {
-        const response = await fetch("/api/events/?limit=200");
+        const params = new URLSearchParams();
+        if (timeRange) params.append("time_range", timeRange);
+        params.append("limit", "500");
+        const response = await fetch(`/api/events/?${params}`);
         const events = await response.json();
 
-        populateSelect("filter-industry", getUniqueValues(events, "industry"));
-        populateSelect("filter-region", getUniqueValues(events, "region"));
-        populateSelect("filter-attack-type", getUniqueValues(events, "attack_type"));
-
-        applyFiltersToControls(getSavedFilters());
+        populateSelectWithCounts("filter-industry", buildCountsForFacet(events, "industry"));
+        populateSelectWithCounts("filter-region", buildCountsForFacet(events, "region"));
+        populateSelectWithCounts("filter-attack-type", buildCountsForFacet(events, "attack_type"));
     } catch (err) {
         console.error("Failed to load filter options:", err);
     }
@@ -295,6 +311,8 @@ function setLoading(isLoading) {
     });
 }
 
+let lastTimeRange = null;
+
 async function refreshDashboard() {
     await loadSummary();
     await loadEvents();
@@ -307,6 +325,11 @@ async function handleFilterChange() {
     try {
         const filters = getCurrentFilters();
         saveFilters(filters);
+        if (filters.time_range !== lastTimeRange) {
+            await loadFilterOptions(filters.time_range);
+            applyFiltersToControls(filters);
+            lastTimeRange = filters.time_range;
+        }
         await refreshDashboard();
     } finally {
         setLoading(false);
@@ -319,7 +342,9 @@ async function resetFilters() {
     try {
         const defaults = getDefaultFilters();
         saveFilters(defaults);
+        await loadFilterOptions(defaults.time_range);
         applyFiltersToControls(defaults);
+        lastTimeRange = defaults.time_range;
         await refreshDashboard();
     } finally {
         setLoading(false);
@@ -414,11 +439,15 @@ async function loadFooterStatus() {
 
 setLoading(true);
 
-loadFilterOptions()
-    .then(async () => {
+(async () => {
+    try {
+        const initialFilters = getSavedFilters();
+        await loadFilterOptions(initialFilters.time_range);
+        applyFiltersToControls(initialFilters);
+        lastTimeRange = initialFilters.time_range;
         await refreshDashboard();
         await loadFooterStatus();
-    })
-    .finally(() => {
+    } finally {
         setLoading(false);
-    });
+    }
+})();

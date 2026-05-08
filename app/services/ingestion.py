@@ -335,6 +335,135 @@ def _industry_from_sic(sic_code):
     return None
 
 
+_SEC_DOC_MAX_BYTES = 750_000
+
+
+def _fetch_sec_filing_document(cik, accession_no_dash, primary_filename, user_agent):
+    """
+    Fetch a specific filing document by filename. Skips files larger than
+    _SEC_DOC_MAX_BYTES (10-Q/10-K full-XBRL bodies are multi-megabyte).
+    Returns raw HTML text or None on any failure.
+    """
+    if not primary_filename:
+        return None
+    try:
+        doc_url = (
+            f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/"
+            f"{accession_no_dash}/{primary_filename}"
+        )
+        head = requests.head(
+            doc_url,
+            headers={"User-Agent": user_agent},
+            timeout=10,
+            allow_redirects=True,
+        )
+        if head.status_code != 200:
+            return None
+        size = int(head.headers.get("Content-Length") or 0)
+        if size and size > _SEC_DOC_MAX_BYTES:
+            return None
+
+        doc_resp = requests.get(
+            doc_url,
+            headers={"User-Agent": user_agent},
+            timeout=20,
+        )
+        doc_resp.raise_for_status()
+        return doc_resp.text
+    except (requests.RequestException, ValueError, KeyError, TypeError):
+        return None
+
+
+def _strip_html_to_text(html):
+    text = unescape(html)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _extract_cyber_disclosure_text(html, max_chars=2500):
+    """
+    Pull a clean prose excerpt of a cyber disclosure from a filing document.
+    Tries Item 1.05 first (8-K main bodies), falls back to the first
+    cyber-keyword paragraph (press-release exhibits like EX-99.1).
+    """
+    if not html:
+        return None
+
+    text = _strip_html_to_text(html)
+    if not text:
+        return None
+
+    item_105 = re.search(
+        r"Item\s*1\.05[\.\s]*Material\s+Cybersecurity\s+Incidents?[\.\s]*"
+        r"(.+?)"
+        r"(?=Item\s+\d+\.\d+\b|SIGNATURES?\b|\bPursuant to the requirements\b)",
+        text,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if item_105:
+        body = item_105.group(1).strip()
+        if len(body) >= 80:
+            if len(body) > max_chars:
+                body = body[:max_chars].rsplit(" ", 1)[0] + " [...]"
+            return body
+
+    # Fallback for press-release exhibits: walk sentences, accumulate from the
+    # first one mentioning a cyber keyword until we have substantive prose.
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    cyber_terms = re.compile(
+        r"\b(cyber|cybersecurity|unauthorized\s+access|data\s+breach|"
+        r"ransomware|threat\s+actor|incident|exfiltrat)\b",
+        re.IGNORECASE,
+    )
+    collected = []
+    started = False
+    for sentence in sentences:
+        if not started and not cyber_terms.search(sentence):
+            continue
+        started = True
+        collected.append(sentence)
+        joined_len = sum(len(s) + 1 for s in collected)
+        if joined_len >= max_chars:
+            break
+        if len(collected) >= 12:
+            break
+    if collected:
+        body = " ".join(collected).strip()
+        if len(body) >= 100:
+            if len(body) > max_chars:
+                body = body[:max_chars].rsplit(" ", 1)[0] + " [...]"
+            return body
+    return None
+
+
+def _summary_from_disclosure_body(body, max_chars=400):
+    """
+    Pick a clean opening summary from an extracted disclosure body.
+    """
+    if not body:
+        return None
+    sentences = re.split(r"(?<=[.!?])\s+", body)
+    summary = ""
+    for sentence in sentences:
+        if len(summary) + len(sentence) + 1 > max_chars and summary:
+            break
+        summary = (summary + " " + sentence).strip()
+    if not summary:
+        summary = body[:max_chars].rsplit(" ", 1)[0] + "..."
+    return summary
+
+
+def _primary_filename_from_hit_id(hit_id):
+    """
+    EDGAR full-text search hits come keyed as "<accession>:<filename>".
+    Extract the filename half so we fetch the exact document the search matched.
+    """
+    if not hit_id or ":" not in hit_id:
+        return None
+    return hit_id.split(":", 1)[1].strip() or None
+
+
 def _fetch_sec_edgar_cyber_items(source):
     """
     Fetch SEC 8-K filings that disclose a material cybersecurity incident.
@@ -367,15 +496,31 @@ def _fetch_sec_edgar_cyber_items(source):
 
     publisher = "SEC EDGAR (8-K cyber disclosures)"
 
+    seen_accession = set()
+
     for hit in data.get("hits", {}).get("hits", []):
         src = hit.get("_source", {}) or {}
         display_names = src.get("display_names") or []
         file_date = src.get("file_date")
         adsh = src.get("adsh")
         ciks = src.get("ciks") or []
+        items_disclosed = src.get("items") or []
+        primary_filename = _primary_filename_from_hit_id(hit.get("_id"))
 
         if not display_names or not file_date or not adsh:
             continue
+
+        # Item 1.05 (Material Cybersecurity Incidents) is the SEC's required
+        # designation for cyber disclosures since Dec 2023. Filings without
+        # 1.05 in their items list are typically earnings releases, risk-factor
+        # mentions, or M&A docs that just include the phrase as boilerplate.
+        if "1.05" not in items_disclosed:
+            continue
+
+        # Multiple hits per filing (8-K body + each exhibit) — dedupe.
+        if adsh in seen_accession:
+            continue
+        seen_accession.add(adsh)
 
         raw_company = display_names[0]
         company_name = re.sub(r"\s*\([^)]*\)\s*", "", raw_company).strip()
@@ -416,20 +561,49 @@ def _fetch_sec_edgar_cyber_items(source):
             continue
 
         title = f"{company_name} discloses breach in SEC 8-K filing"
-        summary_parts = [
+        template_parts = [
             f"{company_name} disclosed a data breach in a Form 8-K filing "
             f"with the SEC on {file_date}.",
             "Filed in a statement to investors.",
         ]
         if country_hint:
-            summary_parts.append(country_hint)
+            template_parts.append(country_hint)
         if industry_hint:
-            summary_parts.append(industry_hint)
-        summary_parts.append(
+            template_parts.append(industry_hint)
+        template_parts.append(
             "Direct primary-source disclosure from the affected company "
             "under SEC reporting rules."
         )
-        summary = " ".join(summary_parts)
+        template_summary = " ".join(template_parts)
+
+        disclosure_body = None
+        if cik and accession_no_dash and primary_filename:
+            html = _fetch_sec_filing_document(
+                cik, accession_no_dash, primary_filename, user_agent
+            )
+            disclosure_body = _extract_cyber_disclosure_text(html)
+
+        if disclosure_body:
+            summary = (
+                _summary_from_disclosure_body(disclosure_body) or template_summary
+            )
+            content_parts = [
+                f"{company_name} — cybersecurity disclosure "
+                f"(8-K, filed {file_date}):",
+                disclosure_body,
+            ]
+            if country_hint:
+                content_parts.append(country_hint)
+            if industry_hint:
+                content_parts.append(industry_hint)
+            content_parts.append(
+                "Direct primary-source disclosure from the affected company "
+                "under SEC reporting rules."
+            )
+            content = "\n\n".join(content_parts)
+        else:
+            summary = template_summary
+            content = template_summary
 
         items.append(
             _build_raw_article_payload(
@@ -437,7 +611,7 @@ def _fetch_sec_edgar_cyber_items(source):
                 article_url=article_url,
                 title=title,
                 summary=summary,
-                content=summary,
+                content=content,
                 published_at=published_at,
                 fetched_at=fetched_at,
                 ingestion_batch_id=ingestion_batch_id,

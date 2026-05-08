@@ -445,7 +445,45 @@ body {
     }
 
     .summary-strip {
-        grid-template-columns: 1fr;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        justify-content: space-around;
+        align-items: stretch;
+        gap: 0;
+        padding: 10px 8px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+    }
+
+    .summary-card {
+        flex: 1 1 0;
+        min-width: 0;
+        background: transparent;
+        border: none;
+        border-right: 1px solid var(--border);
+        border-radius: 0;
+        padding: 4px 6px;
+        min-height: 0;
+        text-align: center;
+    }
+
+    .summary-card:last-child {
+        border-right: none;
+    }
+
+    .summary-card .label {
+        margin-bottom: 2px;
+        font-size: 10px;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .summary-card .value {
+        font-size: 18px;
     }
 
     .panel-header-simple,
@@ -460,10 +498,6 @@ body {
 
     .event-card h3 {
         font-size: 16px;
-    }
-
-    .summary-card {
-        min-height: auto;
     }
 
     .event-card-header {
