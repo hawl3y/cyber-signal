@@ -59,6 +59,35 @@ def _extract_org_acronym(value):
     return None
 
 
+def _is_trusted_alone_source(source_name):
+    """A source whose single-article reporting is enough to confirm an event."""
+    if not source_name:
+        return False
+    config = get_source_config(source_name)
+    if not config:
+        return False
+    if config.get("source_class") in {
+        "official_alert",
+        "exploited_vulnerability",
+        "primary_disclosure",
+    }:
+        return True
+    if config.get("tier_trusted_alone"):
+        return True
+    return False
+
+
+def _event_has_trusted_alone_source(event):
+    return any(
+        link.raw_article and _is_trusted_alone_source(link.raw_article.source_name)
+        for link in event.event_sources
+    )
+
+
+def _event_has_primary_source_evidence(event):
+    return any(link.is_primary_source for link in event.event_sources)
+
+
 def _country_matches(extraction, candidate):
     if not extraction or not candidate:
         return False
@@ -390,59 +419,21 @@ def refresh_event(event_id):
         if seen_at and (event.last_seen_at is None or seen_at > event.last_seen_at):
             event.last_seen_at = seen_at
 
-    single_source_confirmed_incident = False
-
-    if (
-        source_count == 1
-        and event.event_signal_type == "incident"
-        and event.victim_org_name
-        and article
-    ):
-        incident_text = " ".join(
-            [
-                (article.title or "").strip(),
-                (article.summary or "").strip(),
-                (article.content or "").strip(),
-            ]
-        ).lower()
-
-        strong_completed_incident_terms = [
-            "data breach",
-            "security breach",
-            "breached",
-            "was breached",
-            "was hacked",
-            "was compromised",
-            "confirmed a breach",
-            "confirmed a cyberattack",
-            "confirmed a ransomware attack",
-            "disclosed a breach",
-            "reported a breach",
-            "forced offline",
-            "taken offline",
-            "operational disruption",
-            "service disruption",
-            "extortion",
-            "data-wiping attack",
-            "wiper attack",
-        ]
-
-        if any(term in incident_text for term in strong_completed_incident_terms):
-            single_source_confirmed_incident = True
+    has_trusted_alone = _event_has_trusted_alone_source(event)
+    has_primary_evidence = _event_has_primary_source_evidence(event)
 
     if source_count >= 2:
         event.event_status = "confirmed"
         event.confidence_level = "high"
+    elif source_count == 1 and has_trusted_alone:
+        event.event_status = "confirmed"
+        event.confidence_level = "high"
+    elif source_count == 1 and has_primary_evidence:
+        event.event_status = "confirmed"
+        event.confidence_level = "medium"
     elif source_count == 1:
-        if event.event_signal_type == "activity":
-            event.event_status = "emerging"
-            event.confidence_level = "medium"
-        elif single_source_confirmed_incident:
-            event.event_status = "confirmed"
-            event.confidence_level = "medium"
-        else:
-            event.event_status = "emerging"
-            event.confidence_level = "medium"
+        event.event_status = "emerging"
+        event.confidence_level = "low"
     else:
         event.event_status = "emerging"
         event.confidence_level = None
@@ -477,9 +468,6 @@ def refresh_event(event_id):
             or any(term in text for term in high_impact_terms)
             or event.attack_type in {"Ransomware", "Data Breach", "Malware"}
         )
-
-    if event.actor_name and event.event_signal_type == "incident":
-        event.confidence_level = "high"
 
     db.session.commit()
     return True

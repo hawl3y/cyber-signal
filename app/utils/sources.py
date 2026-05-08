@@ -25,6 +25,7 @@ SOURCE_REGISTRY = [
         "url": "https://krebsonsecurity.com/feed/",
         "active": True,
         "tier": "curated",
+        "tier_trusted_alone": True,
     },
     {
         "name": "cisa-alerts-advisories",
