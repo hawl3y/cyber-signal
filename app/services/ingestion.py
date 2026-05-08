@@ -230,6 +230,30 @@ def _fetch_cisa_kev_items(source):
     return items
 
 
+_KEEP_UPPER_TOKENS = {"LLC", "PLC", "GMBH", "USA", "UK", "EU", "II", "III", "IV", "VI"}
+
+
+def _title_case_company_name(name):
+    """
+    SEC display_names come in legal/SCREAMING_CAPS format. Title-case all-caps
+    tokens for display, but keep known uppercase suffixes (LLC, PLC, etc.) and
+    leave already-mixed-case tokens alone.
+    """
+    if not name:
+        return name
+
+    parts = []
+    for word in name.split():
+        upper_stripped = word.rstrip(".,;:").upper()
+        if upper_stripped in _KEEP_UPPER_TOKENS:
+            parts.append(word.upper())
+        elif word.isupper():
+            parts.append(word.title())
+        else:
+            parts.append(word)
+    return " ".join(parts)
+
+
 def _fetch_sec_edgar_cyber_items(source):
     """
     Fetch SEC 8-K filings that disclose a material cybersecurity incident.
@@ -275,6 +299,7 @@ def _fetch_sec_edgar_cyber_items(source):
         raw_company = display_names[0]
         company_name = re.sub(r"\s*\([^)]*\)\s*", "", raw_company).strip()
         company_name = company_name.rstrip(".,;:").strip()
+        company_name = _title_case_company_name(company_name)
         if not company_name:
             continue
 

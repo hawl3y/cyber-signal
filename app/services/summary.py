@@ -140,7 +140,7 @@ def _event_context(event):
     if event.industry and event.industry != "Unknown":
         return event.industry
 
-    return None
+    return "Other"
 
 
 def _event_contexts(events):
@@ -169,12 +169,10 @@ def build_summary(
     emerging_signals = len([e for e in events if e.event_status == "emerging"])
 
     attack_types = [e.attack_type for e in events if e.attack_type]
-    org_industries = [
+    industries = [
         e.industry
         for e in events
-        if e.industry
-        and e.industry != "Unknown"
-        and e.victim_entity_type == "organization"
+        if e.industry and e.industry != "Unknown"
     ]
 
     return {
@@ -182,7 +180,7 @@ def build_summary(
         "confirmed_events": confirmed_incidents,
         "emerging_events": emerging_signals,
         "top_attack_type": _most_common_non_empty(attack_types),
-        "top_targeted_industry": _most_common_non_empty(org_industries),
+        "top_targeted_industry": _most_common_non_empty(industries),
     }
 
 
