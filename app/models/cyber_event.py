@@ -56,6 +56,7 @@ class CyberEvent(db.Model):
 
     last_confidence_scored_at = db.Column(db.DateTime)
     last_enriched_at = db.Column(db.DateTime)
+    ai_event_error = db.Column(db.String(500))
 
     summary_short = db.Column(db.Text)
     summary_medium = db.Column(db.Text)
