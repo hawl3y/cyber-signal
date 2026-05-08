@@ -69,19 +69,27 @@
             </section>
 
             <section class="summary-strip">
-                <button type="button" class="summary-card" data-card-filter="total" aria-label="Show all events">
+                <button type="button" class="summary-card" data-card-filter="total"
+                        title="All events matching the current filters. Click to clear facet filters and any active card filter."
+                        aria-label="Show all events">
                     <span class="label">Total Events</span>
                     <span class="value" id="total-events">--</span>
                 </button>
-                <button type="button" class="summary-card" data-card-filter="high_trust" aria-label="Filter to high trust events">
+                <button type="button" class="summary-card" data-card-filter="high_trust"
+                        title="Trust score 75 or higher — multi-source corroboration, primary disclosure, or tier-1 trusted source. Click to filter the feed."
+                        aria-label="Filter to high trust events">
                     <span class="label">High Trust</span>
                     <span class="value" id="high-trust-events">--</span>
                 </button>
-                <button type="button" class="summary-card" data-card-filter="high_impact" aria-label="Filter to high impact events">
+                <button type="button" class="summary-card" data-card-filter="high_impact"
+                        title="Events flagged as high impact — large victim, critical-infrastructure target, or wide blast radius. Click to filter the feed."
+                        aria-label="Filter to high impact events">
                     <span class="label">High Impact</span>
                     <span class="value" id="high-impact-events">--</span>
                 </button>
-                <button type="button" class="summary-card" data-card-filter="new" aria-label="Filter to events from the last 24 hours">
+                <button type="button" class="summary-card" data-card-filter="new"
+                        title="Events first seen in the last 24 hours. Click to filter the feed."
+                        aria-label="Filter to events from the last 24 hours">
                     <span class="label">New (24h)</span>
                     <span class="value" id="new-today-events">--</span>
                 </button>
