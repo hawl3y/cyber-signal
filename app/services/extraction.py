@@ -617,6 +617,68 @@ def _extract_industry(text):
 
     return None
 
+_COUNTRY_TO_REGION = {
+    "United States": "North America",
+    "Canada": "North America",
+    "Mexico": "North America",
+    "United Kingdom": "Europe",
+    "Netherlands": "Europe",
+    "Germany": "Europe",
+    "France": "Europe",
+    "Italy": "Europe",
+    "Spain": "Europe",
+    "Portugal": "Europe",
+    "Belgium": "Europe",
+    "Switzerland": "Europe",
+    "Austria": "Europe",
+    "Poland": "Europe",
+    "Sweden": "Europe",
+    "Norway": "Europe",
+    "Finland": "Europe",
+    "Denmark": "Europe",
+    "Ireland": "Europe",
+    "Romania": "Europe",
+    "Czech Republic": "Europe",
+    "Ukraine": "Europe",
+    "Russia": "Europe",
+    "China": "Asia",
+    "Taiwan": "Asia",
+    "Japan": "Asia",
+    "India": "Asia",
+    "Singapore": "Asia",
+    "South Korea": "Asia",
+    "Hong Kong": "Asia",
+    "Thailand": "Asia",
+    "Vietnam": "Asia",
+    "Indonesia": "Asia",
+    "Philippines": "Asia",
+    "Malaysia": "Asia",
+    "Australia": "Oceania",
+    "New Zealand": "Oceania",
+    "Brazil": "South America",
+    "Argentina": "South America",
+    "Chile": "South America",
+    "Colombia": "South America",
+    "Peru": "South America",
+    "South Africa": "Africa",
+    "Nigeria": "Africa",
+    "Kenya": "Africa",
+    "Egypt": "Africa",
+    "Israel": "Middle East",
+    "United Arab Emirates": "Middle East",
+    "Saudi Arabia": "Middle East",
+    "Qatar": "Middle East",
+    "Turkey": "Middle East",
+}
+
+
+def region_for_country(country):
+    """Return the canonical region for a country name, or None if unknown."""
+    if not country:
+        return None
+    return _COUNTRY_TO_REGION.get(country)
+
+
 def _extract_geography(text):
     country = None
     region = None

@@ -277,6 +277,16 @@ def _title_case_company_name(name):
     return " ".join(_title_case_word(w) for w in name.split())
 
 
+_US_STATE_CODES = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+    "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+    "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+    "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+    "DC", "PR",
+}
+
+
 _SIC_TO_INDUSTRY_HINT = {
     "Technology": "Filer is a technology company.",
     "Healthcare": "Filer is a healthcare provider.",
@@ -378,6 +388,11 @@ def _fetch_sec_edgar_cyber_items(source):
         industry = _industry_from_sic(sics[0]) if sics else None
         industry_hint = _SIC_TO_INDUSTRY_HINT.get(industry, "")
 
+        biz_states = src.get("biz_states") or []
+        country_hint = ""
+        if biz_states and biz_states[0] in _US_STATE_CODES:
+            country_hint = "Filer is based in the United States."
+
         cik = (ciks[0] if ciks else None)
         accession_no_dash = adsh.replace("-", "") if adsh else ""
 
@@ -406,6 +421,8 @@ def _fetch_sec_edgar_cyber_items(source):
             f"with the SEC on {file_date}.",
             "Filed in a statement to investors.",
         ]
+        if country_hint:
+            summary_parts.append(country_hint)
         if industry_hint:
             summary_parts.append(industry_hint)
         summary_parts.append(

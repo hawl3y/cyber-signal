@@ -23,6 +23,7 @@ from app.services.ai_enrichment import (
     _truncate_text,
     _valid_value,
 )
+from app.services.extraction import region_for_country
 
 
 MAX_ARTICLES_PER_EVENT_PAYLOAD = 5
@@ -369,7 +370,18 @@ def _fill_event_blanks(event, ai_signals):
         event.country = ai_signals.get("country")
         changed = True
 
-    if _is_blank(event.region) and ai_signals.get("region"):
+    # Derive region deterministically from country. Don't trust AI's region
+    # value: it conflates US states with same-named countries (e.g. Georgia)
+    # and produces inconsistent granularity. Country is the authoritative
+    # geographic anchor; region is a one-to-one continent/subregion lookup.
+    if event.country:
+        derived_region = region_for_country(event.country)
+        if derived_region and event.region != derived_region:
+            event.region = derived_region
+            changed = True
+    elif _is_blank(event.region) and ai_signals.get("region"):
+        # Fall through only if no country at all — accept AI region as a
+        # last-resort hint, but it's still subject to validation downstream.
         event.region = ai_signals.get("region")
         changed = True
 
