@@ -1,4 +1,5 @@
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
@@ -6,7 +7,7 @@ import requests
 from flask import current_app
 
 from app.extensions import db
-from app.models import CyberEvent, EventSourceLink, RawArticle
+from app.models import CyberEvent, EnrichmentAuditLog, EventSourceLink, RawArticle
 from app.services.ai_enrichment import (
     ALLOWED_ATTACK_TYPES,
     ALLOWED_ATTRIBUTION_STATUS,
@@ -472,6 +473,39 @@ def _accumulate_usage(totals, usage):
             totals[key] = totals.get(key, 0) + value
 
 
+AUDITED_FIELDS = (
+    "victim_org_name",
+    "industry",
+    "attack_type",
+    "actor_name",
+    "actor_type",
+    "attribution_status",
+    "country",
+    "region",
+    "summary_short",
+)
+
+
+def _audit_snapshot(event):
+    return {field: getattr(event, field) for field in AUDITED_FIELDS}
+
+
+def _diff_filled_fields(before, after):
+    """
+    Return the set of audited fields that went from blank/Unknown to a real
+    value during enrichment. Mirrors the merge guard in _fill_event_blanks.
+    """
+    filled = []
+    for field in AUDITED_FIELDS:
+        prev = before.get(field)
+        new = after.get(field)
+        was_blank = prev is None or (isinstance(prev, str) and (not prev.strip() or prev.strip().lower() == "unknown"))
+        has_now = new is not None and not (isinstance(new, str) and not new.strip())
+        if was_blank and has_now and prev != new:
+            filled.append(field)
+    return filled
+
+
 def _enrich_one_event(event_id):
     """
     Worker function. Loads event in this thread's session, performs enrichment,
@@ -491,12 +525,22 @@ def _enrich_one_event(event_id):
         stats["error"] = "event_not_found"
         return stats
 
+    audit_started_at = datetime.utcnow()
+    started_perf = time.perf_counter()
+    fields_before = _audit_snapshot(event)
+    article_returned = None
+    web_returned = None
+    article_usage_captured = {}
+    web_usage_captured = {}
+
     payload = _build_event_payload(event)
     error_message = None
 
     try:
         article_signals, article_usage = _call_xai_event_article_only(payload)
         stats["article_called"] = True
+        article_returned = article_signals
+        article_usage_captured = article_usage or {}
         _accumulate_usage(stats["usage"], article_usage)
         if _fill_event_blanks(event, article_signals):
             stats["changed"] = True
@@ -508,6 +552,8 @@ def _enrich_one_event(event_id):
             payload = _build_event_payload(event)
             web_signals, source_urls, web_usage = _call_xai_event_web_enrichment(payload)
             stats["web_called"] = True
+            web_returned = web_signals
+            web_usage_captured = web_usage or {}
             _accumulate_usage(stats["usage"], web_usage)
             if _fill_event_blanks(event, web_signals):
                 stats["changed"] = True
@@ -525,6 +571,26 @@ def _enrich_one_event(event_id):
     event.last_enriched_at = datetime.utcnow()
     event.ai_event_error = error_message[:500] if error_message else None
     stats["error"] = error_message
+
+    fields_after = _audit_snapshot(event)
+    duration_ms = int((time.perf_counter() - started_perf) * 1000)
+
+    audit = EnrichmentAuditLog(
+        event_id=event_id,
+        started_at=audit_started_at,
+        duration_ms=duration_ms,
+        article_called=stats["article_called"],
+        web_called=stats["web_called"],
+        fields_before=fields_before,
+        fields_after=fields_after,
+        article_returned=article_returned,
+        web_returned=web_returned,
+        fields_filled=_diff_filled_fields(fields_before, fields_after),
+        article_usage=article_usage_captured or None,
+        web_usage=web_usage_captured or None,
+        error=(error_message[:500] if error_message else None),
+    )
+    db.session.add(audit)
 
     db.session.commit()
     return stats

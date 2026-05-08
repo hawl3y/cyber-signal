@@ -3,3 +3,4 @@ from .article_extraction import ArticleExtraction
 from .cyber_event import CyberEvent
 from .event_source_link import EventSourceLink
 from .automation_run import AutomationRun
+from .enrichment_audit_log import EnrichmentAuditLog
