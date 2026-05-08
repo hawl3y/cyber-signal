@@ -98,58 +98,122 @@ function scoreBandFor(score) {
     return "low";
 }
 
-function populateSelectWithCounts(selectId, countsMap) {
+const FACET_KEYS = ["industry", "region", "attack_type"];
+const FACET_SELECT_IDS = {
+    industry: "filter-industry",
+    region: "filter-region",
+    attack_type: "filter-attack-type",
+};
+const FACET_CHIP_LABELS = {
+    industry: "Industry",
+    region: "Region",
+    attack_type: "Attack",
+};
+
+let cachedTimeRangeEvents = [];
+let cachedTimeRange = null;
+
+function eventMatchesFilters(event, filters, exceptFacet) {
+    return FACET_KEYS.every(facet => {
+        if (facet === exceptFacet) return true;
+        const selected = filters[facet];
+        if (!selected) return true;
+        return event[facet] === selected;
+    });
+}
+
+function buildCountsForFacet(events, facet, filters) {
+    const counts = new Map();
+    events.forEach(event => {
+        if (!eventMatchesFilters(event, filters, facet)) return;
+        const value = event[facet];
+        if (value) counts.set(value, (counts.get(value) || 0) + 1);
+    });
+    return counts;
+}
+
+function populateSelectWithCounts(selectId, countsMap, currentValue) {
     const select = document.getElementById(selectId);
     if (!select) return;
 
-    const currentValue = select.value || "";
     select.innerHTML = '<option value="">All</option>';
 
-    const sorted = [...countsMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-    sorted.forEach(([value, count]) => {
-        const option = document.createElement("option");
-        option.value = value;
-        option.textContent = `${value} (${count})`;
-        select.appendChild(option);
-    });
-
-    if (currentValue && ![...select.options].some(o => o.value === currentValue)) {
+    if (currentValue && !countsMap.has(currentValue)) {
         const stale = document.createElement("option");
         stale.value = currentValue;
         stale.textContent = `${currentValue} (0)`;
         select.appendChild(stale);
     }
 
-    if ([...select.options].some(option => option.value === currentValue)) {
-        select.value = currentValue;
-    }
-}
-
-function buildCountsForFacet(events, key) {
-    const counts = new Map();
-    events.forEach(event => {
-        const value = event[key];
-        if (value) {
-            counts.set(value, (counts.get(value) || 0) + 1);
+    const sorted = [...countsMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    sorted.forEach(([value, count]) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = `${value} (${count})`;
+        if (count === 0 && value !== currentValue) {
+            option.disabled = true;
         }
+        select.appendChild(option);
     });
-    return counts;
+
+    select.value = currentValue || "";
 }
 
-async function loadFilterOptions(timeRange) {
-    try {
-        const params = new URLSearchParams();
-        if (timeRange) params.append("time_range", timeRange);
-        params.append("limit", "500");
-        const response = await fetch(`/api/events/?${params}`);
-        const events = await response.json();
+function recomputeFacetCounts(filters) {
+    FACET_KEYS.forEach(facet => {
+        const counts = buildCountsForFacet(cachedTimeRangeEvents, facet, filters);
+        populateSelectWithCounts(FACET_SELECT_IDS[facet], counts, filters[facet] || "");
+    });
+}
 
-        populateSelectWithCounts("filter-industry", buildCountsForFacet(events, "industry"));
-        populateSelectWithCounts("filter-region", buildCountsForFacet(events, "region"));
-        populateSelectWithCounts("filter-attack-type", buildCountsForFacet(events, "attack_type"));
+async function loadFilterOptions(filters) {
+    try {
+        if (filters.time_range !== cachedTimeRange) {
+            const params = new URLSearchParams();
+            if (filters.time_range) params.append("time_range", filters.time_range);
+            params.append("limit", "500");
+            const response = await fetch(`/api/events/?${params}`);
+            cachedTimeRangeEvents = await response.json();
+            cachedTimeRange = filters.time_range;
+        }
+        recomputeFacetCounts(filters);
     } catch (err) {
         console.error("Failed to load filter options:", err);
     }
+}
+
+function renderFilterChips(filters) {
+    const container = document.getElementById("filter-chips");
+    if (!container) return;
+
+    container.innerHTML = "";
+    const active = FACET_KEYS.filter(key => filters[key]);
+
+    if (!active.length) {
+        container.classList.remove("has-chips");
+        return;
+    }
+
+    active.forEach(key => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "filter-chip";
+        chip.setAttribute("aria-label", `Clear ${FACET_CHIP_LABELS[key]} filter`);
+        chip.innerHTML = `
+            <span class="filter-chip-label">${FACET_CHIP_LABELS[key]}: ${filters[key]}</span>
+            <span class="filter-chip-x" aria-hidden="true">×</span>
+        `;
+        chip.addEventListener("click", () => clearOneFilter(key));
+        container.appendChild(chip);
+    });
+
+    container.classList.add("has-chips");
+}
+
+async function clearOneFilter(key) {
+    const select = document.getElementById(FACET_SELECT_IDS[key]);
+    if (select) select.value = "";
+    await handleFilterChange();
 }
 
 async function loadSummary() {
@@ -311,8 +375,6 @@ function setLoading(isLoading) {
     });
 }
 
-let lastTimeRange = null;
-
 async function refreshDashboard() {
     await loadSummary();
     await loadEvents();
@@ -325,11 +387,9 @@ async function handleFilterChange() {
     try {
         const filters = getCurrentFilters();
         saveFilters(filters);
-        if (filters.time_range !== lastTimeRange) {
-            await loadFilterOptions(filters.time_range);
-            applyFiltersToControls(filters);
-            lastTimeRange = filters.time_range;
-        }
+        await loadFilterOptions(filters);
+        applyFiltersToControls(filters);
+        renderFilterChips(filters);
         await refreshDashboard();
     } finally {
         setLoading(false);
@@ -342,9 +402,9 @@ async function resetFilters() {
     try {
         const defaults = getDefaultFilters();
         saveFilters(defaults);
-        await loadFilterOptions(defaults.time_range);
+        await loadFilterOptions(defaults);
         applyFiltersToControls(defaults);
-        lastTimeRange = defaults.time_range;
+        renderFilterChips(defaults);
         await refreshDashboard();
     } finally {
         setLoading(false);
@@ -442,9 +502,9 @@ setLoading(true);
 (async () => {
     try {
         const initialFilters = getSavedFilters();
-        await loadFilterOptions(initialFilters.time_range);
+        await loadFilterOptions(initialFilters);
         applyFiltersToControls(initialFilters);
-        lastTimeRange = initialFilters.time_range;
+        renderFilterChips(initialFilters);
         await refreshDashboard();
         await loadFooterStatus();
     } finally {
