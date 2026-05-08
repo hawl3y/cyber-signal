@@ -1,26 +1,43 @@
+import time
+
 from app.jobs.ingest_job import scheduled_ingest_job
 from app.jobs.process_articles_job import process_articles_job
 from app.jobs.extract_signals_job import extract_signals_job
 from app.jobs.cluster_events_job import cluster_events_job
+from app.jobs.enrich_events_job import enrich_events_job
 
 
-def run_full_pipeline(force_extract=False):
+def _run_stage(name, fn, results):
+    started = time.monotonic()
+    try:
+        results[name] = fn()
+    finally:
+        results[f"{name}_seconds"] = round(time.monotonic() - started, 2)
+
+
+def run_full_pipeline(force_extract=False, force_enrich=False, enrich_max_workers=5):
     """
     Run the MVP live pipeline in the correct order.
 
-    This intentionally stops after clustering so events reflect the
-    simplified live incident model rather than the prior enrichment/scoring flow.
+    Stages: ingest -> process -> extract -> cluster -> enrich.
+    Per-stage wall-clock is recorded under <stage>_seconds for log surfacing.
     """
     results = {
         "ingest": False,
         "process": False,
         "extract": False,
         "cluster": False,
+        "enrich": None,
     }
 
-    results["ingest"] = scheduled_ingest_job()
-    results["process"] = process_articles_job()
-    results["extract"] = extract_signals_job(force=force_extract)
-    results["cluster"] = cluster_events_job()
+    _run_stage("ingest", scheduled_ingest_job, results)
+    _run_stage("process", process_articles_job, results)
+    _run_stage("extract", lambda: extract_signals_job(force=force_extract), results)
+    _run_stage("cluster", cluster_events_job, results)
+    _run_stage(
+        "enrich",
+        lambda: enrich_events_job(force=force_enrich, max_workers=enrich_max_workers),
+        results,
+    )
 
     return results

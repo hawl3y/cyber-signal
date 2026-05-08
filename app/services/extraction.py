@@ -4,7 +4,6 @@ from app.extensions import db
 from app.models import RawArticle, ArticleExtraction
 from app.utils.sources import get_source_config
 from app.services.taxonomy import normalize_attack_type, normalize_event_anchor_type
-from app.services.ai_enrichment import enrich_with_ai_if_needed
 
 
 def _combined_article_text(article):
@@ -910,8 +909,6 @@ def run_rule_extraction(article):
         "short_event_summary": short_event_summary,
         "extraction_confidence": None,
     }
-
-    signals = enrich_with_ai_if_needed(article, signals)
 
     signals["victim_org_normalized"] = _normalize_org_name(
         signals.get("victim_org_name")
