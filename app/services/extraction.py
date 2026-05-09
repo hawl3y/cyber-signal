@@ -1077,7 +1077,8 @@ def run_rule_extraction(article):
         actor_name=signals.get("actor_name"),
     )
 
-    signals["victim_display_label"] = anchor_name
+    # CVE IDs are clustering anchors, not display entities — leave the label blank
+    signals["victim_display_label"] = None if anchor_type == "vulnerability" else anchor_name
     signals["victim_entity_type"] = normalize_event_anchor_type(anchor_type)
 
     is_cisa_advisory = article.source_name == "cisa-alerts-advisories"

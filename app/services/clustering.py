@@ -100,6 +100,20 @@ def _is_primary_source_article(article):
         "the provider said",
         "confirmed in a statement",
         "announced that hackers breached its systems",
+        # Victim-confirmation language — covers headlines like "Trellix discloses data breach"
+        # and summaries like "Mediaworks confirmed the incident on Friday"
+        "confirmed the incident",
+        "confirmed the breach",
+        "confirmed the attack",
+        "confirmed the cyberattack",
+        "confirmed a breach",
+        "confirmed a data breach",
+        "disclosed a breach",
+        "disclosed a data breach",
+        "discloses data breach",
+        "discloses a breach",
+        "acknowledged the breach",
+        "acknowledged the incident",
     ]
 
     return any(signal in text for signal in primary_signals)
