@@ -333,6 +333,8 @@ def attach_to_event(article, event):
             is_primary_source=_is_primary_source_article(article),
         )
         db.session.add(link)
+    else:
+        existing_link.is_primary_source = _is_primary_source_article(article)
 
     article.processing_status = "clustered"
     db.session.flush()
