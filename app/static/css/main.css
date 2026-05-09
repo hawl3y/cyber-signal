@@ -455,9 +455,16 @@ select option:disabled {
 
 .trends-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+        "rising actors"
+        "coverage coverage";
     gap: 16px;
 }
+
+.trend-block:nth-child(1) { grid-area: rising; }
+.trend-block:nth-child(2) { grid-area: actors; }
+.trend-block:nth-child(3) { grid-area: coverage; }
 
 .trend-block h3 {
     margin: 0 0 12px 0;
@@ -493,9 +500,7 @@ select option:disabled {
     font-size: 14px;
     font-weight: 600;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.35;
 }
 
 .trend-count {
@@ -576,6 +581,10 @@ select option:disabled {
 
     .trends-grid {
         grid-template-columns: 1fr;
+        grid-template-areas:
+            "rising"
+            "actors"
+            "coverage";
         gap: 14px;
     }
 }
