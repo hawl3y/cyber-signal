@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.models import CyberEvent, EventSourceLink
+from app.utils.sources import get_source_config
 
 
 def get_event_reference_time(event):
@@ -280,7 +281,12 @@ def build_trends(
             article = link.raw_article
             if not article:
                 continue
-            label = article.publisher or article.source_name
+            config = get_source_config(article.source_name) or {}
+            label = (
+                config.get("display_label")
+                or article.publisher
+                or article.source_name
+            )
             if label:
                 seen.add(label)
         for source in seen:

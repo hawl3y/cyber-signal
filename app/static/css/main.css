@@ -457,8 +457,8 @@ select option:disabled {
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
-        "rising actors"
-        "coverage coverage";
+        "rising coverage"
+        "actors coverage";
     gap: 16px;
 }
 

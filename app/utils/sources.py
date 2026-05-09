@@ -1,6 +1,7 @@
 SOURCE_REGISTRY = [
     {
         "name": "the-record-cybercrime",
+        "display_label": "The Record",
         "source_class": "incident_news",
         "signal_kind": "incident",
         "ingest_type": "rss",
@@ -10,6 +11,7 @@ SOURCE_REGISTRY = [
     },
     {
         "name": "bleepingcomputer",
+        "display_label": "BleepingComputer",
         "source_class": "incident_news",
         "signal_kind": "incident",
         "ingest_type": "rss",
@@ -19,6 +21,7 @@ SOURCE_REGISTRY = [
     },
     {
         "name": "krebsonsecurity",
+        "display_label": "Krebs on Security",
         "source_class": "incident_news",
         "signal_kind": "incident",
         "ingest_type": "rss",
@@ -29,6 +32,7 @@ SOURCE_REGISTRY = [
     },
     {
         "name": "cisa-alerts-advisories",
+        "display_label": "CISA Advisories",
         "source_class": "official_alert",
         "signal_kind": "activity",
         "ingest_type": "rss",
@@ -38,6 +42,7 @@ SOURCE_REGISTRY = [
     },
     {
         "name": "cisa-kev",
+        "display_label": "CISA KEV",
         "source_class": "exploited_vulnerability",
         "signal_kind": "activity",
         "ingest_type": "json",
@@ -47,6 +52,7 @@ SOURCE_REGISTRY = [
     },
     {
         "name": "sec-edgar-cyber-8k",
+        "display_label": "SEC EDGAR",
         "source_class": "primary_disclosure",
         "signal_kind": "incident",
         "ingest_type": "sec_edgar_cyber",
