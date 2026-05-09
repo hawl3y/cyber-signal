@@ -181,7 +181,7 @@ def _compute_confidence_score(event, source_count, has_primary_evidence):
     base = max(base, _max_source_class_score(event))
 
     if has_primary_evidence:
-        base = max(base, 60)
+        base = max(base, 75)
 
     if event.actor_name and event.event_signal_type == "incident":
         base += 5
