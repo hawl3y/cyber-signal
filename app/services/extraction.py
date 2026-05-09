@@ -410,6 +410,36 @@ def _clean_anchor_candidate(value):
     return cleaned
 
 
+def _extract_cisa_vendor(title):
+    """
+    Extract the vendor name from a CISA advisory title.
+    e.g. 'ABB Ability Symphony Plus Engineering' → 'ABB'
+         'Johnson Controls CEM AC2000'           → 'Johnson Controls'
+         'Hitachi Energy PCM600'                 → 'Hitachi Energy'
+    """
+    words = title.split()
+    if not words:
+        return title
+    first = words[0]
+    # All-caps first word (ABB, NSA, MAXHUB) is a company abbreviation.
+    if first.isupper() and len(first) >= 3:
+        return first
+    # Otherwise take up to 2 words, stopping before product codes
+    # (words with digits, all-caps acronyms ≥3 chars, or special chars like &).
+    vendor_words = [first]
+    if len(words) > 1:
+        w = words[1]
+        is_product_code = (
+            any(c.isdigit() for c in w)
+            or (w.isupper() and len(w) >= 3)
+            or "&" in w
+            or "/" in w
+        )
+        if not is_product_code:
+            vendor_words.append(w)
+    return " ".join(vendor_words)
+
+
 def _extract_event_anchor(article, victim_org_name=None, actor_name=None):
     if victim_org_name:
         return victim_org_name, "organization"
@@ -1050,6 +1080,7 @@ def run_rule_extraction(article):
     signals["victim_display_label"] = anchor_name
     signals["victim_entity_type"] = normalize_event_anchor_type(anchor_type)
 
+    is_cisa_advisory = article.source_name == "cisa-alerts-advisories"
     is_cisa_source = article.source_name in {"cisa-kev", "cisa-alerts-advisories"}
     article_title = (article.title or "").strip()
     clean_substring = (
@@ -1061,8 +1092,14 @@ def run_rule_extraction(article):
             and anchor_type == "product_or_platform"
             and anchor_name
             and (is_cisa_source or clean_substring)):
-        signals["victim_org_name"] = anchor_name
-        signals["victim_org_normalized"] = _normalize_org_name(anchor_name)
+        if is_cisa_advisory:
+            vendor = _extract_cisa_vendor(anchor_name)
+            signals["victim_org_name"] = vendor
+            signals["victim_org_normalized"] = _normalize_org_name(vendor)
+            signals["victim_display_label"] = vendor
+        else:
+            signals["victim_org_name"] = anchor_name
+            signals["victim_org_normalized"] = _normalize_org_name(anchor_name)
         if signals.get("industry") in (None, "Unknown"):
             signals["industry"] = "Technology"
 

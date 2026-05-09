@@ -60,7 +60,28 @@ def is_relevant_incident(article):
         if any(pattern in title_and_summary for pattern in advisory_noise_patterns):
             return False
 
-        return True
+        # Require concrete exploitation impact — pure disclosure advisories
+        # ("ABB became aware of vulnerability") are not activity signals.
+        cisa_impact_terms = [
+            "arbitrary code",
+            "remote code execution",
+            "authentication bypass",
+            "bypass authentication",
+            "privilege escalation",
+            "elevation of privilege",
+            "unauthorized access",
+            "denial of service",
+            "denial-of-service",
+            "cleartext",
+            "unauthenticated attacker",
+            "unauthenticated remote",
+            "actively exploited",
+            "exploited in the wild",
+            "exploitation detected",
+            "exploitation observed",
+            "known to be exploited",
+        ]
+        return any(term in text for term in cisa_impact_terms)
 
     legal_followup_patterns = [
         "sentenced to",
