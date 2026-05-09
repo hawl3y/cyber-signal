@@ -47,7 +47,7 @@ body {
 
 .app-logo {
     display: block;
-    height: 64px;
+    height: 72px;
     width: auto;
     color: var(--header-text);
 }
@@ -548,7 +548,7 @@ select option:disabled {
     }
 
     .app-logo {
-        height: 48px;
+        height: 56px;
     }
 
     .filter-row {
@@ -595,6 +595,17 @@ select option:disabled {
 
     .summary-card .value {
         font-size: 18px;
+    }
+
+    .summary-card.active {
+        background: var(--accent-soft);
+        box-shadow: none;
+        border-color: transparent;
+    }
+
+    .summary-card.active .label,
+    .summary-card.active .value {
+        color: var(--accent);
     }
 
     .panel-header-simple,
