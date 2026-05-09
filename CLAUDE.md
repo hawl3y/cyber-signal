@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-1. **Victimless infrastructure events** — incidents affecting shared infrastructure (hosting platforms, control panels) have no victim org, so industry classification fails and they fall through the pipeline. Need a deterministic classifier at the extraction or clustering stage — not a one-off patch.
+1. **Victimless CISA advisory events** — CISA advisory articles use the full article title as their event anchor (extraction fallback, line 449 of `extraction.py`), so specific product names (ABB PCM600, Johnson Controls CEM AC2000) never get promoted to `victim_org_name`. Non-CISA product vulnerability articles (BleepingComputer, The Record) are already handled by the fix in `extraction.py` (anchor promoted when ≤6 words, starts uppercase, not full title). Remaining gap: extract the vendor/product prefix from CISA advisory titles deterministically.
 
 ---
 

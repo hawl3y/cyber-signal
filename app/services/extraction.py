@@ -1050,6 +1050,17 @@ def run_rule_extraction(article):
     signals["victim_display_label"] = anchor_name
     signals["victim_entity_type"] = normalize_event_anchor_type(anchor_type)
 
+    if (not signals.get("victim_org_name")
+            and anchor_type == "product_or_platform"
+            and anchor_name
+            and anchor_name != (article.title or "").strip()
+            and len(anchor_name.split()) <= 6
+            and anchor_name[:1].isupper()):
+        signals["victim_org_name"] = anchor_name
+        signals["victim_org_normalized"] = _normalize_org_name(anchor_name)
+        if signals.get("industry") in (None, "Unknown"):
+            signals["industry"] = "Technology"
+
     return signals
 
 
