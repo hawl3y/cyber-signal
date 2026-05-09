@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-1. **Fix `_extract_event_anchor` for CISA advisory titles** — CISA advisory articles fall back to returning the full article title as the event anchor (`extraction.py` line 449), so product names like "ABB PCM600" or "Johnson Controls CEM AC2000" never get promoted to `victim_org_name`. Non-CISA product vulnerability articles are already handled. Fix: extract the vendor/product prefix from CISA advisory titles deterministically before the title fallback fires.
+No outstanding priority tasks.
 
 ---
 

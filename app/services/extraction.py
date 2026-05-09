@@ -1050,12 +1050,17 @@ def run_rule_extraction(article):
     signals["victim_display_label"] = anchor_name
     signals["victim_entity_type"] = normalize_event_anchor_type(anchor_type)
 
+    is_cisa_source = article.source_name in {"cisa-kev", "cisa-alerts-advisories"}
+    article_title = (article.title or "").strip()
+    clean_substring = (
+        anchor_name != article_title
+        and len(anchor_name.split()) <= 6
+        and anchor_name[:1].isupper()
+    )
     if (not signals.get("victim_org_name")
             and anchor_type == "product_or_platform"
             and anchor_name
-            and anchor_name != (article.title or "").strip()
-            and len(anchor_name.split()) <= 6
-            and anchor_name[:1].isupper()):
+            and (is_cisa_source or clean_substring)):
         signals["victim_org_name"] = anchor_name
         signals["victim_org_normalized"] = _normalize_org_name(anchor_name)
         if signals.get("industry") in (None, "Unknown"):

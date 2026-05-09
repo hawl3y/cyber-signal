@@ -36,7 +36,11 @@ def is_relevant_incident(article):
 
     if article.source_name == "cisa-alerts-advisories":
         advisory_noise_patterns = [
+            "cisa adds",
             "defending against",
+            "zero trust",
+            "agentic ai",
+            "careful adoption",
             "recommended practices",
             "appendix:",
             "mitre att&ck",
@@ -55,6 +59,8 @@ def is_relevant_incident(article):
 
         if any(pattern in title_and_summary for pattern in advisory_noise_patterns):
             return False
+
+        return True
 
     legal_followup_patterns = [
         "sentenced to",
