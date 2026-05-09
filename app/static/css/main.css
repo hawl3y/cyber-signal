@@ -32,16 +32,14 @@ body {
 .app-header {
     background: var(--header-bg);
     color: var(--header-text);
-    padding: 16px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    padding: 16px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .app-header-inner {
-    width: 100%;
     max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 24px;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -49,7 +47,7 @@ body {
 
 .app-logo {
     display: block;
-    height: 52px;
+    height: 64px;
     width: auto;
     color: var(--header-text);
 }
@@ -542,11 +540,15 @@ select option:disabled {
     }
 
     .app-header {
-        padding: 12px 16px;
+        padding: 12px 0;
+    }
+
+    .app-header-inner {
+        padding: 0 16px;
     }
 
     .app-logo {
-        height: 40px;
+        height: 48px;
     }
 
     .filter-row {
