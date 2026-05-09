@@ -295,8 +295,15 @@ select option:disabled {
 .event-card {
     border: 1px solid var(--border);
     border-radius: 14px;
-    padding: 16px;
+    padding: 14px 16px;
     background: var(--panel-soft);
+    cursor: pointer;
+    transition: border-color 120ms ease;
+    position: relative;
+}
+
+.event-card:hover {
+    border-color: var(--accent);
 }
 
 .event-card.score-high {
@@ -359,11 +366,167 @@ select option:disabled {
     line-height: 1.35;
 }
 
-.event-summary {
-    margin: 0 0 12px 0;
+.event-summary-preview {
+    margin: 4px 0 10px 0;
     color: var(--muted);
+    line-height: 1.45;
+    font-size: 14px;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.event-summary-preview:empty {
+    display: none;
+    margin: 0;
+}
+
+.event-card.expanded .event-summary-preview {
+    display: none;
+}
+
+.event-summary-full {
+    margin: 0 0 14px 0;
+    color: var(--text);
     line-height: 1.5;
     font-size: 14px;
+}
+
+.event-time-inline {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.event-card.expanded .event-time-inline {
+    display: none;
+}
+
+.event-detail {
+    display: none;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.event-card.expanded .event-detail {
+    display: block;
+}
+
+.event-detail-section {
+    margin-bottom: 14px;
+}
+
+.event-detail-section:last-child {
+    margin-bottom: 0;
+}
+
+.event-detail-section h4 {
+    margin: 0 0 6px 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.factor-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.factor-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.source-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.source-row {
+    display: grid;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: baseline;
+    padding: 8px 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.source-publisher {
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.source-badge {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.source-title a {
+    color: var(--text);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+}
+
+.source-title a:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.source-date {
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.cve-link {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.cve-link:hover {
+    background: var(--accent);
+    color: var(--header-text);
+}
+
+.event-detail-meta {
+    font-size: 12px;
+    color: var(--muted);
 }
 
 .event-meta {
@@ -440,17 +603,6 @@ select option:disabled {
     background: #fee4e2;
     color: #912018;
     border-color: #fda29b;
-}
-
-.event-subline {
-    font-size: 12px;
-    color: var(--muted);
-    line-height: 1.4;
-}
-
-.event-source-line {
-    font-size: 13px;
-    color: var(--muted);
 }
 
 .trends-grid {
@@ -670,11 +822,21 @@ select option:disabled {
     }
 
     .event-card {
-        padding: 14px;
+        padding: 12px 14px;
     }
 
     .event-card h3 {
         font-size: 16px;
+    }
+
+    .source-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+
+    .source-publisher,
+    .source-date {
+        white-space: normal;
     }
 
     .event-card-header {

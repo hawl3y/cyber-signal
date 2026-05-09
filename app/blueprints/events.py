@@ -55,6 +55,54 @@ _SOURCE_CLASS_FACTOR_LABELS = {
 }
 
 
+def _event_sources(event):
+    """
+    One entry per linked article, ordered by source weight desc then by
+    publication recency desc — so the most authoritative outlet leads.
+    """
+    rows = []
+    for link in event.event_sources:
+        article = link.raw_article
+        if not article:
+            continue
+        config = get_source_config(article.source_name) or {}
+        display_label = (
+            config.get("display_label")
+            or article.publisher
+            or article.source_name
+        )
+        rows.append({
+            "source_name": article.source_name,
+            "publisher": display_label,
+            "title": article.title,
+            "url": article.article_url,
+            "published_at": article.published_at,
+            "is_primary_source": bool(link.is_primary_source),
+            "_weight": _source_weight_for_payload(article.source_name),
+            "_ts": article.published_at.timestamp() if article.published_at else 0,
+        })
+    rows.sort(key=lambda r: (-r["_weight"], -r["_ts"]))
+    for row in rows:
+        row.pop("_weight", None)
+        row.pop("_ts", None)
+    return rows
+
+
+def _source_weight_for_payload(source_name):
+    """Mirror clustering._source_weight without importing the full module."""
+    config = get_source_config(source_name) or {}
+    source_class = config.get("source_class")
+    if source_class == "primary_disclosure":
+        return 100
+    if source_class in {"official_alert", "exploited_vulnerability"}:
+        return 80
+    if config.get("tier_trusted_alone"):
+        return 80
+    if source_class == "incident_news":
+        return 50
+    return 30
+
+
 def _score_factors(event):
     """
     Human-readable inputs that produced the event's confidence_score.
@@ -182,6 +230,8 @@ def list_events():
                 for link in event.event_sources
                 if link.raw_article and (link.raw_article.publisher or link.raw_article.source_name)
             }),
+            "sources": _event_sources(event),
+            "primary_cve_id": event.primary_cve_id,
         }
         for event in events
     ]

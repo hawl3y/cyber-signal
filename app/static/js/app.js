@@ -363,6 +363,146 @@ function buildEventMeta(event) {
     };
 }
 
+function escapeHtml(value) {
+    if (value === null || value === undefined) return "";
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function formatSourceDate(value) {
+    if (!value) return "";
+    const d = new Date(value);
+    if (!Number.isFinite(d.getTime())) return "";
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function renderScoreFactors(factors) {
+    if (!factors || !factors.length) return "";
+    const chips = factors
+        .map(f => `<span class="factor-chip">${escapeHtml(f)}</span>`)
+        .join("");
+    return `
+        <div class="event-detail-section">
+            <h4>Score factors</h4>
+            <div class="factor-row">${chips}</div>
+        </div>
+    `;
+}
+
+function renderSourceList(sources) {
+    if (!sources || !sources.length) return "";
+    const items = sources.map(s => {
+        const url = s.url ? escapeHtml(s.url) : "";
+        const publisher = escapeHtml(s.publisher || s.source_name || "");
+        const title = escapeHtml(s.title || "(untitled)");
+        const date = formatSourceDate(s.published_at);
+        const primaryBadge = s.is_primary_source
+            ? '<span class="source-badge">primary</span>'
+            : "";
+        const link = url
+            ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${title}</a>`
+            : title;
+        return `
+            <li class="source-row">
+                <span class="source-publisher">${publisher}</span>${primaryBadge}
+                <span class="source-title">${link}</span>
+                ${date ? `<span class="source-date">${date}</span>` : ""}
+            </li>
+        `;
+    }).join("");
+    return `
+        <div class="event-detail-section">
+            <h4>Sources</h4>
+            <ul class="source-list">${items}</ul>
+        </div>
+    `;
+}
+
+function renderCveLink(cveId) {
+    if (!cveId) return "";
+    const safe = escapeHtml(cveId);
+    const url = `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(cveId)}`;
+    return `
+        <div class="event-detail-section">
+            <h4>Related</h4>
+            <a class="cve-link" href="${url}" target="_blank" rel="noopener noreferrer">${safe}</a>
+        </div>
+    `;
+}
+
+function renderDetailMeta(event) {
+    const meta = buildEventMeta(event);
+    const text = meta.secondary.join(" · ");
+    if (!text) return "";
+    return `<div class="event-detail-meta">${escapeHtml(text)}</div>`;
+}
+
+function renderEventCard(event) {
+    const el = document.createElement("article");
+    const scoreBand = scoreBandFor(event.confidence_score);
+    el.className = `event-card score-${scoreBand || "low"}`;
+
+    const highTrust = typeof event.confidence_score === "number" && event.confidence_score >= 80;
+    if (event.actor_name || highTrust) {
+        el.classList.add("high-signal");
+    }
+
+    const meta = buildEventMeta(event);
+
+    const primaryPills = meta.primary
+        .map(item => `<span class="meta-pill ${item.className || ""}">${formatMetaLabel(item.value)}</span>`)
+        .join("");
+
+    const signalTypePill = `
+        <span class="signal-pill signal-${event.event_signal_type || "incident"}">
+            ${formatSignalTypeLabel(event.event_signal_type)}
+        </span>
+    `;
+
+    const tooltip = buildScoreTooltip(event.confidence_score, event.score_factors);
+    const scorePill = scoreBand
+        ? `<span class="score-pill score-${scoreBand}" title="${escapeHtml(tooltip)}">${SHIELD_SVG}${event.confidence_score}</span>`
+        : "";
+
+    const metaRow = primaryPills ? `<div class="event-meta">${primaryPills}</div>` : "";
+    const time = event.time ? `<span class="event-time-inline">${escapeHtml(event.time)}</span>` : "";
+
+    const detail = `
+        <div class="event-detail">
+            <p class="event-summary-full">${escapeHtml(event.summary || "No summary available.")}</p>
+            ${renderScoreFactors(event.score_factors)}
+            ${renderSourceList(event.sources)}
+            ${renderCveLink(event.primary_cve_id)}
+            ${renderDetailMeta(event)}
+        </div>
+    `;
+
+    el.innerHTML = `
+        <div class="event-card-header">
+            <h3>${escapeHtml(event.title || "Untitled Event")}</h3>
+            <div class="event-card-header-pills">
+                ${scorePill}
+                ${signalTypePill}
+            </div>
+        </div>
+        <p class="event-summary-preview">${escapeHtml(event.summary || "")}</p>
+        ${metaRow}
+        ${time}
+        ${detail}
+    `;
+
+    el.addEventListener("click", (ev) => {
+        if (ev.target.closest("a")) return;
+        el.classList.toggle("expanded");
+    });
+
+    return el;
+}
+
 let activeCardFilter = null;
 
 function applyCardFilter(events) {
@@ -418,49 +558,7 @@ async function loadEvents() {
         }
 
         events.forEach(event => {
-            const el = document.createElement("article");
-            const scoreBand = scoreBandFor(event.confidence_score);
-            el.className = `event-card score-${scoreBand || "low"}`;
-
-            const highTrust = typeof event.confidence_score === "number" && event.confidence_score >= 80;
-            if (event.actor_name || highTrust) {
-                el.classList.add("high-signal");
-            }
-
-            const meta = buildEventMeta(event);
-
-            const primaryPills = meta.primary
-                .map(item => `<span class="meta-pill ${item.className || ""}">${formatMetaLabel(item.value)}</span>`)
-                .join("");
-
-            const signalTypePill = `
-                <span class="signal-pill signal-${event.event_signal_type || "incident"}">
-                    ${formatSignalTypeLabel(event.event_signal_type)}
-                </span>
-            `;
-
-            const tooltip = buildScoreTooltip(event.confidence_score, event.score_factors);
-            const scorePill = scoreBand
-                ? `<span class="score-pill score-${scoreBand}" title="${tooltip}">${SHIELD_SVG}${event.confidence_score}</span>`
-                : "";
-
-            const secondaryLine = meta.secondary.join(" • ");
-            const metaRow = primaryPills ? `<div class="event-meta">${primaryPills}</div>` : "";
-            const sublineRow = secondaryLine ? `<div class="event-subline">${secondaryLine}</div>` : "";
-
-            el.innerHTML = `
-                <div class="event-card-header">
-                    <h3>${event.title || "Untitled Event"}</h3>
-                    <div class="event-card-header-pills">
-                        ${scorePill}
-                        ${signalTypePill}
-                    </div>
-                </div>
-                <p class="event-summary">${event.summary || "No summary available."}</p>
-                ${metaRow}
-                ${sublineRow}
-            `;
-
+            const el = renderEventCard(event);
             container.appendChild(el);
         });
     } catch (err) {
