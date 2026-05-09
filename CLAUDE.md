@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Priority Tasks
+
+1. **Victimless infrastructure events** — incidents affecting shared infrastructure (hosting platforms, control panels) have no victim org, so industry classification fails and they fall through the pipeline. Need a deterministic classifier at the extraction or clustering stage — not a one-off patch.
+
+---
+
 ## Product Purpose
 
 Cyber Signal answers "What matters right now?" in under 10 seconds. It turns fragmented cyber reporting into structured, scannable events for rapid situational awareness. **The unit of value is the event, not the article.**
@@ -50,6 +56,8 @@ Two deployment modes share the same code:
 
 Avoid: guessing, over-engineering, one-off fixes.
 
+---
+
 ## Overview
 
 **Cyber Signal** is a single-page cyber event intelligence application that ingests cyber security news and alerts, extracts structured signals, clusters related activity into unified events, and presents a filterable feed. The MVP focuses on live incident data with no historical dataset.
@@ -62,41 +70,45 @@ Avoid: guessing, over-engineering, one-off fixes.
 - **Server**: Gunicorn
 - **Frontend**: Vanilla JavaScript (client-side filtering, localStorage)
 - **Data Processing**: feedparser, requests for ingestion
-- **AI Enrichment** (optional): Grok API via xAI
+- **AI Enrichment**: Removed. Actor attribution is now fully deterministic via `actor_recognition.py`.
 
 ## Architecture
 
 ### High-Level Data Flow
 
-The application implements a live pipeline with four sequential stages:
+The application implements a live pipeline with six sequential stages:
 
 ```
-Ingest → Process → Extract → Cluster → Event Feed
+Ingest → Process → Extract → Cluster → Attribute → Audit
 ```
 
-1. **Ingest**: Fetches from RSS feeds and JSON APIs (CISA KEV, curated news sources)
+1. **Ingest**: Fetches from RSS feeds and JSON/EDGAR APIs
 2. **Process**: Filters for concrete incidents vs. advisory noise
-3. **Extract**: Structures incident signals (victim org, attack type, actor, CVE, geography)
-4. **Cluster**: Groups related extractions into unified CyberEvent objects
-5. **Event Feed**: Queries and sorts events for frontend consumption
+3. **Extract**: Structures incident signals (victim org, attack type, CVE, geography)
+4. **Cluster**: Groups related extractions into unified CyberEvent objects; computes confidence score
+5. **Attribute**: Deterministic threat-actor matching against curated knowledge base (`app/data/threat_actors.py`)
+6. **Audit**: Scans recent articles for unrecognized actor candidates; persists to `ActorCandidateSighting` for curator review
 
 ### Core Models
 
 - **RawArticle**: Raw ingested content with metadata (source, title, summary, content)
 - **ArticleExtraction**: Structured signals extracted from a single article (victim, attack_type, actor, confidence)
 - **CyberEvent**: Unified event representing one incident, aggregated from multiple extractions
-- **EventSourceLink**: Junction table linking CyberEvent to source RawArticles with match scores
+- **EventSourceLink**: Junction table linking CyberEvent to source RawArticles with match scores and primary-source flag
 - **AutomationRun**: Tracks scheduler execution history
+- **ActorCandidateSighting**: Unrecognized actor candidates flagged by the audit stage for curator review
+- **EnrichmentAuditLog**: Per-event enrichment call audit (inputs, outputs, tokens, duration)
 - **SourceReputation**: Source credibility scoring (not active in MVP)
 
 ### Service Layers
 
-- **ingestion.py**: Feeds & fetching; handles RSS and JSON sources
+- **ingestion.py**: Feeds & fetching; handles RSS, JSON, and SEC EDGAR sources
 - **processing.py**: Filters articles for relevance (incident vs. noise)
-- **extraction.py**: Pattern-based signal extraction using regex and heuristics; optional AI enrichment
-- **clustering.py**: Matches extractions to existing events or creates new ones
+- **extraction.py**: Pattern-based signal extraction using regex and heuristics
+- **clustering.py**: Matches extractions to existing events or creates new ones; computes deterministic `confidence_score`
+- **actor_recognition.py**: Deterministic threat-actor attribution via curated `THREAT_ACTORS` knowledge base
+- **actor_candidate_audit.py**: Shared logic for finding unrecognized actor candidates near attribution language
 - **summary.py**: Filters and formats events for API responses
-- **ai_enrichment.py**: Optional structured enrichment via Grok API (victim, attack, actor, attribution)
 - **taxonomy.py**: Normalization maps for attack types, entity anchors, industries, actors
 
 ### API Endpoints
@@ -116,36 +128,38 @@ All endpoints live in `/api` and are stateless query/trigger routes:
 ### Frontend
 
 Single-page app loaded at `/`:
-- Filter controls (time_range, industry, region, attack_type)
-- Event list sorted by: signal_type (incidents prioritized), actor presence, high-impact flag, verification, source count, recency
+- Filter controls (time_range, signal_type, industry, attack_type)
+- Event list sorted by priority tuple (see Event Prioritization below)
+- Event cards: expandable detail panel on click; primary-source badge nested in publisher cell
 - LocalStorage persists filter state
-- Event cards display victim, context, location, attribution, attack type
 
 ### Database Schema
 
-Key fields on CyberEvent (inherited from ArticleExtraction extraction pipeline):
-- Victim: `victim_org_name`, `victim_org_normalized`, `victim_entity_type`, `industry`, `region`, `country`, `city`
-- Attack: `attack_type`, `access_vector`, `impact_type`, `vuln_status`, `primary_cve_id`, `zero_day_flag`
+Key fields on CyberEvent:
+- Victim: `victim_org_name`, `victim_org_normalized`, `victim_display_label`, `victim_entity_type`, `industry`, `region`, `country`, `city`, `latitude`, `longitude`
+- Attack: `attack_type`, `access_vector`, `impact_type`, `vuln_status`, `primary_cve_id`, `zero_day_flag`, `is_high_impact`
 - Actor: `actor_name`, `actor_type`, `attribution_status`
-- Signal: `event_signal_type` (incident|activity), `event_status` (emerging|confirmed), `confidence_level`
-- Tracking: `first_seen_at`, `last_seen_at`, `event_occurred_at`, `created_at`, `updated_at`
+- Signal: `event_signal_type` (incident|activity), `event_status` (emerging|confirmed), `confidence_level`, `confidence_score` (0–100 float)
+- Tracking: `first_seen_at`, `last_seen_at`, `event_occurred_at`, `created_at`, `updated_at`, `last_confidence_scored_at`
 - Aggregation: `source_count`, `high_credibility_source_count`, `event_cluster_key`
+- Content: `summary_short`, `summary_medium`, `tags`
+
+---
 
 ## Development
 
 ### Environment Setup
 
-```bash
-source .venv/bin/activate
-```
+The `.venv` virtualenv is always pre-activated before Claude Code is launched. 
+Never prefix commands with `source .venv/bin/activate &&` — it is redundant and 
+triggers unnecessary permission prompts. Use `python3` directly.
 
 Requires `.env` with:
 ```
 SECRET_KEY=<random-string>
 DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<dbname>
-AI_ENRICHMENT_ENABLED=true|false (optional)
-XAI_API_KEY=<grok-api-key> (optional)
-SEC_USER_AGENT="Cyber Signal contact@yourdomain" (optional, identifies you to SEC EDGAR per their fair-use policy)
+AI_ENRICHMENT_ENABLED=true|false (optional, vestigial — actor attribution is now deterministic)
+SEC_USER_AGENT="Cyber Signal contact@yourdomain" (required for SEC EDGAR ingestion, per their fair-use policy)
 ```
 
 ### Running the App
@@ -163,11 +177,6 @@ python run.py
 **Run the pipeline once** (as the Render cron job does):
 ```bash
 python scripts/run_pipeline_once.py
-```
-
-**Local dev with in-process scheduler** (APScheduler code still exists but is not used in production):
-```bash
-RUN_SCHEDULER=true AUTOMATION_ENABLED=true AUTOMATION_INTERVAL_MINUTES=60 python run.py
 ```
 
 ### Database Migrations
@@ -206,6 +215,8 @@ with app.app_context():
 PY
 ```
 
+---
+
 ## Key Design Patterns & Conventions
 
 ### Extraction Heuristics
@@ -221,8 +232,6 @@ PY
 - Geography and CVE references
 - Actor confidence (claimed vs. suspected)
 
-AI enrichment is optional and uses allowlists (ALLOWED_INDUSTRIES, ALLOWED_ATTACK_TYPES, ALLOWED_ACTOR_TYPES, ALLOWED_ATTRIBUTION_STATUS) to reject invalid values.
-
 ### Clustering Logic
 
 **clustering.py** matches ArticleExtraction records to CyberEvent by:
@@ -233,32 +242,52 @@ AI enrichment is optional and uses allowlists (ALLOWED_INDUSTRIES, ALLOWED_ATTAC
 
 Primary source detection identifies direct victim statements (keywords like "the company said", "in a filing").
 
+After clustering, `_compute_confidence_score()` derives a deterministic 0–100 float from source count, source class (primary disclosure, trusted-alone, official), and actor presence.
+
+### Threat-Actor Attribution
+
+**actor_recognition.py** runs after clustering. For each incident event with a victim and no (or generic) actor, it scans the combined text of all linked articles for any name or alias in the curated `THREAT_ACTORS` knowledge base (`app/data/threat_actors.py`). Attribution status is inferred from surrounding context patterns (claimed, suspected, etc.).
+
+Rules:
+- `signal_type=activity` events are never attributed
+- `victim_org_name` must be set (no victim → no actor)
+- Already-attributed events are skipped unless the existing name is generic
+
+### Actor Candidate Audit
+
+**actor_candidate_audit.py** (shared logic) + **actor_candidate_audit_job.py** (pipeline stage):
+- Runs after attribution; scans the last 14 days of articles for capitalized phrases near attribution language that did not match any known actor
+- Persists unique sightings to `ActorCandidateSighting` for curator review
+- `scripts/audit_unrecognized_actors.py` renders a human-friendly report from the persisted sightings
+
 ### Source Registry
 
 **sources.py** defines active ingestion sources:
 - **The Record** (incident news via RSS, tier: core)
 - **BleepingComputer** (incident news via RSS, tier: core)
-- **Krebs on Security** (curated incident news, tier: curated)
+- **Krebs on Security** (curated incident news, tier: curated, `tier_trusted_alone`)
 - **CISA Advisories** (official alerts via RSS, tier: curated)
 - **CISA KEV** (exploited vulnerability index via JSON, tier: curated)
+- **SEC EDGAR** (material cybersecurity 8-K filings via EDGAR full-text search, tier: official, `tier_trusted_alone`)
 
-Each source has metadata (ingest_type, signal_kind, source_class) that affects filtering and prioritization.
+`tier_trusted_alone=True` means a single article from that source is enough to confirm an event (affects confidence scoring).
 
 ### Event Prioritization
 
 Frontend sorts events by tuple (do not reorder without product review):
 1. Signal type (incidents before activity)
-2. Actor presence (attributed before unattributed)
-3. High-impact flag
-4. Event status (confirmed before emerging)
-5. Source count (descending)
-6. Recency (most recent first)
+2. Confidence score descending (higher trust first)
+3. High-impact flag (high-impact first within trust band)
+4. Source count descending
+5. Recency (most recent first)
+
+---
 
 ## Common Tasks
 
 ### Add a New Ingestion Source
 
-1. Edit `app/utils/sources.py`: add dict to SOURCE_REGISTRY with name, ingest_type, url, tier
+1. Edit `app/utils/sources.py`: add dict to `SOURCE_REGISTRY` with name, ingest_type, url, tier
 2. If JSON: implement handler in `services/ingestion.py:fetch_source_items()`
 3. If RSS: feedparser handles it automatically
 4. Test via `POST /api/ingest/` endpoint or pipeline run
@@ -268,18 +297,23 @@ Frontend sorts events by tuple (do not reorder without product review):
 Edit `app/services/extraction.py` or `app/services/processing.py`:
 - Add regex patterns to `_combined_article_text()` matching
 - Adjust confidence scoring in `ArticleExtraction` creation
-- Toggle AI enrichment via `AI_ENRICHMENT_ENABLED` env var
 
 ### Adjust Event Clustering
 
 Edit `app/services/clustering.py`:
 - Change matching weights or thresholds in `_match_extraction_to_event()`
 - Add/remove clustering strategies (victim+attack, geography, actor, etc.)
-- Modify `event_cluster_key` generation
+- Modify `event_cluster_key` generation or `_compute_confidence_score()`
+
+### Add a Threat Actor
+
+Edit `app/data/threat_actors.py`:
+- Append a new entry with `aliases` and `actor_type`
+- Use the most commonly used canonical name; put alternate names in aliases
+- Aliases are matched case-insensitively with word boundaries
 
 ### Query Events Programmatically
 
-Use the summary service in Python:
 ```python
 from app.services.summary import get_filtered_events
 
@@ -291,6 +325,8 @@ events = get_filtered_events(
 )
 ```
 
+---
+
 ## Deployment Notes
 
 - **Scheduling**: Render cron service runs `python scripts/run_pipeline_once.py` on a fixed schedule — the web service process never runs the pipeline
@@ -298,11 +334,18 @@ events = get_filtered_events(
 - **Single-Instance**: MVP designed for single-instance deployment; clustering logic assumes no race conditions
 - **Environment**: All secrets and URLs via `.env`; no hardcoded credentials
 
+---
+
 ## Testing & Debugging
 
 **Check automation status**:
 ```bash
 curl http://localhost:5001/api/automation/status
+```
+
+**View actor candidate audit report**:
+```bash
+python scripts/audit_unrecognized_actors.py
 ```
 
 **Inspect raw articles**:
@@ -337,4 +380,3 @@ PY
 ```bash
 curl "http://localhost:5001/api/events?limit=10&offset=0" | jq .
 ```
-

@@ -554,9 +554,6 @@ select option:disabled {
     font-weight: 500;
 }
 
-.meta-pill.actor-pill {
-    font-weight: 700;
-}
 
 .event-card-header-pills {
     display: inline-flex;

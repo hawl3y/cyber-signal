@@ -19,6 +19,7 @@ def get_filtered_events(
     region=None,
     attack_type=None,
     time_range=None,
+    signal_type=None,
 ):
     """
     Return live events filtered by the MVP's minimal structured fields.
@@ -35,6 +36,9 @@ def get_filtered_events(
 
     if attack_type:
         query = query.filter(CyberEvent.attack_type.ilike(attack_type))
+
+    if signal_type:
+        query = query.filter(CyberEvent.event_signal_type == signal_type)
 
     events = query.all()
 
@@ -157,12 +161,14 @@ def build_summary(
     region=None,
     attack_type=None,
     time_range=None,
+    signal_type=None,
 ):
     events = get_filtered_events(
         industry=industry,
         region=region,
         attack_type=attack_type,
         time_range=time_range,
+        signal_type=signal_type,
     )
 
     total_events = len(events)
@@ -205,6 +211,7 @@ def build_trends(
     region=None,
     attack_type=None,
     time_range=None,
+    signal_type=None,
 ):
     """
     Trend snapshot for the triage view. Three direction-driven blocks instead
@@ -218,10 +225,11 @@ def build_trends(
     cutoff_14d = now - timedelta(days=14)
 
     # Use a window-agnostic event set for the rolling-window calculations,
-    # respecting only the geographic/industry context.
+    # respecting only the geographic/industry/signal context.
     rolling_events = get_filtered_events(
         industry=industry,
         region=region,
+        signal_type=signal_type,
         time_range=None,
     )
 
@@ -273,6 +281,7 @@ def build_trends(
         region=region,
         attack_type=attack_type,
         time_range=time_range,
+        signal_type=signal_type,
     )
     source_counts = Counter()
     for event in filtered_events:

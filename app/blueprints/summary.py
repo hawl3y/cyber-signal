@@ -11,6 +11,7 @@ def get_summary():
     region = request.args.get("region")
     attack_type = request.args.get("attack_type")
     time_range = request.args.get("time_range")
+    signal_type = request.args.get("signal_type")
 
     return jsonify(
         build_summary(
@@ -18,6 +19,7 @@ def get_summary():
             region=region,
             attack_type=attack_type,
             time_range=time_range,
+            signal_type=signal_type,
         )
     )
 
@@ -28,6 +30,7 @@ def get_trends():
     region = request.args.get("region")
     attack_type = request.args.get("attack_type")
     time_range = request.args.get("time_range")
+    signal_type = request.args.get("signal_type")
 
     return jsonify(
         build_trends(
@@ -35,5 +38,6 @@ def get_trends():
             region=region,
             attack_type=attack_type,
             time_range=time_range,
+            signal_type=signal_type,
         )
     )

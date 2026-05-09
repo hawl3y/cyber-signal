@@ -3,22 +3,22 @@ const FILTER_STORAGE_KEY = "cyber_signal_filters_mvp";
 function getDefaultFilters() {
     return {
         time_range: "30d",
+        signal_type: "",
         industry: "",
-        region: "",
         attack_type: "",
     };
 }
 
 function getCurrentFilters() {
     const timeRangeEl = document.getElementById("filter-time-range");
+    const signalTypeEl = document.getElementById("filter-signal-type");
     const industryEl = document.getElementById("filter-industry");
-    const regionEl = document.getElementById("filter-region");
     const attackTypeEl = document.getElementById("filter-attack-type");
 
     return {
         time_range: timeRangeEl ? timeRangeEl.value : "30d",
+        signal_type: signalTypeEl ? signalTypeEl.value : "",
         industry: industryEl ? industryEl.value : "",
-        region: regionEl ? regionEl.value : "",
         attack_type: attackTypeEl ? attackTypeEl.value : "",
     };
 }
@@ -50,15 +50,15 @@ function saveFilters(filters) {
 
 function applyFiltersToControls(filters) {
     const timeRangeEl = document.getElementById("filter-time-range");
+    const signalTypeEl = document.getElementById("filter-signal-type");
     const industryEl = document.getElementById("filter-industry");
-    const regionEl = document.getElementById("filter-region");
     const attackTypeEl = document.getElementById("filter-attack-type");
 
     if (timeRangeEl) {
         timeRangeEl.value = filters.time_range !== undefined ? filters.time_range : "30d";
     }
+    if (signalTypeEl) signalTypeEl.value = filters.signal_type || "";
     if (industryEl) industryEl.value = filters.industry || "";
-    if (regionEl) regionEl.value = filters.region || "";
     if (attackTypeEl) attackTypeEl.value = filters.attack_type || "";
 }
 
@@ -106,15 +106,15 @@ function buildScoreTooltip(score, factors) {
     return `${base} — ${factors.join(" · ")}`;
 }
 
-const FACET_KEYS = ["industry", "region", "attack_type"];
+const FACET_KEYS = ["signal_type", "industry", "attack_type"];
 const FACET_SELECT_IDS = {
+    signal_type: "filter-signal-type",
     industry: "filter-industry",
-    region: "filter-region",
     attack_type: "filter-attack-type",
 };
 const FACET_CHIP_LABELS = {
+    signal_type: "Signal",
     industry: "Industry",
-    region: "Region",
     attack_type: "Attack",
 };
 
@@ -126,7 +126,8 @@ function eventMatchesFilters(event, filters, exceptFacet) {
         if (facet === exceptFacet) return true;
         const selected = filters[facet];
         if (!selected) return true;
-        return event[facet] === selected;
+        const eventKey = facet === "signal_type" ? "event_signal_type" : facet;
+        return event[eventKey] === selected;
     });
 }
 
@@ -168,7 +169,7 @@ function populateSelectWithCounts(selectId, countsMap, currentValue) {
 }
 
 function recomputeFacetCounts(filters) {
-    FACET_KEYS.forEach(facet => {
+    FACET_KEYS.filter(k => k !== "signal_type").forEach(facet => {
         const counts = buildCountsForFacet(cachedTimeRangeEvents, facet, filters);
         populateSelectWithCounts(FACET_SELECT_IDS[facet], counts, filters[facet] || "");
     });
@@ -208,7 +209,7 @@ function renderFilterChips(filters) {
         chip.className = "filter-chip";
         chip.setAttribute("aria-label", `Clear ${FACET_CHIP_LABELS[key]} filter`);
         chip.innerHTML = `
-            <span class="filter-chip-label">${FACET_CHIP_LABELS[key]}: ${filters[key]}</span>
+            <span class="filter-chip-label">${FACET_CHIP_LABELS[key]}: ${formatMetaLabel(filters[key])}</span>
             <span class="filter-chip-x" aria-hidden="true">×</span>
         `;
         chip.addEventListener("click", () => clearOneFilter(key));
@@ -350,10 +351,9 @@ function buildEventMeta(event) {
     return {
         primary: [
             event.display_entity ? { value: event.display_entity } : null,
-            event.display_context ? { value: event.display_context } : null,
             event.attack_type ? { value: event.attack_type } : null,
             event.display_location ? { value: event.display_location } : null,
-            event.display_attribution ? { value: event.display_attribution, className: "actor-pill" } : null,
+            event.display_attribution ? { value: event.display_attribution } : null,
         ].filter(Boolean),
         secondary: [
             formatMetaLabel(event.status),
@@ -622,8 +622,8 @@ async function resetFilters() {
 
 [
     "filter-time-range",
+    "filter-signal-type",
     "filter-industry",
-    "filter-region",
     "filter-attack-type",
 ].forEach(id => {
     const el = document.getElementById(id);
