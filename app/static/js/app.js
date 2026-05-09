@@ -244,23 +244,79 @@ async function loadSummary() {
     }
 }
 
-function renderTrendList(containerId, items) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
+function renderEmptyTrend(container, message) {
+    container.innerHTML = `<p class='placeholder-text'>${message}</p>`;
+}
 
+function renderRisingTrend(items) {
+    const container = document.getElementById("trend-rising");
+    if (!container) return;
     container.innerHTML = "";
 
     if (!items || !items.length) {
-        container.innerHTML = "<p class='placeholder-text'>No trend data available.</p>";
+        renderEmptyTrend(container, "No activity in the last 7 days.");
         return;
     }
 
     items.forEach(item => {
         const row = document.createElement("div");
         row.className = "trend-row";
+        const indicator = trendDeltaIndicator(item);
         row.innerHTML = `
             <span class="trend-label">${item.label}</span>
-            <span class="trend-count">${item.count}</span>
+            <span class="trend-delta ${indicator.className}" title="${indicator.title}">${indicator.text}</span>
+        `;
+        container.appendChild(row);
+    });
+}
+
+function trendDeltaIndicator(item) {
+    if (item.is_new && item.current > 0) {
+        return {
+            text: "NEW",
+            className: "trend-delta-new",
+            title: `${item.current} this week, none in the prior 7 days`,
+        };
+    }
+    if (item.delta > 0) {
+        return {
+            text: `+${item.delta}`,
+            className: "trend-delta-up",
+            title: `${item.current} this week vs ${item.previous} prior 7d`,
+        };
+    }
+    if (item.delta < 0) {
+        return {
+            text: `${item.delta}`,
+            className: "trend-delta-down",
+            title: `${item.current} this week vs ${item.previous} prior 7d`,
+        };
+    }
+    return {
+        text: `${item.current}`,
+        className: "trend-delta-flat",
+        title: `${item.current} this week, unchanged from prior 7d`,
+    };
+}
+
+function renderCountTrend(containerId, items, emptyMessage, suffix) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = "";
+
+    if (!items || !items.length) {
+        renderEmptyTrend(container, emptyMessage);
+        return;
+    }
+
+    items.forEach(item => {
+        const row = document.createElement("div");
+        row.className = "trend-row";
+        const label = (suffix && item.count === 1) ? suffix.singular : (suffix && suffix.plural);
+        const countText = label ? `${item.count} ${label}` : `${item.count}`;
+        row.innerHTML = `
+            <span class="trend-label">${item.label}</span>
+            <span class="trend-count">${countText}</span>
         `;
         container.appendChild(row);
     });
@@ -272,8 +328,19 @@ async function loadTrends() {
         const response = await fetch(`/api/summary/trends${query}`);
         const data = await response.json();
 
-        renderTrendList("trend-attack-types", data.top_attack_types || []);
-        renderTrendList("trend-industries", data.top_industries || []);
+        renderRisingTrend(data.rising_attack_types || []);
+        renderCountTrend(
+            "trend-active-actors",
+            data.active_actors || [],
+            "No attributed actors in the last 7 days.",
+            { singular: "event", plural: "events" }
+        );
+        renderCountTrend(
+            "trend-sources",
+            data.top_sources || [],
+            "No coverage data.",
+            { singular: "event", plural: "events" }
+        );
     } catch (err) {
         console.error("Failed to load trends:", err);
     }

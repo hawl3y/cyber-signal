@@ -109,18 +109,23 @@
             <section class="panel trends-panel">
                 <div class="panel-header-simple">
                     <h2>Trend Snapshot</h2>
-                    <span class="panel-subtitle">Using active filters</span>
+                    <span class="panel-subtitle">Direction-driven signals</span>
                 </div>
 
                 <div class="trends-grid">
                     <div class="trend-block">
-                        <h3>Top Attack Types</h3>
-                        <div id="trend-attack-types" class="trend-list"></div>
+                        <h3>Rising <span class="trend-window">(7d Δ)</span></h3>
+                        <div id="trend-rising" class="trend-list"></div>
                     </div>
 
                     <div class="trend-block">
-                        <h3>Top Affected Categories</h3>
-                        <div id="trend-industries" class="trend-list"></div>
+                        <h3>Active Actors <span class="trend-window">(7d)</span></h3>
+                        <div id="trend-active-actors" class="trend-list"></div>
+                    </div>
+
+                    <div class="trend-block">
+                        <h3>Coverage <span class="trend-window">(current view)</span></h3>
+                        <div id="trend-sources" class="trend-list"></div>
                     </div>
                 </div>
             </section>

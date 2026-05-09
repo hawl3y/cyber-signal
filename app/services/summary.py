@@ -206,19 +206,92 @@ def build_trends(
     time_range=None,
 ):
     """
-    Return the lightweight trend snapshot using the active feed filters.
+    Trend snapshot for the triage view. Three direction-driven blocks instead
+    of static top-N counts: what's rising, who's active, where coverage is
+    coming from. Industry/region facet filters apply; attack_type and
+    time_range are intentionally ignored on the first two blocks because
+    those operate on their own 7d/14d windows.
     """
-    events = get_filtered_events(
+    now = datetime.utcnow()
+    cutoff_7d = now - timedelta(days=7)
+    cutoff_14d = now - timedelta(days=14)
+
+    # Use a window-agnostic event set for the rolling-window calculations,
+    # respecting only the geographic/industry context.
+    rolling_events = get_filtered_events(
+        industry=industry,
+        region=region,
+        time_range=None,
+    )
+
+    last_7d = []
+    prev_7d = []
+    for event in rolling_events:
+        ref = get_event_reference_time(event)
+        if not ref:
+            continue
+        if ref >= cutoff_7d:
+            last_7d.append(event)
+        elif ref >= cutoff_14d:
+            prev_7d.append(event)
+
+    current_counts = Counter(
+        e.attack_type for e in last_7d if e.attack_type and not _is_unknown_or_other(e.attack_type)
+    )
+    previous_counts = Counter(
+        e.attack_type for e in prev_7d if e.attack_type and not _is_unknown_or_other(e.attack_type)
+    )
+
+    rising = []
+    for label, current in current_counts.items():
+        previous = previous_counts.get(label, 0)
+        rising.append({
+            "label": label,
+            "current": current,
+            "previous": previous,
+            "delta": current - previous,
+            "is_new": previous == 0,
+        })
+    # Rank by largest weekly increase, then by absolute volume as a tiebreaker.
+    rising.sort(key=lambda x: (-x["delta"], -x["current"], x["label"].lower()))
+    rising = rising[:5]
+
+    actor_counts = Counter(
+        e.actor_name for e in last_7d
+        if e.actor_name and not _is_unknown_or_other(e.actor_name)
+    )
+    active_actors = [
+        {"label": label, "count": count}
+        for label, count in actor_counts.most_common(5)
+    ]
+
+    # Top sources reflect the user's currently filtered view (full filter set
+    # applies) — this is the "is the feed dominated by one outlet?" question.
+    filtered_events = get_filtered_events(
         industry=industry,
         region=region,
         attack_type=attack_type,
         time_range=time_range,
     )
-
-    attack_types = [e.attack_type for e in events if e.attack_type]
-    contexts = _event_contexts(events)
+    source_counts = Counter()
+    for event in filtered_events:
+        seen = set()
+        for link in event.event_sources:
+            article = link.raw_article
+            if not article:
+                continue
+            label = article.publisher or article.source_name
+            if label:
+                seen.add(label)
+        for source in seen:
+            source_counts[source] += 1
+    top_sources = [
+        {"label": label, "count": count}
+        for label, count in source_counts.most_common(5)
+    ]
 
     return {
-        "top_attack_types": _top_counts(attack_types, limit=5),
-        "top_industries": _top_counts(contexts, limit=None),
+        "rising_attack_types": rising,
+        "active_actors": active_actors,
+        "top_sources": top_sources,
     }

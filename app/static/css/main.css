@@ -455,18 +455,27 @@ select option:disabled {
 
 .trends-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 16px;
 }
 
 .trend-block h3 {
     margin: 0 0 12px 0;
-    font-size: 16px;
+    font-size: 15px;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.trend-window {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
 }
 
 .trend-list {
     display: grid;
-    gap: 10px;
+    gap: 8px;
 }
 
 .trend-row {
@@ -483,13 +492,49 @@ select option:disabled {
 .trend-label {
     font-size: 14px;
     font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .trend-count {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--muted);
-    font-weight: 600;
-    opacity: 0.8;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.trend-delta {
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    line-height: 1.4;
+}
+
+.trend-delta-up {
+    background: #d1fadf;
+    color: #054f31;
+}
+
+.trend-delta-new {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+}
+
+.trend-delta-down {
+    background: #fee4e2;
+    color: #912018;
+}
+
+.trend-delta-flat {
+    background: #edf2f7;
+    color: var(--muted);
 }
 
 .placeholder-text {
@@ -531,6 +576,7 @@ select option:disabled {
 
     .trends-grid {
         grid-template-columns: 1fr;
+        gap: 14px;
     }
 }
 
