@@ -2,7 +2,68 @@ import re
 
 from app.extensions import db
 from app.models import RawArticle, ArticleExtraction, CyberEvent, EventSourceLink
+from app.services.extraction import region_for_country
 from app.utils.sources import get_source_config
+
+
+def _source_weight(source_name):
+    """
+    Authoritativeness rank used when merging field values from multiple
+    linked extractions. Higher = wins ties when the field is non-blank.
+    """
+    config = get_source_config(source_name) or {}
+    source_class = config.get("source_class")
+    if source_class == "primary_disclosure":
+        return 100
+    if source_class in {"official_alert", "exploited_vulnerability"}:
+        return 80
+    if config.get("tier_trusted_alone"):
+        return 80
+    if source_class == "incident_news":
+        return 50
+    return 30
+
+
+def _ranked_extractions(event_id):
+    """
+    Return [(article, extraction)] sorted by source weight desc, then
+    publication recency desc as a tiebreaker. Used so refresh_event picks
+    the most authoritative non-blank value for each event field instead of
+    letting the latest article unconditionally overwrite earlier ones.
+    """
+    links = EventSourceLink.query.filter_by(cyber_event_id=event_id).all()
+    ranked = []
+    for link in links:
+        article = RawArticle.query.get(link.raw_article_id)
+        if not article:
+            continue
+        extraction = ArticleExtraction.query.filter_by(raw_article_id=article.id).first()
+        if not extraction:
+            continue
+        weight = _source_weight(article.source_name)
+        rank_time = article.published_at or article.created_at or extraction.created_at
+        rank_ts = rank_time.timestamp() if rank_time else 0
+        ranked.append((weight, rank_ts, article, extraction))
+
+    ranked.sort(key=lambda row: (-row[0], -row[1]))
+    return [(article, extraction) for _, _, article, extraction in ranked]
+
+
+def _is_blank(value):
+    if value is None:
+        return True
+    if isinstance(value, str) and not value.strip():
+        return True
+    return False
+
+
+def _best_field(ranked_pairs, attr):
+    """First non-blank value walking the ranked list (highest weight wins)."""
+    for _, extraction in ranked_pairs:
+        value = getattr(extraction, attr, None)
+        if not _is_blank(value):
+            return value
+    return None
 
 
 def _is_primary_source_article(article):
@@ -392,29 +453,44 @@ def refresh_event(event_id):
 
     event.source_count = source_count
 
+    ranked = _ranked_extractions(event.id)
     article, extraction = _latest_linked_extraction(event.id)
 
-    if extraction:
-        if extraction.victim_org_name:
-            event.victim_org_name = extraction.victim_org_name
-        if extraction.victim_org_normalized:
-            event.victim_org_normalized = extraction.victim_org_normalized
-        if extraction.victim_display_label:
-            event.victim_display_label = extraction.victim_display_label
-        if extraction.victim_entity_type:
-            event.victim_entity_type = extraction.victim_entity_type
-        if extraction.industry:
-            event.industry = extraction.industry
-        if extraction.attack_type:
-            event.attack_type = extraction.attack_type
-        if extraction.country:
-            event.country = extraction.country
-        if extraction.region:
-            event.region = extraction.region
+    def _apply(attr, value):
+        """Set when the merge produced a value; otherwise leave the existing
+        event field intact so we don't clobber prior AI-enriched data
+        (CLAUDE.md: 'Never overwrite enriched data')."""
+        if value is not None and not (isinstance(value, str) and not value.strip()):
+            setattr(event, attr, value)
+
+    if ranked:
+        # Source-weighted merge: highest-weight non-blank value wins per
+        # field, so a Krebs/SEC value isn't overwritten by a later, weaker
+        # aggregator article. Blank-everywhere fields preserve whatever the
+        # event already has.
+        _apply("victim_org_name", _best_field(ranked, "victim_org_name"))
+        _apply("victim_org_normalized", _best_field(ranked, "victim_org_normalized"))
+        _apply("victim_display_label", _best_field(ranked, "victim_display_label"))
+        _apply("victim_entity_type", _best_field(ranked, "victim_entity_type"))
+        _apply("industry", _best_field(ranked, "industry"))
+        _apply("attack_type", _best_field(ranked, "attack_type"))
+        _apply("country", _best_field(ranked, "country"))
+
+        # Region is a deterministic lookup from country whenever country is
+        # set. Avoids variance ('Asia-Pacific' vs 'Asia', US-state-as-country
+        # bugs). Only when no country is known do we fall back to whatever
+        # the extractions say.
+        if event.country:
+            derived = region_for_country(event.country)
+            if derived:
+                event.region = derived
+        else:
+            _apply("region", _best_field(ranked, "region"))
+
         if event.victim_org_name:
-            event.actor_name = extraction.actor_name
-            event.actor_type = extraction.actor_type
-            event.attribution_status = extraction.attribution_status
+            _apply("actor_name", _best_field(ranked, "actor_name"))
+            _apply("actor_type", _best_field(ranked, "actor_type"))
+            _apply("attribution_status", _best_field(ranked, "attribution_status"))
         else:
             event.actor_name = None
             event.actor_type = None
@@ -446,11 +522,14 @@ def refresh_event(event_id):
             event.actor_type = None
             event.attribution_status = None
 
-        if article and article.title:
-            event.canonical_title = article.title
+        # Canonical title follows the same credibility ordering: top-weighted
+        # article's title wins. Summary takes the highest-weighted extraction
+        # that produced one.
+        best_article = ranked[0][0]
+        if best_article and best_article.title:
+            event.canonical_title = best_article.title
 
-        if extraction.short_event_summary:
-            event.summary_short = extraction.short_event_summary
+        _apply("summary_short", _best_field(ranked, "short_event_summary"))
 
     if article:
         seen_at = article.published_at or article.created_at
