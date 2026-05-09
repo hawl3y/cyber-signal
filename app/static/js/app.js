@@ -356,7 +356,6 @@ function buildEventMeta(event) {
             event.display_attribution ? { value: event.display_attribution, className: "actor-pill" } : null,
         ].filter(Boolean),
         secondary: [
-            event.entity_type ? formatMetaLabel(event.entity_type) : null,
             formatMetaLabel(event.status),
             formatMetaLabel(event.confidence),
             event.time,

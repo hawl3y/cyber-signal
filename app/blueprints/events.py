@@ -100,18 +100,14 @@ def _score_factors(event):
 
 
 def _display_context(event):
-    if event.victim_entity_type == "vulnerability":
-        return "Vulnerability"
-
-    if event.victim_entity_type == "product_or_platform":
-        return "Product / Platform"
-
-    if event.event_signal_type == "activity":
-        return "Security Activity"
-
+    """
+    Pill rendered next to the victim/entity name on the card. Only emits a
+    real industry — generic category labels ('Product / Platform',
+    'Vulnerability', 'Security Activity') are taxonomic noise and the
+    signal-type pill already conveys whether it's an incident or activity.
+    """
     if event.industry and event.industry != "Unknown":
         return event.industry
-
     return None
 
 
