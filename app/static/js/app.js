@@ -408,7 +408,7 @@ function renderSourceList(sources) {
             : title;
         return `
             <li class="source-row">
-                <span class="source-publisher">${publisher}</span>${primaryBadge}
+                <span class="source-publisher">${publisher}${primaryBadge}</span>
                 <span class="source-title">${link}</span>
                 ${date ? `<span class="source-date">${date}</span>` : ""}
             </li>
