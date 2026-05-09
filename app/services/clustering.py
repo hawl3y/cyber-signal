@@ -488,6 +488,15 @@ def refresh_event(event_id):
         _apply("victim_org_normalized", _best_field(ranked, "victim_org_normalized"))
         _apply("victim_display_label", _best_field(ranked, "victim_display_label"))
         _apply("victim_entity_type", _best_field(ranked, "victim_entity_type"))
+
+        # CVE IDs are clustering anchors, not display entities. Clear them if
+        # the merge preserved a stale CVE value (e.g. from a prior extraction run).
+        _cve_re = re.compile(r'^CVE-\d{4}-\d+$', re.IGNORECASE)
+        if event.victim_display_label and _cve_re.match(event.victim_display_label):
+            event.victim_display_label = None
+        if event.victim_org_name and _cve_re.match(event.victim_org_name):
+            event.victim_org_name = None
+            event.victim_org_normalized = None
         _apply("industry", _best_field(ranked, "industry"))
         _apply("attack_type", _best_field(ranked, "attack_type"))
         _apply("country", _best_field(ranked, "country"))
