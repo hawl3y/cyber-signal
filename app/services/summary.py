@@ -291,9 +291,12 @@ def build_trends(
                 seen.add(label)
         for source in seen:
             source_counts[source] += 1
+    # Show every source contributing to the current view rather than capping.
+    # The registry is small (~6 entries) and dropping a high-credibility
+    # source like SEC EDGAR off the bottom would distort the coverage signal.
     top_sources = [
         {"label": label, "count": count}
-        for label, count in source_counts.most_common(5)
+        for label, count in source_counts.most_common()
     ]
 
     return {
