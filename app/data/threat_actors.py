@@ -177,6 +177,10 @@ THREAT_ACTORS = {
         "aliases": ["Black Suit"],
         "actor_type": "cybercriminal",
     },
+    "RansomHouse": {
+        "aliases": ["Ransom House"],
+        "actor_type": "cybercriminal",
+    },
 
     # ---------- State-sponsored / nation-state ----------
     "Lazarus Group": {
