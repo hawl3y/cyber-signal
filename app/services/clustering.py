@@ -524,11 +524,17 @@ def refresh_event(event_id):
         # event already has.
         _apply("victim_org_name", _best_field(ranked, "victim_org_name"))
         _apply("victim_org_normalized", _best_field(ranked, "victim_org_normalized"))
-        _apply("victim_display_label", _best_field(ranked, "victim_display_label"))
+
+        # victim_display_label is always derived from extraction — never AI-enriched.
+        # Set it directly so that None from extraction can clear stale values (e.g.
+        # a full product title set by older extraction logic).
+        event.victim_display_label = _best_field(ranked, "victim_display_label")
+
         _apply("victim_entity_type", _best_field(ranked, "victim_entity_type"))
 
-        # CVE IDs are clustering anchors, not display entities. Clear them if
-        # the merge preserved a stale CVE value (e.g. from a prior extraction run).
+        # CVE IDs are clustering anchors, not display entities. Clear them from
+        # both the display label (old extraction stored CVE strings there) and
+        # victim_org_name.
         _cve_re = re.compile(r'^CVE-\d{4}-\d+$', re.IGNORECASE)
         if event.victim_display_label and _cve_re.match(event.victim_display_label):
             event.victim_display_label = None
