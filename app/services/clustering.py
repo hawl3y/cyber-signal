@@ -54,6 +54,8 @@ def _is_blank(value):
         return True
     if isinstance(value, str) and not value.strip():
         return True
+    if value == "Unknown":
+        return True
     return False
 
 
@@ -64,6 +66,41 @@ def _best_field(ranked_pairs, attr):
         if not _is_blank(value):
             return value
     return None
+
+
+def _extraction_completeness(extraction):
+    """Count of key signal fields that are populated (non-blank, non-Unknown)."""
+    score = 0
+    for attr in ("victim_org_name", "attack_type", "actor_name", "short_event_summary", "country", "industry"):
+        if not _is_blank(getattr(extraction, attr, None)):
+            score += 1
+    return score
+
+
+def _ranked_extractions_for_content(event_id):
+    """
+    Like _ranked_extractions but uses extraction completeness as a secondary
+    sort key before recency. The article that knows the most wins title/summary
+    selection, preventing follow-up articles with fewer extracted fields from
+    overwriting richer earlier coverage.
+    """
+    links = EventSourceLink.query.filter_by(cyber_event_id=event_id).all()
+    ranked = []
+    for link in links:
+        article = RawArticle.query.get(link.raw_article_id)
+        if not article:
+            continue
+        extraction = ArticleExtraction.query.filter_by(raw_article_id=article.id).first()
+        if not extraction:
+            continue
+        weight = _source_weight(article.source_name)
+        completeness = _extraction_completeness(extraction)
+        rank_time = article.published_at or article.created_at or extraction.created_at
+        rank_ts = rank_time.timestamp() if rank_time else 0
+        ranked.append((weight, completeness, rank_ts, article, extraction))
+
+    ranked.sort(key=lambda row: (-row[0], -row[1], -row[2]))
+    return [(article, extraction) for _, _, _, article, extraction in ranked]
 
 
 def _is_primary_source_article(article):
@@ -470,6 +507,7 @@ def refresh_event(event_id):
     event.source_count = source_count
 
     ranked = _ranked_extractions(event.id)
+    content_ranked = _ranked_extractions_for_content(event.id)
     article, extraction = _latest_linked_extraction(event.id)
 
     def _apply(attr, value):
@@ -547,14 +585,14 @@ def refresh_event(event_id):
             event.actor_type = None
             event.attribution_status = None
 
-        # Canonical title follows the same credibility ordering: top-weighted
-        # article's title wins. Summary takes the highest-weighted extraction
-        # that produced one.
-        best_article = ranked[0][0]
+        # Title and summary use completeness-weighted ranking: the article that
+        # knows the most (most key fields populated) wins, so a narrow follow-up
+        # article doesn't overwrite richer earlier coverage.
+        best_article = content_ranked[0][0] if content_ranked else None
         if best_article and best_article.title:
             event.canonical_title = best_article.title
 
-        _apply("summary_short", _best_field(ranked, "short_event_summary"))
+        _apply("summary_short", _best_field(content_ranked, "short_event_summary"))
 
     if article:
         seen_at = article.published_at or article.created_at
