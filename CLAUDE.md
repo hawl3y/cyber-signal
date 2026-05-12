@@ -4,17 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Cloudflare enrichment gap (monitor)
-BleepingComputer and The Record are sometimes blocked by Cloudflare in production. Block appears intermittent — all core-tier articles in the last batch were enriched. Monitor: if new BC/The Record articles arrive unenriched and are rejected, add a title-signal fallback in `is_relevant_incident()` for `tier=core` sources.
-
-### 2. Score=25 malware-campaign no-victim events (accept as-is)
-Four score=25 events (TrickMo, fake OpenAI repo, CheckMarx Jenkins supply chain, Google Ads malware) have no org victim — they target broad user populations. Score=25 is correct. No action unless we want to add a supply-chain victim extraction pattern (extract the compromised package author as victim). Defer.
-
-### 3. Victimless infrastructure events
-Hosting platform vulns, control panel exploits, shared-infra attacks — pipeline fails industry classification when there's no victim org. Design a deterministic classifier for this pattern at the extraction or processing stage. No one-off fixes.
-
-### 4. KEV display labels — run force_reprocess after each deploy
-After every deploy touching extraction.py, run `PYTHONPATH=. python scripts/force_reprocess.py` on production so KEV vendor display labels and other extraction changes apply to existing records.
+### 1. Victimless infrastructure events
+Hosting platform vulns, control panel exploits, shared-infra attacks — pipeline admits these but fails industry classification when there's no victim org. Design a deterministic classifier for this pattern at the extraction or processing stage. No one-off fixes.
 
 ---
 
@@ -378,13 +369,11 @@ All commands require `PYTHONPATH=.` and must be run from the repo root. The `.ve
 
 ### Rule: after changing extraction or processing logic
 
-The pipeline only processes `pending` articles. Any change to `extraction.py`, `processing.py`, or `clustering.py` **must** be followed by a force reprocess to apply the new logic to existing articles.
+Any change to `extraction.py`, `processing.py`, or `clustering.py` **must** be followed by a force reprocess. This re-runs the full pipeline from the relevance filter through extraction and clustering — stale events from articles that are now filtered will be cleaned up automatically.
 
 ```bash
 PYTHONPATH=. python scripts/force_reprocess.py
 ```
-
-This re-extracts all articles and re-clusters everything. Run it after every deploy that touches pipeline logic.
 
 ---
 

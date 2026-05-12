@@ -375,6 +375,10 @@ def _extract_victim_org_name(article):
                 if not candidate:
                     continue
 
+                # re.IGNORECASE makes [A-Z] match lowercase too; org names always start uppercase.
+                if not candidate[0].isupper():
+                    continue
+
                 if blocked_action_phrase.search(candidate):
                     continue
 
@@ -392,18 +396,20 @@ def _extract_victim_org_name(article):
 
     title_candidates = extract_candidates(title)
     summary_candidates = extract_candidates(summary) if summary else []
+    # body_only_patterns express explicit company relationships (parent firm, maker of,
+    # owned by, etc.) which are more authoritative than implicit title/summary patterns.
+    # Run them first so "Canvas parent firm Instructure" beats "Canvas" from the title.
     content_candidates = extract_candidates(content, patterns=body_only_patterns) if content else []
+
+    for candidate in content_candidates:
+        if not is_generic_descriptor(candidate):
+            return candidate
 
     for candidate in summary_candidates:
         if not is_generic_descriptor(candidate):
             return candidate
 
     for candidate in title_candidates:
-        if not is_generic_descriptor(candidate):
-            return candidate
-
-    # Fall back to body text only when headline/summary gave nothing usable
-    for candidate in content_candidates:
         if not is_generic_descriptor(candidate):
             return candidate
 
@@ -1036,24 +1042,32 @@ def run_rule_extraction(article):
     industry = _extract_industry(victim_context_text) if victim_context_text else None
 
     if not industry:
-        industry = _extract_industry(text)
+        # When no victim context is available, restrict to title+summary to avoid
+        # incidental body-text mentions (e.g., "universities use Office 365") from
+        # misclassifying the industry of broad-campaign articles.
+        title_summary_text = " ".join([
+            (article.title or "").strip(),
+            (article.summary or "").strip(),
+        ]).lower()
+        industry = _extract_industry(title_summary_text)
 
     if not industry:
-        combined_text = " ".join([
+        # Restrict to title+summary: full body text is too noisy and causes incidental
+        # mentions (e.g., "universities use Office 365") to misclassify the industry.
+        title_summary = " ".join([
             article.title or "",
             article.summary or "",
-            article.content or "",
         ]).lower()
 
-        if any(term in combined_text for term in ["hospital", "healthcare", "medical", "medtech", "clinic"]):
+        if any(term in title_summary for term in ["hospital", "healthcare", "medical", "medtech", "clinic"]):
             industry = "Healthcare"
-        elif any(term in combined_text for term in ["school", "university", "education", "student"]):
+        elif any(term in title_summary for term in ["school", "university", "education", "student"]):
             industry = "Education"
-        elif any(term in combined_text for term in ["government", "ministry", "agency", "municipality", "city of"]):
+        elif any(term in title_summary for term in ["government", "ministry", "agency", "municipality", "city of"]):
             industry = "Government"
-        elif any(term in combined_text for term in ["bank", "banking", "fintech", "payment processor", "credit union"]):
+        elif any(term in title_summary for term in ["bank", "banking", "fintech", "payment processor", "credit union"]):
             industry = "Financial Services"
-        elif any(term in combined_text for term in ["software vendor", "software provider", "tech company", "tech firm", "saas", "hosting provider", "managed service provider", "msp", "data center", "developer tool", "application framework"]):
+        elif any(term in title_summary for term in ["software vendor", "software provider", "tech company", "tech firm", "saas", "hosting provider", "managed service provider", "msp", "data center", "developer tool", "application framework"]):
             industry = "Technology"
 
     if not industry:
@@ -1153,6 +1167,7 @@ def run_rule_extraction(article):
     elif not is_activity and any(keyword in text for keyword in [
         "data breach",
         "security breach",
+        "source code breach",
         "breached",
         "breaching systems",
         "breach of",
