@@ -907,7 +907,7 @@ def _has_exploitation_signal(text):
         r"\brce\b",
     ]
 
-    return any(re.search(pattern, text) for pattern in patterns)
+    return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
 
 def get_ready_for_extraction():
     """
@@ -1037,8 +1037,6 @@ def run_rule_extraction(article):
         "killing scripts",
     ]):
         attack_type = "Malware"
-    elif _has_exploitation_signal(text):
-        attack_type = "Exploitation"
     elif any(keyword in text for keyword in [
         "credential theft",
         "stolen credentials",
@@ -1049,6 +1047,53 @@ def run_rule_extraction(article):
         "obtained control of credentials",
     ]):
         attack_type = "Account Compromise"
+    elif any(keyword in text for keyword in [
+        "supply chain",
+        "malicious package",
+        "malicious update",
+        "poisoned package",
+        "dependency confusion",
+        "compromised vendor",
+        "third-party compromise",
+        "software supply chain",
+    ]):
+        attack_type = "Supply Chain"
+    elif any(keyword in text for keyword in [
+        "authentication bypass",
+        "auth bypass",
+        "improper authentication",
+        "broken authentication",
+        "bypass authentication",
+        "authentication vulnerability",
+        "missing authentication",
+    ]):
+        attack_type = "Authentication Bypass"
+    elif any(keyword in text for keyword in [
+        "remote code execution",
+        "arbitrary code execution",
+        "code execution vulnerability",
+    ]):
+        attack_type = "Remote Code Execution"
+    elif any(keyword in text for keyword in [
+        "privilege escalation",
+        "elevation of privilege",
+        "escalate privileges",
+        "escalating privileges",
+        "local privilege escalation",
+    ]):
+        attack_type = "Privilege Escalation"
+    elif any(keyword in text for keyword in [
+        "sql injection",
+        "command injection",
+        "os command injection",
+        "code injection",
+        "injection vulnerability",
+        "xpath injection",
+        "ldap injection",
+    ]):
+        attack_type = "Injection"
+    elif _has_exploitation_signal(text):
+        attack_type = "Exploitation"
 
     short_event_summary = _build_short_event_summary(article)
 

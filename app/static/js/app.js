@@ -115,7 +115,7 @@ const FACET_SELECT_IDS = {
 const FACET_CHIP_LABELS = {
     signal_type: "Signal",
     industry: "Industry",
-    attack_type: "Attack",
+    attack_type: "Threat Type",
 };
 
 let cachedTimeRangeEvents = [];

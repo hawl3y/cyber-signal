@@ -7,6 +7,11 @@ ATTACK_TYPES = {
     "Account Compromise",
     "Phishing",
     "Disruption",
+    "Authentication Bypass",
+    "Remote Code Execution",
+    "Privilege Escalation",
+    "Injection",
+    "Supply Chain",
     "Unknown",
 }
 
@@ -20,6 +25,11 @@ LEGACY_ATTACK_TYPE_MAP = {
     "Account Compromise": "Account Compromise",
     "Phishing": "Phishing",
     "Disruption": "Disruption",
+    "Authentication Bypass": "Authentication Bypass",
+    "Remote Code Execution": "Remote Code Execution",
+    "Privilege Escalation": "Privilege Escalation",
+    "Injection": "Injection",
+    "Supply Chain": "Supply Chain",
     "Unknown": "Unknown",
     None: "Unknown",
 }
