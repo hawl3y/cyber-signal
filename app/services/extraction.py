@@ -249,12 +249,24 @@ def _normalize_org_name(value):
 def _extract_victim_org_name(article):
     title = (article.title or "").strip()
     summary = (article.summary or "").strip()
+    # Content is only searched with high-precision relationship patterns to avoid
+    # false positives from generic body text.
+    content = (article.content or "").strip()[:2000]
 
     if not title:
         return None
 
     if title.lower().startswith("webinar:"):
         return None
+
+    # High-precision patterns safe to run against full article body.
+    # These express explicit product→company relationships — low false-positive risk.
+    body_only_patterns = [
+        r"\b(?:created by|developed by|owned by|operated by|provided by|made by)\s+([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\b",
+        r"\b([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2}),?\s+(?:maker|developer|creator|provider|vendor)\s+of\b",
+        r"\bparent\s+(?:firm|company|organization|corp|corporation)\s+([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\b",
+        r"\b([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})'s\s+(?:platform|service|software|system|product|application|app|tool|portal|website|network|infrastructure|database|plugin|suite|suite of tools)\b",
+    ]
 
     target_patterns = [
         # Strong: subject of a disclosure verb at the start of the headline.
@@ -264,7 +276,7 @@ def _extract_victim_org_name(article):
         # "X site/system hacked" — requires a target noun so "Russia Hacked Routers" (actor)
         # is not mistaken for a victim construction.
         r"^([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:site|system|network|server|database|website|download manager|repository)\s+(?:hacked|breached|hijacked)(?:\s+to\b|\s+by\b|\s+in\b|\s*$)",
-        # "platform/tool created/made by Org" or "Org, maker/developer of X"
+        # body_only_patterns are also included here so they apply to title/summary
         r"\b(?:created by|developed by|owned by|operated by|provided by|made by)\s+([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\b",
         r"\b([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2}),?\s+(?:maker|developer|creator|provider|vendor)\s+of\b",
         # "X parent firm/company Org" — e.g. "Canvas parent firm Instructure"
@@ -321,10 +333,10 @@ def _extract_victim_org_name(article):
         "criminals", "nation-state", "adversaries", "scammers",
     }
 
-    def extract_candidates(text):
+    def extract_candidates(text, patterns=None):
         candidates = []
 
-        for pattern in target_patterns:
+        for pattern in (patterns if patterns is not None else target_patterns):
             for match in re.finditer(pattern, text, flags=re.IGNORECASE):
                 raw_capture = (match.group(1) or "").strip()
                 if audience_tail_re.search(raw_capture):
@@ -356,6 +368,7 @@ def _extract_victim_org_name(article):
 
     title_candidates = extract_candidates(title)
     summary_candidates = extract_candidates(summary) if summary else []
+    content_candidates = extract_candidates(content, patterns=body_only_patterns) if content else []
 
     for candidate in summary_candidates:
         if not is_generic_descriptor(candidate):
@@ -365,11 +378,19 @@ def _extract_victim_org_name(article):
         if not is_generic_descriptor(candidate):
             return candidate
 
+    # Fall back to body text only when headline/summary gave nothing usable
+    for candidate in content_candidates:
+        if not is_generic_descriptor(candidate):
+            return candidate
+
     if summary_candidates:
         return summary_candidates[0]
 
     if title_candidates:
         return title_candidates[0]
+
+    if content_candidates:
+        return content_candidates[0]
 
     return None
 
