@@ -362,63 +362,62 @@ events = get_filtered_events(
 
 ---
 
-## Testing & Debugging
+## Operations Runbook
 
-**Check automation status**:
+All commands require `PYTHONPATH=.` and must be run from the repo root. The `.venv` is pre-activated — never prefix with `source .venv/bin/activate`. These same commands work identically locally and on the Render production shell.
+
+### Rule: after changing extraction or processing logic
+
+The pipeline only processes `pending` articles. Any change to `extraction.py`, `processing.py`, or `clustering.py` **must** be followed by a force reprocess to apply the new logic to existing articles.
+
 ```bash
-curl http://localhost:5001/api/automation/status
+PYTHONPATH=. python scripts/force_reprocess.py
+```
+
+This re-extracts all articles and re-clusters everything. Run it after every deploy that touches pipeline logic.
+
+---
+
+### Canonical scripts (always use these — never one-off heredocs)
+
+**Run the full pipeline once** (ingest → enrich → process → extract → cluster → attribute → audit):
+```bash
+PYTHONPATH=. python scripts/run_pipeline_once.py
+```
+
+**Force re-extract and re-cluster all existing articles** (use after any extraction/processing logic change):
+```bash
+PYTHONPATH=. python scripts/force_reprocess.py
+```
+
+**Inspect current production state** (events with scores/sources/victims/attack types, article status counts, recent extractions):
+```bash
+PYTHONPATH=. python scripts/diagnose_prod.py
 ```
 
 **View actor candidate audit report**:
 ```bash
-python scripts/audit_unrecognized_actors.py
+PYTHONPATH=. python scripts/audit_unrecognized_actors.py
 ```
 
-**Inspect raw articles**:
+---
+
+### Diagnosis workflow
+
+When output looks wrong (bad attack type, missing victim, wrong industry, events not clustering):
+
+1. Run `diagnose_prod.py` to see the current event/article state at a glance.
+2. If a specific article/victim needs closer inspection, write a targeted script in `scripts/` (e.g. `diagnose_canvas.py`) — never use inline heredocs in the Render shell, they fail.
+3. Fix the pipeline stage (not the symptom).
+4. Push, wait for deploy, then run `force_reprocess.py`.
+5. Re-run `diagnose_prod.py` to verify.
+
+---
+
+### Reset all content (fresh start)
+
 ```bash
-python - <<'PY'
-from app import create_app
-from app.models import RawArticle
-
-app = create_app()
-with app.app_context():
-    articles = RawArticle.query.limit(5).all()
-    for a in articles:
-        print(f"{a.id}: {a.title[:50]} ({a.source_name})")
-PY
+PYTHONPATH=. python scripts/reset_content.py
 ```
 
-**Check extraction results**:
-```bash
-python - <<'PY'
-from app import create_app
-from app.models import ArticleExtraction
-
-app = create_app()
-with app.app_context():
-    extractions = ArticleExtraction.query.limit(5).all()
-    for e in extractions:
-        print(f"{e.id}: victim={e.victim_org_name}, attack={e.attack_type}, confidence={e.extraction_confidence}")
-PY
-```
-
-**View clustered events**:
-```bash
-curl "http://localhost:5001/api/events?limit=10&offset=0" | jq .
-```
-
-**Force reprocessing** (after changing extraction or classification logic, to backfill existing records):
-```python
-PYTHONPATH=. python - <<'PY'
-from app import create_app
-from app.jobs.extract_signals_job import extract_signals_job
-from app.jobs.cluster_events_job import cluster_events_job
-
-app = create_app()
-with app.app_context():
-    print({"extract": extract_signals_job(force=True)})
-    print({"cluster": cluster_events_job(force=True)})
-PY
-```
-
-Run this locally to test, then run the same script on the Render instance to update production records. No schema migration needed for classification-only changes.
+If that script doesn't exist, create it first — never run destructive SQL inline.
