@@ -4,8 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Victimless infrastructure events
-Hosting platform vulns, control panel exploits, shared-infra attacks — pipeline admits these but fails industry classification when there's no victim org. Design a deterministic classifier for this pattern at the extraction or processing stage. No one-off fixes.
+### 1. Score=25 no-victim campaign events (acceptable noise)
+Five score=25 incidents remain with no victim org: TrickMo banking malware (EU targeting), Fake OpenAI Hugging Face infostealer, Google Ads/Claude.ai malvertising, Google AI zero-day report, and a Hackers/Mac malware campaign. These are real campaigns but lack a named org victim. Current behavior is correct — they show with victim="-" and low confidence. No action needed unless these start producing false positives at scale.
+
+### 2. Three score=80 no-victim incidents (KrebsOnSecurity)
+Anti-DDoS Firm attack on Brazilian ISPs, Russia Hacked Routers (mass router harvesting), and CanisterWorm wiper targeting Iran — all from KrebsOnSecurity with score=80 and no named victim. These are legitimate geopolitical/infrastructure incidents without extractable org targets. Current behavior is correct. Monitor for victim extraction opportunities if article content improves.
 
 ---
 
