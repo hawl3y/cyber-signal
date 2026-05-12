@@ -4,7 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-No outstanding priority tasks.
+### 1. Verify Anti-DDoS Firm fix in production
+After deploy of commit `3d22302`, run `force_reprocess.py` then `diagnose_prod.py`.
+Expected: `victim=Anti-DDoS Firm` becomes `-`. If still present, investigate the ArticleExtraction directly.
+
+### 2. Content enrichment gap — 107/138 articles irrelevant
+BleepingComputer and The Record are blocked by Cloudflare in production, so articles arrive with thin RSS summaries only. Without full body text, `is_relevant_incident()` rejects them (no impact keywords). This is the single biggest quality gap. Options to investigate:
+- Try alternative HTTP headers / user-agent strings in the enrich job
+- Accept the gap and focus on sources that do enrich (Krebs, CISA, SEC)
+- Add a fallback: if a source is `tier=core` and the article title contains strong incident signals, admit it even without body text
+
+### 3. Multiple low-confidence no-victim incidents (score=25)
+Five events at score=25 with `victim=-`. These are single-source, unenriched articles. Either they should be filtered earlier (processing stage) or accepted as low-signal. Confirm whether these are real incidents or noise before deciding.
 
 ---
 
