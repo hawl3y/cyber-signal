@@ -1140,8 +1140,9 @@ def run_rule_extraction(article):
     is_cisa_advisory = article.source_name == "cisa-alerts-advisories"
     is_cisa_source = article.source_name in {"cisa-kev", "cisa-alerts-advisories"}
     article_title = (article.title or "").strip()
-    clean_substring = (
-        anchor_name != article_title
+    clean_substring = bool(
+        anchor_name
+        and anchor_name != article_title
         and len(anchor_name.split()) <= 6
         and anchor_name[:1].isupper()
     )
