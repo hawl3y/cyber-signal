@@ -1008,6 +1008,11 @@ def run_rule_extraction(article):
     if not industry:
         industry = "Unknown"
 
+    # Named victims with no identifiable sector default to Technology — the most common
+    # sector in cyber incidents and a better fallback than Unknown when content is thin.
+    if industry == "Unknown" and victim_org_name:
+        industry = "Technology"
+
     geography = _extract_geography(text)
 
     # Strip "anti-ransomware" before ransomware keyword matching to avoid false positives
