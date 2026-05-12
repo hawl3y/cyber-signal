@@ -5,13 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Priority Tasks
 
 ### 1. Investigate Anti-DDoS Firm victim still showing (score=80)
-Extraction fix (88e2a34) and clustering refresh fix (3d22302) are deployed and force_reprocess was run, but `victim=Anti-DDoS Firm` still shows. Next step: inspect the ArticleExtraction record directly to confirm whether extraction now gives victim=None or still "Anti-DDoS Firm". If extraction is still wrong, trace through `run_rule_extraction` for that specific article.
-
-Diagnostic to run on Render:
-```
-PYTHONPATH=. python scripts/diagnose_prod.py
-```
-Then query ArticleExtraction for the DDoS/Anti-DDoS article to see its current victim value.
+Extraction fix (88e2a34) and clustering refresh fix (3d22302) are deployed and force_reprocess was run multiple times, but `victim=Anti-DDoS Firm` still shows. Next step: run `diagnose_ddos.py` (create it) to inspect the ArticleExtraction record directly — confirm whether extraction returns victim=None or still "Anti-DDoS Firm". If extraction is still wrong, trace `run_rule_extraction` for that article. If extraction gives None but CyberEvent still shows victim, the refresh path isn't clearing it.
 
 ### 2. Content enrichment gap — 107/138 articles irrelevant
 BleepingComputer and The Record are blocked by Cloudflare in production — articles arrive with thin RSS summaries only. Without full body text, `is_relevant_incident()` rejects them (no impact keywords). This is the single biggest quality gap. Options:
