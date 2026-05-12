@@ -6,6 +6,7 @@ from urllib.request import urlopen
 
 import feedparser
 import requests
+import trafilatura
 from flask import current_app
 
 from app.extensions import db
@@ -642,6 +643,37 @@ def fetch_source_items(source):
     )
 
 
+_ARTICLE_FETCH_TIMEOUT = 10
+_ARTICLE_MAX_CHARS = 5000
+_FETCH_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; CyberSignal/1.0)"}
+
+
+def _fetch_article_body(url):
+    """
+    Fetch the full article body from a URL using trafilatura.
+    Returns extracted text or None if the fetch fails or is blocked.
+    """
+    try:
+        resp = requests.get(
+            url,
+            timeout=_ARTICLE_FETCH_TIMEOUT,
+            headers=_FETCH_HEADERS,
+            allow_redirects=True,
+        )
+        if resp.status_code != 200:
+            return None
+        text = trafilatura.extract(
+            resp.text,
+            include_comments=False,
+            include_tables=False,
+        )
+        if not text or len(text) < 100:
+            return None
+        return text[:_ARTICLE_MAX_CHARS].strip()
+    except Exception:
+        return None
+
+
 def save_raw_article(article):
     """
     Save a normalized article to the database if it does not already exist.
@@ -649,6 +681,11 @@ def save_raw_article(article):
     existing = RawArticle.query.filter_by(article_url=article.get("article_url")).first()
     if existing:
         return existing
+
+    if article.get("source_type") == "rss":
+        full_body = _fetch_article_body(article.get("article_url"))
+        if full_body:
+            article = {**article, "content": full_body}
 
     raw_article = RawArticle(**article)
 
