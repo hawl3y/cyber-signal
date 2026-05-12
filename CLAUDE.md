@@ -12,7 +12,7 @@ No outstanding priority tasks.
 
 Cyber Signal answers "What matters right now?" in under 10 seconds. It turns fragmented cyber reporting into structured, scannable events for rapid situational awareness. **The unit of value is the event, not the article.**
 
-**What it is**: a structured cyber incident intelligence layer — a deterministic pipeline with AI-assisted enrichment, and a real-time decision surface for cyber activity.
+**What it is**: a structured cyber incident intelligence layer — a fully deterministic pipeline with rule-based enrichment, and a real-time decision surface for cyber activity.
 
 **What it is not**: a news aggregator, SIEM, threat intelligence platform, or analytics dashboard.
 
@@ -40,10 +40,12 @@ Two and only two event kinds:
 ### Operational Boundary
 
 Two deployment modes share the same code:
-- **Web service** (`AI_ENRICHMENT_ENABLED=false`): serves API + UI, fast, read-only on enriched data
-- **Cron job** (`AI_ENRICHMENT_ENABLED=true`): runs pipeline every 4h, mutates enriched data
+- **Web service**: serves API + UI, fast, read-only on enriched data
+- **Cron job**: runs pipeline every 4h, mutates enriched data
 
 **Critical**: only the cron job is permitted to mutate enriched data. Web requests must never write enrichment fields.
+
+Note: `AI_ENRICHMENT_ENABLED` is a vestigial env var — AI enrichment has been fully removed. All attribution and classification is deterministic.
 
 ### Working Method
 
@@ -109,7 +111,7 @@ Ingest → Process → Extract → Cluster → Attribute → Audit
 - **actor_recognition.py**: Deterministic threat-actor attribution via curated `THREAT_ACTORS` knowledge base
 - **actor_candidate_audit.py**: Shared logic for finding unrecognized actor candidates near attribution language
 - **summary.py**: Filters and formats events for API responses
-- **taxonomy.py**: Normalization maps for attack types, entity anchors, industries, actors
+- **taxonomy.py**: Normalization maps for threat types, entity anchors, industries, actors
 
 ### API Endpoints
 
@@ -128,7 +130,7 @@ All endpoints live in `/api` and are stateless query/trigger routes:
 ### Frontend
 
 Single-page app loaded at `/`:
-- Filter controls (time_range, signal_type, industry, attack_type)
+- Filter controls: Time Range, Signal Type, Industry, Threat Type (formerly "Attack Type")
 - Event list sorted by priority tuple (see Event Prioritization below)
 - Event cards: expandable detail panel on click; primary-source badge nested in publisher cell
 - LocalStorage persists filter state
@@ -219,6 +221,29 @@ PY
 
 ## Key Design Patterns & Conventions
 
+### Threat Type Taxonomy
+
+The `attack_type` field is labeled "Threat Type" in the UI. It covers both attack methods (incidents) and vulnerability classes (activity events). The full vocabulary, defined in `app/services/taxonomy.py`:
+
+| Type | Typical source |
+|---|---|
+| Ransomware | Incident news |
+| Data Breach | Incident news |
+| Phishing | Incident news |
+| DDoS | Incident news |
+| Malware | Incident news |
+| Account Compromise | Incident news |
+| Supply Chain | Incident or advisory |
+| Exploitation | Active in-the-wild exploitation (CVE present, no more specific class) |
+| Authentication Bypass | CISA/vendor advisories |
+| Remote Code Execution | CISA/vendor advisories |
+| Privilege Escalation | CISA/vendor advisories |
+| Injection | CISA/vendor advisories (SQL, command, etc.) |
+| Disruption | Incident news |
+| Unknown | No signal found |
+
+Detection order matters: specific vulnerability classes (Authentication Bypass, RCE, etc.) are checked **before** the generic `Exploitation` catch-all so advisory-style events get a precise label. Do not move `_has_exploitation_signal` above the specific checks.
+
 ### Extraction Heuristics
 
 **processing.py** filters out noise via keyword patterns:
@@ -227,8 +252,7 @@ PY
 
 **extraction.py** uses regex-based patterns to detect:
 - Named victim organizations (vs. generic "company")
-- Exploitation signals (code execution, auth bypass)
-- Concrete attack classes
+- Threat type classification (see Threat Type Taxonomy above)
 - Geography and CVE references
 - Actor confidence (claimed vs. suspected)
 
@@ -292,11 +316,13 @@ Frontend sorts events by tuple (do not reorder without product review):
 3. If RSS: feedparser handles it automatically
 4. Test via `POST /api/ingest/` endpoint or pipeline run
 
-### Modify Extraction Heuristics
+### Modify Extraction Heuristics or Threat Type Classification
 
 Edit `app/services/extraction.py` or `app/services/processing.py`:
 - Add regex patterns to `_combined_article_text()` matching
 - Adjust confidence scoring in `ArticleExtraction` creation
+- To add a new threat type: add it to `ATTACK_TYPES` and `LEGACY_ATTACK_TYPE_MAP` in `taxonomy.py`, then add detection keywords in `extraction.py` before the `_has_exploitation_signal` catch-all
+- After changing classification logic, force-reprocess existing records (see Force Reprocessing below)
 
 ### Adjust Event Clustering
 
@@ -380,3 +406,19 @@ PY
 ```bash
 curl "http://localhost:5001/api/events?limit=10&offset=0" | jq .
 ```
+
+**Force reprocessing** (after changing extraction or classification logic, to backfill existing records):
+```python
+PYTHONPATH=. python - <<'PY'
+from app import create_app
+from app.jobs.extract_signals_job import extract_signals_job
+from app.jobs.cluster_events_job import cluster_events_job
+
+app = create_app()
+with app.app_context():
+    print({"extract": extract_signals_job(force=True)})
+    print({"cluster": cluster_events_job(force=True)})
+PY
+```
+
+Run this locally to test, then run the same script on the Render instance to update production records. No schema migration needed for classification-only changes.
