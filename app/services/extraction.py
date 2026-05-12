@@ -1090,8 +1090,21 @@ def run_rule_extraction(article):
     # overriding the actual vulnerability classification.
     is_activity = signal_kind == "activity"
 
+    # Title-level breach signals take precedence over body-text ransomware group descriptions.
+    # "Trellix source code breach claimed by RansomHouse" → Data Breach, not Ransomware.
+    title_lower = (article.title or "").lower()
+    title_signals_breach = any(kw in title_lower for kw in [
+        "data breach",
+        "security breach",
+        "source code breach",
+        "breach of",
+        "breach at",
+        "breach disrupts",
+        "breach exposes",
+    ])
+
     attack_type = "Unknown"
-    if not is_activity and any(keyword in text_for_ransomware for keyword in [
+    if not is_activity and not title_signals_breach and any(keyword in text_for_ransomware for keyword in [
         "ransomware",
         "ransom note",
         "ransom demand",
