@@ -4,17 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Investigate Anti-DDoS Firm victim still showing (score=80)
-Extraction fix (88e2a34) and clustering refresh fix (3d22302) are deployed and force_reprocess was run multiple times, but `victim=Anti-DDoS Firm` still shows. Next step: run `diagnose_ddos.py` (create it) to inspect the ArticleExtraction record directly — confirm whether extraction returns victim=None or still "Anti-DDoS Firm". If extraction is still wrong, trace `run_rule_extraction` for that article. If extraction gives None but CyberEvent still shows victim, the refresh path isn't clearing it.
+### 1. Cloudflare enrichment gap (monitor)
+BleepingComputer and The Record are sometimes blocked by Cloudflare in production. Block appears intermittent — all core-tier articles in the last batch were enriched. Monitor: if new BC/The Record articles arrive unenriched and are rejected, add a title-signal fallback in `is_relevant_incident()` for `tier=core` sources.
 
-### 2. Cloudflare enrichment gap (residual)
-BleepingComputer and The Record are sometimes blocked by Cloudflare in production. In the current batch, all 12 BC/The Record irrelevant articles were enriched — the block appears intermittent. The 107 irrelevant articles were 73 CISA KEV (now fixed) + 34 enriched articles (mostly correct rejections). Monitor after the KEV fix deploys. If new BC/The Record articles arrive unenriched and are rejected, consider title-signal fallback in `is_relevant_incident()` for core-tier sources.
+### 2. Score=25 malware-campaign no-victim events (accept as-is)
+Four score=25 events (TrickMo, fake OpenAI repo, CheckMarx Jenkins supply chain, Google Ads malware) have no org victim — they target broad user populations. Score=25 is correct. No action unless we want to add a supply-chain victim extraction pattern (extract the compromised package author as victim). Defer.
 
-### 3. Score=25 no-victim incidents (4 events)
-Four events at score=25, victim="-". Inspect the articles manually before deciding whether to filter them earlier (processing stage) or accept them as low-signal noise.
-
-### 4. Victimless infrastructure events
+### 3. Victimless infrastructure events
 Hosting platform vulns, control panel exploits, shared-infra attacks — pipeline fails industry classification when there's no victim org. Design a deterministic classifier for this pattern at the extraction or processing stage. No one-off fixes.
+
+### 4. KEV display labels — run force_reprocess after each deploy
+After every deploy touching extraction.py, run `PYTHONPATH=. python scripts/force_reprocess.py` on production so KEV vendor display labels and other extraction changes apply to existing records.
 
 ---
 
