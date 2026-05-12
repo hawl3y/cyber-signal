@@ -144,6 +144,17 @@ def _is_plausible_org_candidate(value):
 
     return True
 
+_GENERIC_ORG_TERMINAL_WORDS = {
+    "agency", "bank", "company", "firm", "government", "group",
+    "hospital", "ministry", "organization", "organisation", "provider",
+    "school", "service", "university", "vendor",
+}
+
+def _is_generic_org_descriptor(value):
+    tokens = value.lower().split()
+    return bool(tokens) and len(tokens) <= 3 and tokens[-1] in _GENERIC_ORG_TERMINAL_WORDS
+
+
 ORG_CLAUSE_BOUNDARY_RE = re.compile(
     r"\s+(?:"
     r"affects?|affected|impacting|impacts?|hits?|hit|after|via|through|using|"
@@ -363,14 +374,9 @@ def _extract_victim_org_name(article):
         return candidates
 
     def is_generic_descriptor(value):
-        tokens = value.lower().split()
-        if not tokens:
+        if not value:
             return True
-
-        if len(tokens) <= 3 and tokens[-1] in generic_org_terms:
-            return True
-
-        return False
+        return _is_generic_org_descriptor(value)
 
     title_candidates = extract_candidates(title)
     summary_candidates = extract_candidates(summary) if summary else []
@@ -1229,7 +1235,7 @@ def run_rule_extraction(article):
             signals["victim_display_label"] = vendor
         else:
             cleaned_anchor = _clean_org_name(anchor_name)
-            if cleaned_anchor:
+            if cleaned_anchor and not _is_generic_org_descriptor(cleaned_anchor):
                 signals["victim_org_name"] = cleaned_anchor
                 signals["victim_org_normalized"] = _normalize_org_name(cleaned_anchor)
                 signals["victim_display_label"] = cleaned_anchor
