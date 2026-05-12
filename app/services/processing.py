@@ -129,6 +129,18 @@ def is_relevant_incident(article):
     if any(pattern in title_and_summary for pattern in retraction_noise_patterns):
         return False
 
+    # Security researcher PoC/tool releases are not incidents
+    researcher_tool_patterns = [
+        "proof-of-concept tool",
+        "proof-of-concept exploit",
+        "security researcher has released",
+        "researcher released a poc",
+        "poc tool",
+        "demo tool",
+    ]
+    if any(pattern in title_and_summary for pattern in researcher_tool_patterns):
+        return False
+
     negative_title_patterns = [
         "webinar",
         "podcast",

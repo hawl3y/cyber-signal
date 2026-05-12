@@ -261,6 +261,11 @@ def _extract_victim_org_name(article):
         # In cyber-news headlines the subject of confirms/discloses/acknowledges/admits
         # is virtually always the victim org.
         r"^\s*([^,.;:]+?)\s+(?:confirms|confirmed|discloses|disclosed|acknowledges|acknowledged|admits|admitted)\b",
+        # "X site/system hacked" — requires a target noun so "Russia Hacked Routers" (actor)
+        # is not mistaken for a victim construction.
+        r"^([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:site|system|network|server|database|website|download manager|repository)\s+(?:hacked|breached|hijacked)(?:\s+to\b|\s+by\b|\s+in\b|\s*$)",
+        # "platform/tool created by Org" — supply chain context
+        r"\b(?:created by|developed by|owned by|operated by|provided by|made by)\s+([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\b",
         r"\b(?:breach|hack|attack|cyberattack|cyber attack|data theft)\s+at\s+(?:[a-z][a-z0-9&._' -]*\s+){0,5}([A-Z][A-Za-z0-9&._'-]*(?:\s+[A-Z][A-Za-z0-9&._'-]*){0,3})\b",
         r"\b([A-Z][A-Za-z0-9&._'-]*(?:\s+[A-Z][A-Za-z0-9&._'-]*){0,3})\s+hacker\s+claims\s+data\s+theft\b",
         r"\b(?:breach|hack|attack|cyberattack|cyber attack|ransomware attack)\s+(?:at|on|against|of)\s+([^,.;:]+)",
@@ -1020,16 +1025,6 @@ def run_rule_extraction(article):
     ]):
         attack_type = "Ransomware"
     elif any(keyword in text for keyword in [
-        "phishing",
-        "phishing-as-a-service",
-        "credential harvesting",
-        "spear-phishing",
-        "malicious email",
-        "business email compromise",
-        "bec ",
-    ]):
-        attack_type = "Phishing"
-    elif any(keyword in text for keyword in [
         "ddos",
         "denial of service",
         "distributed denial of service",
@@ -1058,6 +1053,16 @@ def run_rule_extraction(article):
         "killing scripts",
     ]):
         attack_type = "Malware"
+    elif any(keyword in text for keyword in [
+        "phishing",
+        "phishing-as-a-service",
+        "credential harvesting",
+        "spear-phishing",
+        "malicious email",
+        "business email compromise",
+        "bec ",
+    ]):
+        attack_type = "Phishing"
     elif any(keyword in text for keyword in [
         "supply chain",
         "malicious package",
