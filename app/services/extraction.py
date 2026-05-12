@@ -464,12 +464,21 @@ def _clean_anchor_candidate(value):
     return cleaned
 
 
+# Words that indicate vulnerability/impact type, not a vendor name.
+# Used to stop vendor extraction at the right boundary.
+_VULN_TYPE_STOP_WORDS = frozenset({
+    "multiple", "improper", "missing", "insufficient", "incorrect",
+    "arbitrary", "cross-site", "remote", "local", "server-side",
+})
+
+
 def _extract_cisa_vendor(title):
     """
-    Extract the vendor name from a CISA advisory title.
+    Extract the vendor name from a CISA advisory or KEV title.
     e.g. 'ABB Ability Symphony Plus Engineering' → 'ABB'
          'Johnson Controls CEM AC2000'           → 'Johnson Controls'
-         'Hitachi Energy PCM600'                 → 'Hitachi Energy'
+         'Apple Multiple Products Buffer Overflow' → 'Apple'
+         'BeyondTrust Remote Support'             → 'BeyondTrust'
     """
     words = title.split()
     if not words:
@@ -479,7 +488,7 @@ def _extract_cisa_vendor(title):
     if first.isupper() and len(first) >= 3:
         return first
     # Otherwise take up to 2 words, stopping before product codes
-    # (words with digits, all-caps acronyms ≥3 chars, or special chars like &).
+    # (words with digits, all-caps acronyms ≥3 chars, special chars, or vuln-type adjectives).
     vendor_words = [first]
     if len(words) > 1:
         w = words[1]
@@ -488,6 +497,7 @@ def _extract_cisa_vendor(title):
             or (w.isupper() and len(w) >= 3)
             or "&" in w
             or "/" in w
+            or w.lower() in _VULN_TYPE_STOP_WORDS
         )
         if not is_product_code:
             vendor_words.append(w)
@@ -1222,8 +1232,12 @@ def run_rule_extraction(article):
         actor_name=signals.get("actor_name"),
     )
 
-    # CVE IDs are clustering anchors, not display entities — leave the label blank
-    signals["victim_display_label"] = None if anchor_type == "vulnerability" else anchor_name
+    # CVE IDs and generic descriptors are not useful display labels.
+    signals["victim_display_label"] = (
+        None
+        if anchor_type == "vulnerability" or _is_generic_org_descriptor(anchor_name or "")
+        else anchor_name
+    )
     signals["victim_entity_type"] = normalize_event_anchor_type(anchor_type)
 
     is_cisa_advisory = article.source_name == "cisa-alerts-advisories"
@@ -1239,11 +1253,13 @@ def run_rule_extraction(article):
             and anchor_type == "product_or_platform"
             and anchor_name
             and (is_cisa_source or clean_substring)):
-        if is_cisa_advisory:
+        if is_cisa_source:
+            # Both advisory and KEV use vendor-first title format — extract vendor name.
             vendor = _extract_cisa_vendor(anchor_name)
-            signals["victim_org_name"] = vendor
-            signals["victim_org_normalized"] = _normalize_org_name(vendor)
-            signals["victim_display_label"] = vendor
+            if vendor and not _is_generic_org_descriptor(vendor):
+                signals["victim_org_name"] = vendor
+                signals["victim_org_normalized"] = _normalize_org_name(vendor)
+                signals["victim_display_label"] = vendor
         else:
             cleaned_anchor = _clean_org_name(anchor_name)
             if cleaned_anchor and not _is_generic_org_descriptor(cleaned_anchor):

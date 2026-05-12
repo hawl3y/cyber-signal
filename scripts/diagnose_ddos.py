@@ -26,9 +26,10 @@ with app.app_context():
             print("  extraction: (none)")
         print()
 
-    print("=== EVENTS WITH victim=Anti-DDoS Firm ===\n")
+    print("=== EVENTS WITH victim=Anti-DDoS Firm (org_name OR display_label) ===\n")
     events = CyberEvent.query.filter(
         CyberEvent.victim_org_name.ilike("%anti-ddos%")
+        | CyberEvent.victim_display_label.ilike("%anti-ddos%")
     ).all()
     for ev in events:
         print(f"  event id={ev.id} score={ev.confidence_score} victim={ev.victim_org_name!r}")
