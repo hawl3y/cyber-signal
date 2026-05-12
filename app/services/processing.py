@@ -34,6 +34,11 @@ def is_relevant_incident(article):
     summary = (article.summary or "").strip().lower()
     title_and_summary = " ".join([title, summary]).strip()
 
+    # CISA KEV entries are all actively-exploited CVEs by definition — the catalog
+    # is curated, there is no noise to filter.
+    if article.source_name == "cisa-kev":
+        return True
+
     if article.source_name == "cisa-alerts-advisories":
         advisory_noise_patterns = [
             "cisa adds",
@@ -181,8 +186,6 @@ def is_relevant_incident(article):
         "protection against",
         "designed to block",
         "why changing",
-        "used ai to",
-        "used artificial intelligence to",
     ]
 
     if any(pattern in title for pattern in negative_title_patterns):

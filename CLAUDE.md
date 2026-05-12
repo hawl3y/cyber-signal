@@ -7,11 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 1. Investigate Anti-DDoS Firm victim still showing (score=80)
 Extraction fix (88e2a34) and clustering refresh fix (3d22302) are deployed and force_reprocess was run multiple times, but `victim=Anti-DDoS Firm` still shows. Next step: run `diagnose_ddos.py` (create it) to inspect the ArticleExtraction record directly — confirm whether extraction returns victim=None or still "Anti-DDoS Firm". If extraction is still wrong, trace `run_rule_extraction` for that article. If extraction gives None but CyberEvent still shows victim, the refresh path isn't clearing it.
 
-### 2. Content enrichment gap — 107/138 articles irrelevant
-BleepingComputer and The Record are blocked by Cloudflare in production — articles arrive with thin RSS summaries only. Without full body text, `is_relevant_incident()` rejects them (no impact keywords). This is the single biggest quality gap. Options:
-- Try alternative HTTP headers / user-agent strings in the enrich job
-- Accept the gap and focus on sources that do enrich (Krebs, CISA, SEC EDGAR)
-- Admit core-tier articles based on title signals alone when body enrichment fails
+### 2. Cloudflare enrichment gap (residual)
+BleepingComputer and The Record are sometimes blocked by Cloudflare in production. In the current batch, all 12 BC/The Record irrelevant articles were enriched — the block appears intermittent. The 107 irrelevant articles were 73 CISA KEV (now fixed) + 34 enriched articles (mostly correct rejections). Monitor after the KEV fix deploys. If new BC/The Record articles arrive unenriched and are rejected, consider title-signal fallback in `is_relevant_incident()` for core-tier sources.
 
 ### 3. Score=25 no-victim incidents (4 events)
 Four events at score=25, victim="-". Inspect the articles manually before deciding whether to filter them earlier (processing stage) or accept them as low-signal noise.
