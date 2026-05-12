@@ -4,11 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Score=25 no-victim campaign events (acceptable noise)
-Five score=25 incidents remain with no victim org: TrickMo banking malware (EU targeting), Fake OpenAI Hugging Face infostealer, Google Ads/Claude.ai malvertising, Google AI zero-day report, and a Hackers/Mac malware campaign. These are real campaigns but lack a named org victim. Current behavior is correct — they show with victim="-" and low confidence. No action needed unless these start producing false positives at scale.
+### 1. CheckMarx false attribution to Lapsus$ (high priority)
+Production shows `victim=CheckMarx attack=Malware [Lapsus$]`. The actual attacker was TeamPCP, not Lapsus$. The actor recognition system is matching Lapsus$ from body text — likely a comparison mention ("similar to Lapsus$ tactics") rather than a direct attribution. The data integrity rule is: no hallucinated actors. Fix: investigate what in the article body is matching Lapsus$, then either tighten the attribution context window or add a suppression for comparison-framing patterns.
 
-### 2. Three score=80 no-victim incidents (KrebsOnSecurity)
-Anti-DDoS Firm attack on Brazilian ISPs, Russia Hacked Routers (mass router harvesting), and CanisterWorm wiper targeting Iran — all from KrebsOnSecurity with score=80 and no named victim. These are legitimate geopolitical/infrastructure incidents without extractable org targets. Current behavior is correct. Monitor for victim extraction opportunities if article content improves.
+### 2. Score=25 no-victim campaign events (acceptable noise)
+Six score=25 incidents with no victim org: TrickMo banking malware (EU), Fake OpenAI Hugging Face infostealer, Google Ads/Claude.ai malvertising, Google AI zero-day report, Hackers/Mac malware, and one unknown new entry. Real campaigns, no named org victim. Current behavior is correct — low confidence, victim="-". No action needed unless scale increases.
+
+### 3. Three score=80 no-victim incidents (KrebsOnSecurity)
+Anti-DDoS Firm attack on Brazilian ISPs, Russia Hacked Routers (mass router harvesting), and CanisterWorm wiper targeting Iran — all from KrebsOnSecurity with score=80 and no named victim. Legitimate geopolitical/infrastructure incidents without extractable org targets. Current behavior is correct.
 
 ---
 
