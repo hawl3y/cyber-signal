@@ -306,6 +306,11 @@ def _extract_victim_org_name(article):
         "vendor",
     }
 
+    actor_start_terms = {
+        "hackers", "researchers", "attackers", "threat actors", "cybercriminals",
+        "criminals", "nation-state", "adversaries", "scammers",
+    }
+
     def extract_candidates(text):
         candidates = []
 
@@ -320,6 +325,9 @@ def _extract_victim_org_name(article):
                     continue
 
                 if blocked_action_phrase.search(candidate):
+                    continue
+
+                if candidate.split()[0].lower() in actor_start_terms:
                     continue
 
                 candidates.append(candidate)
@@ -405,6 +413,10 @@ def _clean_anchor_candidate(value):
     }
 
     if cleaned.lower() in blocked:
+        return None
+
+    blocked_start_words = {"official", "hackers", "researchers", "attackers", "threat"}
+    if cleaned.split()[0].lower() in blocked_start_words:
         return None
 
     return cleaned
@@ -508,7 +520,7 @@ def _extract_industry(text):
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(hospital|hospitals|healthcare|clinic|health system|medical)\b", "Healthcare"),
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(school|schools|university|universities|college|education|educational|student|campus|district)\b", "Education"),
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(bank|banks|financial|credit union|insurance|brokerage|payment processor)\b", "Financial Services"),
-        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(utility|utilities|power grid|water utility|pipeline|energy)\b", "Energy"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(utility|utilities|power grid|water utility|water company|oil pipeline|gas pipeline|energy provider|energy company)\b", "Energy"),
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(airport|airline|aviation|rail|railway|transit|metro|shipping|logistics|freight|port authority)\b", "Transportation"),
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(newspaper|news outlet|media company|broadcaster|television network|radio station|publisher)\b", "Media"),
     ]
@@ -517,25 +529,111 @@ def _extract_industry(text):
         if re.search(pattern, text, flags=re.IGNORECASE):
             return industry
 
-    organization_type_patterns = [
-        (
-            r"\b(?:cybersecurity|security|threat intelligence|endpoint security|network security)\s+"
-            r"(?:company|firm|vendor|provider|platform)\b",
-            "Technology",
-        ),
-        (
-            r"\b(?:company|firm|vendor|provider|platform)\s+"
-            r"(?:specializing in|focused on|providing|offering)\s+"
-            r"(?:cybersecurity|security|threat intelligence|endpoint security|network security)\b",
-            "Technology",
-        ),
-    ]
-
-    for pattern, industry in organization_type_patterns:
-        if re.search(pattern, text, flags=re.IGNORECASE):
-            return industry
-
     industry_keywords = {
+        "Healthcare": [
+            "hospital",
+            "healthcare",
+            "patient",
+            "medical",
+            "clinic",
+            "health system",
+            "health service",
+        ],
+        "Energy": [
+            "energy company",
+            "energy sector",
+            "energy provider",
+            "utility company",
+            "utility provider",
+            "power grid",
+            "power plant",
+            "substation",
+            "water utility",
+            "water treatment",
+            "water company",
+            "water works",
+            "gas utility",
+            "oil pipeline",
+            "gas pipeline",
+            "critical pipeline",
+        ],
+        "Education": [
+            "school",
+            "university",
+            "college",
+            "education",
+            "educational",
+            "edtech",
+            "student",
+            "campus",
+            "district",
+        ],
+        "Government": [
+            "government",
+            "agency",
+            "ministry",
+            "public sector",
+            "municipal",
+            "city of ",
+            "county",
+            "state government",
+            "federal",
+            "department of",
+            "public service",
+            "township",
+            "parish",
+        ],
+        "Transportation": [
+            "airport",
+            "airline",
+            "aviation",
+            "rail",
+            "railway",
+            "transit",
+            "metro",
+            "port authority",
+            "shipping",
+            "logistics",
+            "freight",
+            "electric bicycle",
+            "electric bike",
+            "e-bike",
+            "ebike",
+            "motorcycle",
+            "vehicle",
+            "automotive",
+            "fleet",
+        ],
+        "Media": [
+            "newspaper",
+            "news outlet",
+            "media company",
+            "media firm",
+            "media group",
+            "media outlet",
+            "news organization",
+            "publishing company",
+            "broadcaster",
+            "television network",
+            "radio station",
+            "publisher",
+        ],
+        "Financial Services": [
+            "bank",
+            "banking",
+            "financial institution",
+            "financial services",
+            "financial sector",
+            "atm",
+            "cryptocurrency exchange",
+            "crypto exchange",
+            "fintech",
+            "payment processor",
+            "credit union",
+            "brokerage",
+            "insurance company",
+            "insurer",
+        ],
         "Technology": [
             "software provider",
             "software vendor",
@@ -575,103 +673,30 @@ def _extract_industry(text):
             "gps tracking",
             "tracking platform",
         ],
-        "Healthcare": [
-            "hospital",
-            "healthcare",
-            "patient",
-            "medical",
-            "clinic",
-            "health system",
-            "health service",
-        ],
-        "Financial Services": [
-            "bank",
-            "banking",
-            "financial",
-            "atm",
-            "cryptocurrency",
-            "exchange",
-            "fintech",
-            "payment processor",
-            "credit union",
-            "brokerage",
-            "insurance",
-        ],
-        "Education": [
-            "school",
-            "university",
-            "college",
-            "education",
-            "educational",
-            "edtech",
-            "student",
-            "campus",
-            "district",
-        ],
-        "Government": [
-            "government",
-            "agency",
-            "ministry",
-            "public sector",
-            "municipal",
-            "city of ",
-            "county",
-            "state government",
-            "federal",
-            "department of",
-            "public service",
-            "township",
-            "parish",
-        ],
-        "Energy": [
-            "energy",
-            "utility",
-            "power grid",
-            "substation",
-            "water utility",
-            "water treatment",
-            "gas utility",
-            "pipeline",
-        ],
-        "Transportation": [
-            "airport",
-            "airline",
-            "aviation",
-            "rail",
-            "railway",
-            "transit",
-            "metro",
-            "port authority",
-            "shipping",
-            "logistics",
-            "freight",
-            "electric bicycle",
-            "electric bike",
-            "e-bike",
-            "ebike",
-            "motorcycle",
-            "vehicle",
-            "automotive",
-            "fleet",
-        ],
-        "Media": [
-            "newspaper",
-            "news outlet",
-            "media company",
-            "media firm",
-            "media group",
-            "media outlet",
-            "news organization",
-            "publishing company",
-            "broadcaster",
-            "television network",
-            "radio station",
-            "publisher",
-        ],
     }
 
     for industry, keywords in industry_keywords.items():
         if any(keyword in text for keyword in keywords):
+            return industry
+
+    # Only use org-type patterns as a last resort — they match quoted sources too broadly
+    # to be used before keyword matching.
+    organization_type_patterns = [
+        (
+            r"\b(?:cybersecurity|security|threat intelligence|endpoint security|network security)\s+"
+            r"(?:company|firm|vendor|provider|platform)\b",
+            "Technology",
+        ),
+        (
+            r"\b(?:company|firm|vendor|provider|platform)\s+"
+            r"(?:specializing in|focused on|providing|offering)\s+"
+            r"(?:cybersecurity|security|threat intelligence|endpoint security|network security)\b",
+            "Technology",
+        ),
+    ]
+
+    for pattern, industry in organization_type_patterns:
+        if re.search(pattern, text, flags=re.IGNORECASE):
             return industry
 
     return None
@@ -966,12 +991,12 @@ def run_rule_extraction(article):
 
         if any(term in combined_text for term in ["hospital", "healthcare", "medical", "medtech", "clinic"]):
             industry = "Healthcare"
-        elif any(term in combined_text for term in ["bank", "financial", "fintech", "payment", "credit card"]):
-            industry = "Financial Services"
         elif any(term in combined_text for term in ["school", "university", "education", "student"]):
             industry = "Education"
         elif any(term in combined_text for term in ["government", "ministry", "agency", "municipality", "city of"]):
             industry = "Government"
+        elif any(term in combined_text for term in ["bank", "banking", "fintech", "payment processor", "credit union"]):
+            industry = "Financial Services"
         elif any(term in combined_text for term in ["software vendor", "software provider", "tech company", "tech firm", "saas", "hosting provider", "managed service provider", "msp", "data center", "developer tool", "application framework"]):
             industry = "Technology"
 
@@ -980,8 +1005,12 @@ def run_rule_extraction(article):
 
     geography = _extract_geography(text)
 
+    # Strip "anti-ransomware" before ransomware keyword matching to avoid false positives
+    # on articles about ransomware defenses.
+    text_for_ransomware = re.sub(r"\banti-ransomware\b", "", text, flags=re.IGNORECASE)
+
     attack_type = "Unknown"
-    if any(keyword in text for keyword in [
+    if any(keyword in text_for_ransomware for keyword in [
         "ransomware",
         "ransom note",
         "ransom demand",
@@ -1009,25 +1038,6 @@ def run_rule_extraction(article):
     ]):
         attack_type = "DDoS"
     elif any(keyword in text for keyword in [
-        "data breach",
-        "security breach",
-        "breached",
-        "breaching systems",
-        "breach of",
-        "hack at",
-        "hack of",
-        "data theft",
-        "stolen data records",
-        "stolen records",
-        "stole data",
-        "exposed data",
-        "data exposed",
-        "unauthorized access to data",
-        "customer data was accessed",
-        "records were accessed",
-    ]):
-        attack_type = "Data Breach"
-    elif any(keyword in text for keyword in [
         "malware",
         "trojan",
         "infostealer",
@@ -1049,16 +1059,6 @@ def run_rule_extraction(article):
     ]):
         attack_type = "Malware"
     elif any(keyword in text for keyword in [
-        "credential theft",
-        "stolen credentials",
-        "account takeover",
-        "compromised account",
-        "hijacked account",
-        "accounts were compromised",
-        "obtained control of credentials",
-    ]):
-        attack_type = "Account Compromise"
-    elif any(keyword in text for keyword in [
         "supply chain",
         "malicious package",
         "malicious update",
@@ -1069,6 +1069,49 @@ def run_rule_extraction(article):
         "software supply chain",
     ]):
         attack_type = "Supply Chain"
+    elif any(keyword in text for keyword in [
+        "sql injection",
+        "command injection",
+        "os command injection",
+        "code injection",
+        "injection vulnerability",
+        "xpath injection",
+        "ldap injection",
+        "cross-site scripting",
+        "xss",
+        "stored xss",
+        "reflected xss",
+    ]):
+        attack_type = "Injection"
+    elif any(keyword in text for keyword in [
+        "data breach",
+        "security breach",
+        "breached",
+        "breaching systems",
+        "breach of",
+        "hack at",
+        "hack of",
+        "data theft",
+        "stolen data records",
+        "stolen records",
+        "stole data",
+        "exposed data",
+        "data exposed",
+        "unauthorized access to data",
+        "customer data was accessed",
+        "records were accessed",
+    ]):
+        attack_type = "Data Breach"
+    elif any(keyword in text for keyword in [
+        "credential theft",
+        "stolen credentials",
+        "account takeover",
+        "compromised account",
+        "hijacked account",
+        "accounts were compromised",
+        "obtained control of credentials",
+    ]):
+        attack_type = "Account Compromise"
     elif any(keyword in text for keyword in [
         "authentication bypass",
         "auth bypass",
@@ -1093,16 +1136,6 @@ def run_rule_extraction(article):
         "local privilege escalation",
     ]):
         attack_type = "Privilege Escalation"
-    elif any(keyword in text for keyword in [
-        "sql injection",
-        "command injection",
-        "os command injection",
-        "code injection",
-        "injection vulnerability",
-        "xpath injection",
-        "ldap injection",
-    ]):
-        attack_type = "Injection"
     elif _has_exploitation_signal(text):
         attack_type = "Exploitation"
 
@@ -1156,8 +1189,13 @@ def run_rule_extraction(article):
             signals["victim_org_normalized"] = _normalize_org_name(vendor)
             signals["victim_display_label"] = vendor
         else:
-            signals["victim_org_name"] = anchor_name
-            signals["victim_org_normalized"] = _normalize_org_name(anchor_name)
+            cleaned_anchor = _clean_org_name(anchor_name)
+            if cleaned_anchor:
+                signals["victim_org_name"] = cleaned_anchor
+                signals["victim_org_normalized"] = _normalize_org_name(cleaned_anchor)
+                signals["victim_display_label"] = cleaned_anchor
+            else:
+                signals["victim_display_label"] = None
         if signals.get("industry") in (None, "Unknown"):
             signals["industry"] = "Technology"
 

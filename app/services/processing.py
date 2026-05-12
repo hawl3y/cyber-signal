@@ -170,6 +170,9 @@ def is_relevant_incident(article):
         "adds infostealer protection",
         "protection against",
         "designed to block",
+        "why changing",
+        "used ai to",
+        "used artificial intelligence to",
     ]
 
     if any(pattern in title for pattern in negative_title_patterns):
@@ -217,6 +220,7 @@ def is_relevant_incident(article):
         "forced offline",
         "taken offline",
         "disrupted",
+        "disrupts",
         "data leaked",
         "stolen data",
         "downloaded personal data",
@@ -294,6 +298,11 @@ def is_relevant_incident(article):
         "site",
         "sites",
         "plugin suite",
+        "router",
+        "routers",
+        "network device",
+        "network devices",
+        "infrastructure",
 ])
 
     has_only_advisory_exploitation = (
@@ -312,6 +321,9 @@ def is_relevant_incident(article):
         return has_direct_attack_construction or has_completed_incident or has_concrete_impact
 
     if has_attack_target_context and has_direct_attack_construction:
+        return True
+
+    if has_attack_target_context and has_completed_incident and has_concrete_impact:
         return True
 
     if has_reporting_frame:
