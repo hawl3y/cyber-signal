@@ -188,6 +188,13 @@ def is_relevant_incident(article):
         "why changing",
         "doxes",
         "feds disrupt",
+        # Vendor patch/advisory announcements — not incident reports
+        "fixes critical vulnerabilities",
+        "patches critical vulnerabilities",
+        "releases security updates",
+        "releases security patches",
+        "security updates addressing",
+        "patch tuesday",
     ]
 
     if any(pattern in title for pattern in negative_title_patterns):
