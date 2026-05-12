@@ -14,8 +14,16 @@ with app.app_context():
         print(f"  title={a.title}")
         summary_snippet = (a.summary or "")[:200]
         print(f"  summary={summary_snippet}")
-        content_snippet = (a.content or "")[:200]
+        content = (a.content or "")
+        content_snippet = content[:200]
         print(f"  content={content_snippet}")
+        # Show where "instructure" appears in the full body, if at all
+        idx = content.lower().find("instructure")
+        if idx >= 0:
+            start = max(0, idx - 40)
+            print(f"  'instructure' at char {idx}: ...{content[start:idx+60]}...")
+        else:
+            print(f"  'instructure' NOT found in content ({len(content)} chars total)")
 
         ext = ArticleExtraction.query.filter_by(raw_article_id=a.id).first()
         if ext:
