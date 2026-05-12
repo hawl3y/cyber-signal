@@ -295,6 +295,8 @@ def _extract_victim_org_name(article):
         r"^\s*([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:reaches?|reached)\s+\S*(?:agreement|deal|settlement)\S*\s+with\b",
         # "X pays/paid ransom to [actor]" — victim paying extortion
         r"^\s*([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:pays?|paid)\s+ransom\b",
+        # "fined [Org] £/$/€..." — regulatory fine confirms the org was the breach victim
+        r"\bfined\s+([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,3})\s+[£$€¥]",
         # "X site/system hacked" — requires a target noun so "Russia Hacked Routers" (actor)
         # is not mistaken for a victim construction.
         r"^([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:site|system|network|server|database|website|download manager|repository)\s+(?:hacked|breached|hijacked)(?:\s+to\b|\s+by\b|\s+in\b|\s*$)",
@@ -308,6 +310,8 @@ def _extract_victim_org_name(article):
         # "X source code/data/system breach [claimed/reported by]" — X is the victim.
         # Require 4+ char first token to avoid sentence-start words like "New".
         r"^\s*([A-Z][A-Za-z0-9._-]{3,}(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:source code|data|systems?|network)\s+breach\b",
+        # "Canvas Breach Disrupts Schools..." — product/platform name followed by "Breach" then active verb
+        r"^\s*([A-Z][A-Za-z0-9._-]{3,}(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+[Bb]reach\s+(?:[Dd]isrupt|[Ee]xpose|[Hh]it|[Ff]orce|[Ss]hut|[Kk]nock)\w*\b",
         r"\b(?:breach|hack|attack|cyberattack|cyber attack|data theft)\s+at\s+(?:[a-z][a-z0-9&._' -]*\s+){0,5}([A-Z][A-Za-z0-9&._'-]*(?:\s+[A-Z][A-Za-z0-9&._'-]*){0,3})\b",
         r"\b([A-Z][A-Za-z0-9&._'-]*(?:\s+[A-Z][A-Za-z0-9&._'-]*){0,3})\s+hacker\s+claims\s+data\s+theft\b",
         r"\b(?:breach|hack|attack|cyberattack|cyber attack|ransomware attack)\s+(?:at|on|against|of)\s+([^,.;:]+)",
@@ -499,7 +503,7 @@ def _extract_cisa_vendor(title):
             or "/" in w
             or w.lower() in _VULN_TYPE_STOP_WORDS
         )
-        if not is_product_code:
+        if not is_product_code and w.lower() != first.lower():
             vendor_words.append(w)
     return " ".join(vendor_words)
 

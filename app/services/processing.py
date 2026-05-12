@@ -186,6 +186,8 @@ def is_relevant_incident(article):
         "protection against",
         "designed to block",
         "why changing",
+        "doxes",
+        "feds disrupt",
     ]
 
     if any(pattern in title for pattern in negative_title_patterns):
