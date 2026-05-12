@@ -1014,8 +1014,14 @@ def run_rule_extraction(article):
     # on articles about ransomware defenses.
     text_for_ransomware = re.sub(r"\banti-ransomware\b", "", text, flags=re.IGNORECASE)
 
+    # Activity signals (CISA advisories, KEV) describe vulnerability classes, not incident
+    # delivery methods. Skip Ransomware/DDoS/Malware/Phishing for those sources to prevent
+    # advisory boilerplate text (e.g. "phishing may be used to gain initial access") from
+    # overriding the actual vulnerability classification.
+    is_activity = signal_kind == "activity"
+
     attack_type = "Unknown"
-    if any(keyword in text_for_ransomware for keyword in [
+    if not is_activity and any(keyword in text_for_ransomware for keyword in [
         "ransomware",
         "ransom note",
         "ransom demand",
@@ -1024,7 +1030,7 @@ def run_rule_extraction(article):
         "encryptor",
     ]):
         attack_type = "Ransomware"
-    elif any(keyword in text for keyword in [
+    elif not is_activity and any(keyword in text for keyword in [
         "ddos",
         "denial of service",
         "distributed denial of service",
@@ -1032,7 +1038,7 @@ def run_rule_extraction(article):
         "traffic flood",
     ]):
         attack_type = "DDoS"
-    elif any(keyword in text for keyword in [
+    elif not is_activity and any(keyword in text for keyword in [
         "malware",
         "trojan",
         "infostealer",
@@ -1053,7 +1059,7 @@ def run_rule_extraction(article):
         "killing scripts",
     ]):
         attack_type = "Malware"
-    elif any(keyword in text for keyword in [
+    elif not is_activity and any(keyword in text for keyword in [
         "phishing",
         "phishing-as-a-service",
         "credential harvesting",
@@ -1063,7 +1069,7 @@ def run_rule_extraction(article):
         "bec ",
     ]):
         attack_type = "Phishing"
-    elif any(keyword in text for keyword in [
+    elif not is_activity and any(keyword in text for keyword in [
         "supply chain",
         "malicious package",
         "malicious update",
@@ -1088,7 +1094,7 @@ def run_rule_extraction(article):
         "reflected xss",
     ]):
         attack_type = "Injection"
-    elif any(keyword in text for keyword in [
+    elif not is_activity and any(keyword in text for keyword in [
         "data breach",
         "security breach",
         "breached",
@@ -1107,7 +1113,7 @@ def run_rule_extraction(article):
         "records were accessed",
     ]):
         attack_type = "Data Breach"
-    elif any(keyword in text for keyword in [
+    elif not is_activity and any(keyword in text for keyword in [
         "credential theft",
         "stolen credentials",
         "account takeover",

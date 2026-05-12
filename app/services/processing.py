@@ -132,11 +132,9 @@ def is_relevant_incident(article):
     # Security researcher PoC/tool releases are not incidents
     researcher_tool_patterns = [
         "proof-of-concept tool",
-        "proof-of-concept exploit",
         "security researcher has released",
         "researcher released a poc",
         "poc tool",
-        "demo tool",
     ]
     if any(pattern in title_and_summary for pattern in researcher_tool_patterns):
         return False
