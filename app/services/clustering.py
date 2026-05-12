@@ -539,7 +539,9 @@ def refresh_event(event_id):
         if event.victim_org_name and _cve_re.match(event.victim_org_name):
             event.victim_org_name = None
             event.victim_org_normalized = None
-        _apply("industry", _best_field(ranked, "industry"))
+        # Industry is deterministic (rule-based), not AI-enriched — always update
+        # so stale values are cleared when extraction logic changes.
+        event.industry = _best_field(ranked, "industry") or "Unknown"
         _apply("attack_type", _best_field(ranked, "attack_type"))
         _apply("country", _best_field(ranked, "country"))
 
