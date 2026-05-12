@@ -1253,8 +1253,7 @@ def run_rule_extraction(article):
             and anchor_type == "product_or_platform"
             and anchor_name
             and (is_cisa_source or clean_substring)):
-        if is_cisa_source:
-            # Both advisory and KEV use vendor-first title format — extract vendor name.
+        if is_cisa_advisory:
             vendor = _extract_cisa_vendor(anchor_name)
             if vendor and not _is_generic_org_descriptor(vendor):
                 signals["victim_org_name"] = vendor
@@ -1270,6 +1269,19 @@ def run_rule_extraction(article):
                 signals["victim_display_label"] = None
         if signals.get("industry") in (None, "Unknown"):
             signals["industry"] = "Technology"
+
+    # CISA KEV: anchor is always CVE-YYYY-NNNNN (type=vulnerability), so the
+    # product_or_platform block above never fires. Extract vendor for display only.
+    # Do NOT set victim_org_name — that would cluster distinct CVEs from the same
+    # vendor into one event.
+    if article.source_name == "cisa-kev" and not signals.get("victim_display_label"):
+        kev_title = (article.title or "").strip()
+        if kev_title:
+            vendor = _extract_cisa_vendor(kev_title)
+            if vendor and not _is_generic_org_descriptor(vendor):
+                signals["victim_display_label"] = vendor
+                if signals.get("industry") in (None, "Unknown"):
+                    signals["industry"] = "Technology"
 
     return signals
 
