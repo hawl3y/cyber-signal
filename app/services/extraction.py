@@ -264,8 +264,11 @@ def _extract_victim_org_name(article):
         # "X site/system hacked" — requires a target noun so "Russia Hacked Routers" (actor)
         # is not mistaken for a victim construction.
         r"^([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:site|system|network|server|database|website|download manager|repository)\s+(?:hacked|breached|hijacked)(?:\s+to\b|\s+by\b|\s+in\b|\s*$)",
-        # "platform/tool created by Org" — supply chain context
+        # "platform/tool created/made by Org" or "Org, maker/developer of X"
         r"\b(?:created by|developed by|owned by|operated by|provided by|made by)\s+([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\b",
+        r"\b([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2}),?\s+(?:maker|developer|creator|provider|vendor)\s+of\b",
+        # "Org's [platform/service/product/...]" — possessive product ownership
+        r"\b([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})'s\s+(?:platform|service|software|system|product|application|app|tool|portal|website|network|infrastructure|database|plugin|suite|suite of tools)\b",
         r"\b(?:breach|hack|attack|cyberattack|cyber attack|data theft)\s+at\s+(?:[a-z][a-z0-9&._' -]*\s+){0,5}([A-Z][A-Za-z0-9&._'-]*(?:\s+[A-Z][A-Za-z0-9&._'-]*){0,3})\b",
         r"\b([A-Z][A-Za-z0-9&._'-]*(?:\s+[A-Z][A-Za-z0-9&._'-]*){0,3})\s+hacker\s+claims\s+data\s+theft\b",
         r"\b(?:breach|hack|attack|cyberattack|cyber attack|ransomware attack)\s+(?:at|on|against|of)\s+([^,.;:]+)",
@@ -1065,16 +1068,6 @@ def run_rule_extraction(article):
     ]):
         attack_type = "Malware"
     elif not is_activity and any(keyword in text for keyword in [
-        "phishing",
-        "phishing-as-a-service",
-        "credential harvesting",
-        "spear-phishing",
-        "malicious email",
-        "business email compromise",
-        "bec ",
-    ]):
-        attack_type = "Phishing"
-    elif not is_activity and any(keyword in text for keyword in [
         "supply chain",
         "malicious package",
         "malicious update",
@@ -1099,6 +1092,16 @@ def run_rule_extraction(article):
         "reflected xss",
     ]):
         attack_type = "Injection"
+    elif not is_activity and any(keyword in text for keyword in [
+        "phishing",
+        "phishing-as-a-service",
+        "credential harvesting",
+        "spear-phishing",
+        "malicious email",
+        "business email compromise",
+        "bec ",
+    ]):
+        attack_type = "Phishing"
     elif not is_activity and any(keyword in text for keyword in [
         "data breach",
         "security breach",
