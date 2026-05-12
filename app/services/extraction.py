@@ -164,6 +164,12 @@ def _clean_org_name(value):
         return None
 
     cleaned = re.sub(r"^(?:the)\s+", "", cleaned, flags=re.IGNORECASE)
+    # Truncate at sentence boundary: "DoD. The attack..." → "DoD"
+    # Safe for abbreviations like "U.S. Navy" because those aren't followed by sentence-starter words.
+    cleaned = re.sub(
+        r'\.\s+(?:The|A|An|This|These|Those|It|They|He|She|We|Its)\b.*$',
+        '', cleaned, flags=re.IGNORECASE,
+    ).rstrip('.')
     cleaned = ORG_CLAUSE_BOUNDARY_RE.split(cleaned, maxsplit=1)[0].strip()
     cleaned = re.sub(r"\s+", " ", cleaned).strip(" -,:;\"'[]{}“”‘’")
 
@@ -382,15 +388,6 @@ def _extract_victim_org_name(article):
     for candidate in content_candidates:
         if not is_generic_descriptor(candidate):
             return candidate
-
-    if summary_candidates:
-        return summary_candidates[0]
-
-    if title_candidates:
-        return title_candidates[0]
-
-    if content_candidates:
-        return content_candidates[0]
 
     return None
 
