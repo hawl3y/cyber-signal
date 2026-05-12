@@ -522,12 +522,10 @@ def refresh_event(event_id):
         # field, so a Krebs/SEC value isn't overwritten by a later, weaker
         # aggregator article. Blank-everywhere fields preserve whatever the
         # event already has.
-        _apply("victim_org_name", _best_field(ranked, "victim_org_name"))
-        _apply("victim_org_normalized", _best_field(ranked, "victim_org_normalized"))
-
-        # victim_display_label is always derived from extraction — never AI-enriched.
-        # Set it directly so that None from extraction can clear stale values (e.g.
-        # a full product title set by older extraction logic).
+        # victim fields are always derived from extraction — never AI-enriched.
+        # Set directly so that None from extraction can clear stale values.
+        event.victim_org_name = _best_field(ranked, "victim_org_name")
+        event.victim_org_normalized = _best_field(ranked, "victim_org_normalized")
         event.victim_display_label = _best_field(ranked, "victim_display_label")
 
         _apply("victim_entity_type", _best_field(ranked, "victim_entity_type"))
