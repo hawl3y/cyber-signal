@@ -300,6 +300,9 @@ def _extract_victim_org_name(article):
         # "X site/system hacked" — requires a target noun so "Russia Hacked Routers" (actor)
         # is not mistaken for a victim construction.
         r"^([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:site|system|network|server|database|website|download manager|repository)\s+(?:hacked|breached|hijacked)(?:\s+to\b|\s+by\b|\s+in\b|\s*$)",
+        # Supply-chain: "Official OrgName ProductEcosystem package/plugin compromised"
+        # The org is the affected vendor; the skip word is the product ecosystem name.
+        r"^(?:[Oo]fficial\s+)?([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,1})\s+\w+\s+(?:package|plugin|library|module|extension)\s+(?:compromised|backdoored|tampered|poisoned|hacked)\b",
         # body_only_patterns are also included here so they apply to title/summary
         r"\b(?:created by|developed by|owned by|operated by|provided by|made by)\s+([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\b",
         r"\b([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2}),?\s+(?:maker|developer|creator|provider|vendor)\s+of\b",
