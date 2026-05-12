@@ -14,10 +14,17 @@ def utc_now_naive():
 
 def _format_summary(result):
     lines = ["pipeline complete:"]
-    for stage in ("ingest", "process", "extract", "cluster", "attribute", "audit"):
+    for stage in ("ingest", "enrich", "process", "extract", "cluster", "attribute", "audit"):
         seconds = result.get(f"{stage}_seconds")
         seconds_str = f"{seconds:.2f}s" if isinstance(seconds, (int, float)) else "n/a"
-        if stage == "attribute":
+        if stage == "enrich":
+            stats = result.get("enrich") or {}
+            candidates = stats.get("candidates", 0)
+            enriched = stats.get("enriched", 0)
+            lines.append(
+                f"  enrich    {seconds_str}  candidates={candidates} enriched={enriched}"
+            )
+        elif stage == "attribute":
             stats = result.get("attribute") or {}
             considered = stats.get("events_considered", 0)
             changed = stats.get("events_changed", 0)

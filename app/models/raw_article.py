@@ -35,6 +35,7 @@ class RawArticle(db.Model):
     duplicate_of_article_id = db.Column(db.Integer)
 
     processing_status = db.Column(db.String(50))
+    content_enriched = db.Column(db.Boolean, default=False, nullable=False, server_default="false")
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

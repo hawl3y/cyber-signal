@@ -682,14 +682,41 @@ def save_raw_article(article):
     if existing:
         return existing
 
-    if article.get("source_type") == "rss":
-        full_body = _fetch_article_body(article.get("article_url"))
-        if full_body:
-            article = {**article, "content": full_body}
-
     raw_article = RawArticle(**article)
 
     db.session.add(raw_article)
     db.session.commit()
 
     return raw_article
+
+
+_CONTENT_THIN_THRESHOLD = 300
+
+
+def enrich_article_content():
+    """
+    Fetch full article body for RSS articles that have thin content.
+
+    Runs after ingest and before process. Articles that are blocked or fail
+    are left with content_enriched=False so the next pipeline run retries.
+    """
+    candidates = RawArticle.query.filter(
+        RawArticle.source_type == "rss",
+        RawArticle.content_enriched == False,  # noqa: E712
+    ).all()
+
+    enriched = 0
+    for article in candidates:
+        body = _fetch_article_body(article.article_url)
+        if body:
+            article.content = body
+            article.content_enriched = True
+            enriched += 1
+        else:
+            # Mark enriched even on failure if content is already substantial,
+            # so we don't keep retrying articles that will never be fetchable.
+            if article.content and len(article.content) >= _CONTENT_THIN_THRESHOLD:
+                article.content_enriched = True
+
+    db.session.commit()
+    return {"candidates": len(candidates), "enriched": enriched}

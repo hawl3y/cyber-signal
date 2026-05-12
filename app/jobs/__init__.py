@@ -1,6 +1,7 @@
 import time
 
 from app.jobs.ingest_job import scheduled_ingest_job
+from app.jobs.enrich_content_job import enrich_content_job
 from app.jobs.process_articles_job import process_articles_job
 from app.jobs.extract_signals_job import extract_signals_job
 from app.jobs.cluster_events_job import cluster_events_job
@@ -25,6 +26,7 @@ def run_full_pipeline(force_extract=False):
     """
     results = {
         "ingest": False,
+        "enrich": None,
         "process": False,
         "extract": False,
         "cluster": False,
@@ -33,6 +35,7 @@ def run_full_pipeline(force_extract=False):
     }
 
     _run_stage("ingest", scheduled_ingest_job, results)
+    _run_stage("enrich", enrich_content_job, results)
     _run_stage("process", process_articles_job, results)
     _run_stage("extract", lambda: extract_signals_job(force=force_extract), results)
     _run_stage("cluster", cluster_events_job, results)
