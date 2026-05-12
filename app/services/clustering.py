@@ -653,7 +653,10 @@ def refresh_event(event_id):
     ]
 
     if event.event_signal_type == "activity":
-        event.is_high_impact = any(term in text for term in activity_high_impact_terms)
+        # CISA KEV entries are on the catalog because they have confirmed active exploitation
+        # — the definition of "known exploited" is built into the source, not the text.
+        is_kev_event = article is not None and article.source_name == "cisa-kev"
+        event.is_high_impact = is_kev_event or any(term in text for term in activity_high_impact_terms)
     else:
         event.is_high_impact = bool(
             event.actor_name
