@@ -290,6 +290,11 @@ def _extract_victim_org_name(article):
         # In cyber-news headlines the subject of confirms/discloses/acknowledges/admits
         # is virtually always the victim org.
         r"^\s*([^,.;:]+?)\s+(?:confirms|confirmed|discloses|disclosed|acknowledges|acknowledged|admits|admitted)\b",
+        # Resolution-phase headlines: "X reaches agreement/deal/settlement with [threat actor]"
+        # The subject of an extortion settlement in security news is always the victim.
+        r"^\s*([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:reaches?|reached)\s+\S*(?:agreement|deal|settlement)\S*\s+with\b",
+        # "X pays/paid ransom to [actor]" — victim paying extortion
+        r"^\s*([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:pays?|paid)\s+ransom\b",
         # "X site/system hacked" — requires a target noun so "Russia Hacked Routers" (actor)
         # is not mistaken for a victim construction.
         r"^([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:site|system|network|server|database|website|download manager|repository)\s+(?:hacked|breached|hijacked)(?:\s+to\b|\s+by\b|\s+in\b|\s*$)",
@@ -1137,6 +1142,9 @@ def run_rule_extraction(article):
         "hack at",
         "hack of",
         "data theft",
+        "data leak",
+        "data stolen",
+        "stolen data",
         "stolen data records",
         "stolen records",
         "stole data",
