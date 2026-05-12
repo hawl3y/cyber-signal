@@ -4,18 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Verify Anti-DDoS Firm fix in production
-After deploy of commit `3d22302`, run `force_reprocess.py` then `diagnose_prod.py`.
-Expected: `victim=Anti-DDoS Firm` becomes `-`. If still present, investigate the ArticleExtraction directly.
+### 1. Investigate Anti-DDoS Firm victim still showing (score=80)
+Extraction fix (88e2a34) and clustering refresh fix (3d22302) are deployed and force_reprocess was run, but `victim=Anti-DDoS Firm` still shows. Next step: inspect the ArticleExtraction record directly to confirm whether extraction now gives victim=None or still "Anti-DDoS Firm". If extraction is still wrong, trace through `run_rule_extraction` for that specific article.
+
+Diagnostic to run on Render:
+```
+PYTHONPATH=. python scripts/diagnose_prod.py
+```
+Then query ArticleExtraction for the DDoS/Anti-DDoS article to see its current victim value.
 
 ### 2. Content enrichment gap — 107/138 articles irrelevant
-BleepingComputer and The Record are blocked by Cloudflare in production, so articles arrive with thin RSS summaries only. Without full body text, `is_relevant_incident()` rejects them (no impact keywords). This is the single biggest quality gap. Options to investigate:
+BleepingComputer and The Record are blocked by Cloudflare in production — articles arrive with thin RSS summaries only. Without full body text, `is_relevant_incident()` rejects them (no impact keywords). This is the single biggest quality gap. Options:
 - Try alternative HTTP headers / user-agent strings in the enrich job
-- Accept the gap and focus on sources that do enrich (Krebs, CISA, SEC)
-- Add a fallback: if a source is `tier=core` and the article title contains strong incident signals, admit it even without body text
+- Accept the gap and focus on sources that do enrich (Krebs, CISA, SEC EDGAR)
+- Admit core-tier articles based on title signals alone when body enrichment fails
 
-### 3. Multiple low-confidence no-victim incidents (score=25)
-Five events at score=25 with `victim=-`. These are single-source, unenriched articles. Either they should be filtered earlier (processing stage) or accepted as low-signal. Confirm whether these are real incidents or noise before deciding.
+### 3. Score=25 no-victim incidents (4 events)
+Four events at score=25, victim="-". Inspect the articles manually before deciding whether to filter them earlier (processing stage) or accept them as low-signal noise.
+
+### 4. Victimless infrastructure events
+Hosting platform vulns, control panel exploits, shared-infra attacks — pipeline fails industry classification when there's no victim org. Design a deterministic classifier for this pattern at the extraction or processing stage. No one-off fixes.
 
 ---
 
