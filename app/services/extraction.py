@@ -738,6 +738,16 @@ def _extract_industry(text):
             "fleet management company",
             "gps tracking",
             "tracking platform",
+            # Consumer tech / malware campaign signals
+            "macos",
+            "mac malware",
+            "malvertising",
+            "infostealer",
+            "stealer malware",
+            "ai chatbot",
+            "google ads",
+            "npm package",
+            "pypi package",
         ],
     }
 
@@ -1071,7 +1081,17 @@ def run_rule_extraction(article):
             industry = "Government"
         elif any(term in title_summary for term in ["bank", "banking", "fintech", "payment processor", "credit union"]):
             industry = "Financial Services"
-        elif any(term in title_summary for term in ["software vendor", "software provider", "tech company", "tech firm", "saas", "hosting provider", "managed service provider", "msp", "data center", "developer tool", "application framework", "web admin", "npm package", "pypi package", "package registry", "open-source", "open source software", "zero-day exploit"]):
+        elif any(term in title_summary for term in [
+            "software vendor", "software provider", "tech company", "tech firm",
+            "saas", "hosting provider", "managed service provider", "msp",
+            "data center", "developer tool", "application framework",
+            "web admin", "npm package", "pypi package", "package registry",
+            "open-source", "open source software", "zero-day exploit",
+            # Consumer tech / malware campaign signals
+            "macos", "mac malware", "malvertising", "google ads",
+            "infostealer", "stealer malware", "ai chatbot",
+            "browser extension", "apple mac", "apple silicon",
+        ]):
             industry = "Technology"
 
     if not industry:
