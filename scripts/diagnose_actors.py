@@ -1,14 +1,26 @@
 """
-Diagnose events with missing actors — shows what the extraction found vs.
-what attribution found vs. what the event currently has.
+Diagnose events with missing actors — shows what attribution found and why
+find_actor_in_text returned None (which guard blocked it, what text was seen).
 """
+import re
 from app import create_app
-from app.models import CyberEvent, EventSourceLink, ArticleExtraction, RawArticle
-from app.services.actor_recognition import find_actor_in_text, _event_articles_text
+from app.models import CyberEvent, EventSourceLink, ArticleExtraction
+from app.services.actor_recognition import (
+    find_actor_in_text,
+    _event_articles_text,
+    _ACTOR_PATTERNS,
+    _HISTORICAL_MARKER_RE,
+)
+from app.services.actor_recognition import (
+    _CLAIMED_PATTERNS,
+    _CONFIRMED_PATTERNS,
+    _SUSPECTED_PATTERNS,
+)
 
 app = create_app()
 with app.app_context():
-    # Incident events with a named victim but no actor
+    ALL_ATTRIBUTION = _CLAIMED_PATTERNS + _CONFIRMED_PATTERNS + _SUSPECTED_PATTERNS
+
     events = (
         CyberEvent.query
         .filter(
@@ -24,30 +36,54 @@ with app.app_context():
     print(f"=== {len(events)} INCIDENT EVENTS WITH VICTIM BUT NO ACTOR ===\n")
 
     for event in events:
-        print(f"id={event.id} victim={event.victim_org_name!r} score={event.confidence_score}")
-        print(f"  title: {event.canonical_title[:80]!r}")
+        print(f"id={event.id} score={event.confidence_score} victim={event.victim_org_name!r}")
+        print(f"  {event.canonical_title[:90]!r}")
 
-        # What do the extractions have?
-        links = EventSourceLink.query.filter_by(cyber_event_id=event.id).all()
-        for link in links:
-            extraction = ArticleExtraction.query.filter_by(
-                raw_article_id=link.raw_article_id
-            ).first()
-            if extraction:
-                print(f"  extraction actor: {extraction.actor_name!r}")
-
-        # What does find_actor_in_text find?
         combined = _event_articles_text(event)
+
         result = find_actor_in_text(combined)
         if result:
-            print(f"  find_actor_in_text: {result[0]!r} status={result[2]!r}")
+            print(f"  FOUND: actor={result[0]!r} status={result[2]!r}")
+            print()
+            continue
+
+        # Drill into why each known actor pattern missed
+        blocked = []
+        for canonical, actor_type, name, pattern in _ACTOR_PATTERNS:
+            match = pattern.search(combined)
+            if not match:
+                continue
+            offset = match.start()
+            window_start = max(0, offset - 200)
+            window_end = min(len(combined), offset + 200)
+            window = combined[window_start:window_end].lower()
+            pre_actor = combined[window_start:offset]
+
+            matched_phrase = next(
+                (p for p in ALL_ATTRIBUTION if p in window), None
+            )
+            historical = _HISTORICAL_MARKER_RE.search(pre_actor)
+
+            if not matched_phrase:
+                blocked.append(
+                    f"  BLOCKED (no attribution phrase) [{canonical}] "
+                    f"window: ...{combined[max(0,offset-60):offset+80]!r}..."
+                )
+            elif historical:
+                blocked.append(
+                    f"  BLOCKED (historical marker) [{canonical}] "
+                    f"marker={historical.group()!r} "
+                    f"window: ...{combined[max(0,offset-60):offset+80]!r}..."
+                )
+            else:
+                blocked.append(
+                    f"  PASSED guards but not best [{canonical}] phrase={matched_phrase!r}"
+                )
+
+        if blocked:
+            for b in blocked[:5]:
+                print(b)
         else:
-            # Show a snippet of text near any known actor names for debugging
-            for keyword in ["claimed", "claiming", "attributed", "linked to", "behind"]:
-                idx = combined.lower().find(keyword)
-                if idx != -1:
-                    snippet = combined[max(0, idx-50):idx+150]
-                    print(f"  [{keyword}] ...{snippet!r}...")
-                    break
-            print(f"  find_actor_in_text: None")
+            print("  No known actor names found in article text at all")
+
         print()
