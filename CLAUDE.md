@@ -4,10 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Shai Hulud / TeamPCP npm supply-chain event (investigate)
-Production shows this event with `victim=NPM`, `region=United States`, `industry=Unknown`. The United States geography is a false positive from incidental US company mentions in the article body. Victim display should likely be "npm" or omitted. Industry should be Technology. TeamPCP is now in THREAT_ACTORS so attribution should resolve after force_reprocess. Run `scripts/diagnose_shai_hulud.py` on production to inspect current state, then fix any remaining extraction issues.
-
-### 2. Remove ActorCandidateSighting (planned, next round)
+### 1. Remove ActorCandidateSighting (planned, next round)
 The actor audit pipeline stage writes sightings to `ActorCandidateSighting` on every run but nobody reviews them — the curator workflow was never adopted. Plan: remove `actor_candidate_audit_job.py`, the `ActorCandidateSighting` model, the DB table (migration needed), and the `audit_unrecognized_actors.py` script. The attribution pipeline (actor_recognition.py + threat_actors.py) handles finding and matching actors without it.
 
 ### 3. Score=25 no-victim campaign events (acceptable noise)
@@ -280,12 +277,17 @@ After clustering, `_compute_confidence_score()` derives a deterministic 0–100 
 
 ### Threat-Actor Attribution
 
-**actor_recognition.py** runs after clustering. For each incident event with a victim and no (or generic) actor, it scans the combined text of all linked articles for any name or alias in the curated `THREAT_ACTORS` knowledge base (`app/data/threat_actors.py`). Attribution status is inferred from surrounding context patterns (claimed, suspected, etc.).
+**actor_recognition.py** runs after clustering. It scans the combined text of all linked articles for any name or alias in the curated `THREAT_ACTORS` knowledge base (`app/data/threat_actors.py`). Attribution status is inferred from surrounding context patterns (claimed, suspected, etc.).
 
 Rules:
 - `signal_type=activity` events are never attributed
-- `victim_org_name` must be set (no victim → no actor)
+- `victim_org_name` must be set for the main attribution pass (no victim → no actor)
+- Supply-chain/campaign incidents with no named org victim get a second pass: if `find_actor_in_text` finds an explicitly attributed known actor in the article text, it is propagated to the event
 - Already-attributed events are skipped unless the existing name is generic
+- Attribution requires explicit attribution language within 200 chars of the actor name (`_CLAIMED_PATTERNS`, `_CONFIRMED_PATTERNS`, `_SUSPECTED_PATTERNS` in actor_recognition.py)
+- Historical temporal markers before an actor name suppress the match (prevents attributing current events to actors mentioned only as historical context)
+
+**Before clearing actor fields on existing events**, run `scripts/diagnose_actors.py` to verify that `find_actor_in_text` can find every actor that will be wiped. If any event would lose an actor that attribution cannot restore, do not clear — fix the pattern gap first. Clearing actors and re-running attribution is destructive: actors not in `THREAT_ACTORS` or not matched by current patterns are permanently lost.
 
 ### Actor Candidate Audit
 
@@ -384,6 +386,18 @@ Any change to `extraction.py`, `processing.py`, or `clustering.py` **must** be f
 PYTHONPATH=. python scripts/force_reprocess.py
 ```
 
+### Rule: never clear enriched actor fields without verifying restoration
+
+`force_reprocess.py` clears all actor fields on incident events before re-running attribution. This is correct after changes to `actor_recognition.py` or `threat_actors.py`, **but only if attribution can restore every actor it is about to wipe.**
+
+Before running force_reprocess after any attribution logic change:
+1. Run `scripts/diagnose_actors.py` on production to see which events have actors
+2. Verify `find_actor_in_text` returns a result for each attributed event
+3. If any event would lose an actor that cannot be restored, fix the pattern gap in `_CLAIMED_PATTERNS` / `_CONFIRMED_PATTERNS` / `_SUSPECTED_PATTERNS` or add the actor to `THREAT_ACTORS` first
+4. Only then run force_reprocess
+
+If actors were already cleared and lost, run `scripts/fix_stale_events.py` (does not clear — just refreshes events and re-runs attribution) to restore what can be restored.
+
 ---
 
 ### Canonical scripts (always use these — never one-off heredocs)
@@ -401,6 +415,16 @@ PYTHONPATH=. python scripts/force_reprocess.py
 **Inspect current production state** (events with scores/sources/victims/attack types, article status counts, recent extractions):
 ```bash
 PYTHONPATH=. python scripts/diagnose_prod.py
+```
+
+**Inspect actor attribution gaps** (incident events with a victim but no actor — shows extraction actor, find_actor_in_text result, and nearby attribution language):
+```bash
+PYTHONPATH=. python scripts/diagnose_actors.py
+```
+
+**Restore stale events without full reprocess** (refresh all events + re-run attribution, no clearing):
+```bash
+PYTHONPATH=. python scripts/fix_stale_events.py
 ```
 
 **View actor candidate audit report**:
