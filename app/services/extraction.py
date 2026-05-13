@@ -139,7 +139,7 @@ def _is_plausible_org_candidate(value):
         return False
 
     uppercase_tokens = re.findall(r"\b[A-Z][A-Za-z0-9&._-]*\b", cleaned)
-    if not uppercase_tokens and not re.search(r"[A-Z]{2,}", cleaned):
+    if not uppercase_tokens and not re.search(r"[A-Z]{2,}", cleaned) and not cleaned[0].isupper():
         return False
 
     return True
@@ -283,13 +283,14 @@ def _extract_victim_org_name(article):
         r"\b([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2}),?\s+(?:maker|developer|creator|provider|vendor)\s+of\b",
         r"\bparent\s+(?:firm|company|organization|corp|corporation)\s+([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\b",
         r"\b([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})'s\s+(?:platform|service|software|system|product|application|app|tool|portal|website|network|infrastructure|database|plugin|suite|suite of tools)\b",
+        # "X, a wholly owned subsidiary of [Parent]" — X is the org that was breached
+        r"\b([^,.;:]+?),\s+a\s+(?:wholly\s+)?owned\s+subsidiary\s+of\b",
     ]
 
     target_patterns = [
         # Strong: subject of a disclosure verb at the start of the headline.
-        # In cyber-news headlines the subject of confirms/discloses/acknowledges/admits
-        # is virtually always the victim org.
-        r"^\s*([^,.;:]+?)\s+(?:confirms|confirmed|discloses|disclosed|acknowledges|acknowledged|admits|admitted)\b",
+        # Uses [^,.;:]+? (not [A-Z]...) so it handles non-ASCII org names (e.g. Škoda, Über).
+        r"^\s*([^,.;:]+?)\s+(?:confirms|confirmed|discloses|disclosed|acknowledges|acknowledged|admits|admitted|warns|reported|notified)\b",
         # Resolution-phase headlines: "X reaches agreement/deal/settlement with [threat actor]"
         # The subject of an extortion settlement in security news is always the victim.
         r"^\s*([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:reaches?|reached)\s+\S*(?:agreement|deal|settlement)\S*\s+with\b",
@@ -1243,6 +1244,12 @@ def run_rule_extraction(article):
     short_event_summary = _build_short_event_summary(article)
 
     attack_type = normalize_attack_type(attack_type)
+
+    # Geography without a named victim is almost always incidental — body text mentions
+    # a US-headquartered company or registry in passing, not as the attack target.
+    # Suppress region/country for no-victim campaign articles to avoid false geo attribution.
+    if not victim_org_name:
+        geography = {"region": None, "country": None, "city": None}
 
     signals = {
         "victim_org_name": victim_org_name,
