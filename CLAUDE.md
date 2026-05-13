@@ -4,11 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Verify actor attribution after recent attribution overhaul
-A major rewrite of `find_actor_in_text` introduced `finditer` (checks all occurrences instead of just first), victim-proximity guard (victim_tokens parameter), and a narrowed historical-marker guard (50-char pre-actor window, not 200). These changes restored NVIDIA/ShinyHunters, Stryker/Handala, and Canvas attribution that had regressed. After the next deploy, run `scripts/diagnose_actors.py` to confirm all expected actors are present before running `force_reprocess.py`. **Critical constraint**: never clear actor fields (as `force_reprocess.py` does) without first running `diagnose_actors.py` to confirm all actors can be restored — clearing without that check has caused actor data loss in the past.
+### 1. Pending: force_reprocess after next deploy
+Three committed-but-not-yet-applied pipeline fixes are waiting for `force_reprocess`:
+- **Geography false positives**: `_extract_geography` flat scan now restricted to title+summary (prevents West Pharmaceutical showing South Africa from office-location mentions in body text)
+- **Industry false positives**: `victim_context_text` for industry detection now restricted to title+summary (prevents Trellix → Government, Foxconn → Education from article body keywords)
+- **Processing filters**: "warns of critical", "to expand", " fixes ", PoC release patterns added to filter advisory/feature noise
+
+After next deploy, run: `PYTHONPATH=. python scripts/force_reprocess.py`
+
+### 2. Consider minimum score threshold for default view (open question)
+Default view (Incidents, 7d) shows 13 events: 6 high-trust (score ≥ 75), 7 low-trust (score 25–30). The low-trust events are real campaigns/incidents but single-source with no named org victim. Consider adding a minimum score filter (e.g. score ≥ 50) to the default view to surface only credible events, with a UI option to lower it. No decision made yet.
 
 ### 3. Score=25 no-victim campaign events (acceptable noise)
-Five score=25 incidents with no victim org: TrickMo banking malware (EU), Fake OpenAI Hugging Face infostealer, Google Ads/Claude.ai malvertising, Hackers/Mac malware, and the Google AI zero-day report (now industry=Technology). Real campaigns, no named org victim. Low confidence, victim="-". No action needed unless scale increases.
+Events with no victim org: TrickMo banking malware, Fake OpenAI Hugging Face infostealer, Google Ads/Claude.ai malvertising, JDownloader hack, Google AI zero-day. Real campaigns, single source, low confidence. No action needed unless scale increases. Related to task #2 above.
 
 ### 4. Three score=80 no-victim incidents (KrebsOnSecurity)
 Anti-DDoS Firm attack on Brazilian ISPs, Russia Hacked Routers, and CanisterWorm wiper targeting Iran — score=80, no named victim. Legitimate geopolitical/infrastructure incidents. Current behavior is correct.
