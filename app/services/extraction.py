@@ -1125,7 +1125,7 @@ def run_rule_extraction(article):
         "traffic flood",
     ]):
         attack_type = "DDoS"
-    elif not is_activity and any(keyword in text for keyword in [
+    elif not is_activity and not title_signals_breach and any(keyword in text for keyword in [
         "malware",
         "trojan",
         "infostealer",
@@ -1171,7 +1171,7 @@ def run_rule_extraction(article):
         "reflected xss",
     ]):
         attack_type = "Injection"
-    elif not is_activity and any(keyword in text for keyword in [
+    elif not is_activity and not title_signals_breach and any(keyword in text for keyword in [
         "phishing",
         "phishing-as-a-service",
         "credential harvesting",

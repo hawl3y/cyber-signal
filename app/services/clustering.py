@@ -543,24 +543,24 @@ def refresh_event(event_id):
         # so stale values are cleared when extraction logic changes.
         event.industry = _best_field(ranked, "industry") or "Unknown"
         _apply("attack_type", _best_field(ranked, "attack_type"))
-        _apply("country", _best_field(ranked, "country"))
 
-        # Region is a deterministic lookup from country whenever country is
-        # set. Avoids variance ('Asia-Pacific' vs 'Asia', US-state-as-country
-        # bugs). Only when no country is known do we fall back to whatever
-        # the extractions say.
+        # Country and region are deterministic — set directly so that None from
+        # updated extraction logic clears stale values (unlike _apply which skips None).
+        event.country = _best_field(ranked, "country")
         if event.country:
-            derived = region_for_country(event.country)
-            if derived:
-                event.region = derived
+            event.region = region_for_country(event.country) or _best_field(ranked, "region")
         else:
-            _apply("region", _best_field(ranked, "region"))
+            event.region = _best_field(ranked, "region")
 
-        if event.victim_org_name:
-            _apply("actor_name", _best_field(ranked, "actor_name"))
+        # Propagate actor when extraction found one (supply-chain attacks can
+        # have a known actor with no named org victim). Only clear actor when
+        # extraction has no actor AND there is no named victim.
+        extraction_actor = _best_field(ranked, "actor_name")
+        if extraction_actor:
+            _apply("actor_name", extraction_actor)
             _apply("actor_type", _best_field(ranked, "actor_type"))
             _apply("attribution_status", _best_field(ranked, "attribution_status"))
-        else:
+        elif not event.victim_org_name:
             event.actor_name = None
             event.actor_type = None
             event.attribution_status = None
