@@ -388,6 +388,11 @@ select option:disabled {
     color: #52606d;
 }
 
+.signal-pill.signal-intelligence {
+    background: #f5f0ff;
+    color: #6b46c1;
+}
+
 .event-card h3 {
     margin: 0;
     font-size: 18px;

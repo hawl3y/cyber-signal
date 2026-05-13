@@ -254,7 +254,7 @@ def _event_articles_text(event):
 
 
 def _is_eligible_for_attribution(event):
-    if event.event_signal_type != "incident":
+    if event.event_signal_type not in ("incident",):
         return False
     if not event.victim_org_name:
         return False

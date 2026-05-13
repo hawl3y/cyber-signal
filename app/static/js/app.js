@@ -91,8 +91,8 @@ function formatMetaLabel(value) {
 }
 
 function formatSignalTypeLabel(value) {
-    if (!value) return "Incident";
     if (value === "activity") return "Activity";
+    if (value === "intelligence") return "Intelligence";
     return "Incident";
 }
 

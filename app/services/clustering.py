@@ -652,11 +652,25 @@ def refresh_event(event_id):
         "critical infrastructure",
     ]
 
+    # Reclassify low-confidence no-victim incidents as intelligence signals.
+    # These are active campaign/threat reports without a named org victim —
+    # real signals but not actionable incidents. Actor-attributed events
+    # (e.g. supply-chain campaigns) and high-confidence events stay as incidents.
+    if (
+        event.event_signal_type == "incident"
+        and not event.victim_org_name
+        and not event.actor_name
+        and event.confidence_score < 50
+    ):
+        event.event_signal_type = "intelligence"
+
     if event.event_signal_type == "activity":
         # CISA KEV entries are on the catalog because they have confirmed active exploitation
         # — the definition of "known exploited" is built into the source, not the text.
         is_kev_event = article is not None and article.source_name == "cisa-kev"
         event.is_high_impact = is_kev_event or any(term in text for term in activity_high_impact_terms)
+    elif event.event_signal_type == "intelligence":
+        event.is_high_impact = False
     else:
         event.is_high_impact = bool(
             event.actor_name
@@ -687,11 +701,13 @@ def recompute_high_impact():
         "wiper",
     ]
 
-    events = CyberEvent.query.filter_by(event_signal_type="incident").all()
+    events = CyberEvent.query.filter(
+        CyberEvent.event_signal_type.in_(["incident", "intelligence"])
+    ).all()
     updated = 0
     for event in events:
         text = f"{(event.canonical_title or '').lower()} {(event.summary_short or '').lower()}"
-        should_be = bool(
+        should_be = False if event.event_signal_type == "intelligence" else bool(
             event.actor_name
             or any(term in text for term in _high_impact_terms)
         )
