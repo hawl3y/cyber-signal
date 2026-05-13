@@ -1070,7 +1070,7 @@ def run_rule_extraction(article):
             industry = "Government"
         elif any(term in title_summary for term in ["bank", "banking", "fintech", "payment processor", "credit union"]):
             industry = "Financial Services"
-        elif any(term in title_summary for term in ["software vendor", "software provider", "tech company", "tech firm", "saas", "hosting provider", "managed service provider", "msp", "data center", "developer tool", "application framework"]):
+        elif any(term in title_summary for term in ["software vendor", "software provider", "tech company", "tech firm", "saas", "hosting provider", "managed service provider", "msp", "data center", "developer tool", "application framework", "web admin", "npm package", "pypi package", "package registry", "open-source", "open source software", "zero-day exploit"]):
             industry = "Technology"
 
     if not industry:

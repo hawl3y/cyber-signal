@@ -360,23 +360,6 @@ def get_pending_articles():
     return RawArticle.query.filter_by(processing_status="pending").all()
 
 
-def is_duplicate(article):
-    """
-    Placeholder for duplicate detection logic.
-    """
-    return False
-
-
-def mark_duplicate(article):
-    """
-    Mark an article as duplicate.
-    """
-    article.is_duplicate = True
-    article.processing_status = "duplicate"
-    db.session.commit()
-    return article
-
-
 def mark_irrelevant(article):
     """
     Mark an article as not relevant for incident extraction.

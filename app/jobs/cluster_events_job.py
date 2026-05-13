@@ -28,7 +28,6 @@ def _get_existing_event_for_article(article):
 def _get_articles_for_clustering(force=False):
     if force:
         return RawArticle.query.filter(
-            RawArticle.is_duplicate.is_(False),
             RawArticle.processing_status.in_(["ready_for_clustering", "clustered"]),
         ).all()
 

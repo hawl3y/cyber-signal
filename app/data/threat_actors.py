@@ -313,4 +313,9 @@ THREAT_ACTORS = {
         "aliases": ["Sieged Sec"],
         "actor_type": "hacktivist",
     },
+    # ---------- Supply-chain / cybercrime ----------
+    "TeamPCP": {
+        "aliases": ["Team PCP", "PCP threat group"],
+        "actor_type": "cybercriminal",
+    },
 }

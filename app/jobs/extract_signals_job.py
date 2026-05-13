@@ -17,7 +17,6 @@ def extract_signals_job(force=False):
     """
     if force:
         articles = RawArticle.query.filter(
-            RawArticle.is_duplicate.is_(False),
             RawArticle.processing_status.in_(
                 ["ready_for_extraction", "ready_for_clustering", "clustered"]
             ),

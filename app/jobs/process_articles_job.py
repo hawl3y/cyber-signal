@@ -4,8 +4,6 @@ from app.services.clustering import refresh_event
 from app.services.processing import (
     clean_article,
     get_pending_articles,
-    is_duplicate,
-    mark_duplicate,
     mark_irrelevant,
     mark_ready_for_extraction,
     update_article,
@@ -59,7 +57,6 @@ def process_articles_job(force=False):
     """
     if force:
         articles = RawArticle.query.filter(
-            RawArticle.is_duplicate.is_(False),
             RawArticle.processing_status.in_(
                 ["pending", "irrelevant", "ready_for_extraction", "ready_for_clustering", "clustered"]
             ),
@@ -68,11 +65,6 @@ def process_articles_job(force=False):
         articles = get_pending_articles()
 
     for article in articles:
-        if is_duplicate(article):
-            _remove_article_from_downstream(article)
-            mark_duplicate(article)
-            continue
-
         cleaned_data = clean_article(article)
         update_article(article, cleaned_data)
 

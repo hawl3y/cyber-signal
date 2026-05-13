@@ -20,7 +20,6 @@ class CyberEvent(db.Model):
 
     first_seen_at = db.Column(db.DateTime)
     last_seen_at = db.Column(db.DateTime)
-    event_occurred_at = db.Column(db.DateTime)
 
     victim_org_name = db.Column(db.String(255))
     victim_org_normalized = db.Column(db.String(255))
@@ -56,10 +55,8 @@ class CyberEvent(db.Model):
 
     last_confidence_scored_at = db.Column(db.DateTime)
     last_enriched_at = db.Column(db.DateTime)
-    ai_event_error = db.Column(db.String(500))
 
     summary_short = db.Column(db.Text)
-    summary_medium = db.Column(db.Text)
     tags = db.Column(db.JSON)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

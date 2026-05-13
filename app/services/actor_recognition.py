@@ -19,6 +19,23 @@ from app.data.threat_actors import THREAT_ACTORS
 from app.extensions import db
 from app.models import CyberEvent, EventSourceLink, RawArticle
 
+# Temporal markers that indicate an actor mention is a reference to a past/different
+# incident rather than the current one. When these appear in the text immediately
+# before an actor name in the attribution window, the match is suppressed.
+_HISTORICAL_MARKER_RE = re.compile(
+    r"\b(?:"
+    r"in\s+(?:late\s+|early\s+)?(?:january|february|march|april|may|june|"
+    r"july|august|september|october|november|december)"
+    r"|last\s+(?:year|month|quarter|week)"
+    r"|previously"
+    r"|earlier\s+this\s+(?:year|month)"
+    r"|a\s+(?:prior|previous|separate)\s+(?:incident|breach|attack|compromise)"
+    r"|the\s+previous\s+(?:attack|breach|incident)"
+    r"|an?\s+earlier\s+(?:attack|breach|incident)"
+    r")\b",
+    flags=re.IGNORECASE,
+)
+
 
 GENERIC_ACTOR_NAMES = {
     "hackers",
@@ -47,6 +64,10 @@ _CLAIMED_PATTERNS = [
     "claimed to have",
     "claims to have",
     "claim to have",
+    "claimed by",
+    "has claimed",
+    "have claimed",
+    "is claiming",
     "added the company to",
     "listed the victim on",
     "posted on its leak site",
@@ -118,12 +139,19 @@ def find_actor_in_text(text):
     Scan text for any known actor name or alias.
 
     Returns (canonical_name, actor_type, attribution_status, match_offset)
-    or None. Iterates patterns in length-desc order and returns the first
-    match's earliest occurrence so multi-word aliases beat their bare-name
-    siblings.
+    or None.
+
+    Two guards prevent false positives:
+    1. Attribution language must appear within 200 chars of the actor name.
+       Pure mentions (e.g. "similar to X tactics") are ignored.
+    2. Historical temporal markers ("In late April", "previously", etc.)
+       immediately before the actor name suppress the match — they indicate a
+       reference to a past/different incident, not the current one.
     """
     if not text:
         return None
+
+    all_attribution = _CLAIMED_PATTERNS + _CONFIRMED_PATTERNS + _SUSPECTED_PATTERNS
 
     best = None
     for canonical, actor_type, _name, pattern in _ACTOR_PATTERNS:
@@ -131,6 +159,20 @@ def find_actor_in_text(text):
         if not match:
             continue
         offset = match.start()
+        window_start = max(0, offset - 200)
+        window_end = min(len(text), offset + 200)
+        window = text[window_start:window_end].lower()
+
+        # Guard 1: require explicit attribution language near the actor name
+        if not any(phrase in window for phrase in all_attribution):
+            continue
+
+        # Guard 2: suppress historical context — temporal marker in the text
+        # immediately preceding the actor name indicates a past incident reference
+        pre_actor = text[window_start:offset]
+        if _HISTORICAL_MARKER_RE.search(pre_actor):
+            continue
+
         if best is None or offset < best[3]:
             status = _classify_attribution_status(text, offset)
             best = (canonical, actor_type, status, offset)
