@@ -33,9 +33,54 @@ Cyber Signal answers "What matters right now?" in under 10 seconds. It turns fra
 
 ### Event Model
 
-Two and only two event kinds:
-- **Incident** — real-world cyber events with impact (breaches, ransomware, system compromise)
-- **Activity** — high-signal risk indicators (known exploited vulns, active exploitation campaigns)
+Three event signal types, set at clustering (`event_signal_type`):
+
+| Type | Definition | Classification criteria |
+|---|---|---|
+| **Incident** | Named-victim cyber event with confirmed impact | Named victim org OR actor-attributed campaign OR score ≥ 50 with no victim |
+| **Activity** | Exploited vulnerability / active exploitation signal | Source `signal_kind = "activity"` (CISA KEV, CISA advisories) |
+| **Intelligence** | Active threat campaign without a named org victim | Incident source + no victim org + no actor + confidence score < 50 |
+
+**UI default**: Incidents only (7d). Activity and Intelligence are opt-in via the Signal Type filter.
+
+**Pipeline rules by type:**
+- Incident: full enrichment — victim, actor attribution, geography, industry, is_high_impact
+- Activity: no victim, no actor, no attribution — only CVE, attack type, is_high_impact
+- Intelligence: no actor attribution, is_high_impact always False
+
+### Confidence Score & Trust Labels
+
+`confidence_score` is a deterministic 0–100 float computed in `_compute_confidence_score()` in `clustering.py`. It drives the **High Trust** threshold (≥ 75).
+
+| Score range | Label | Typical signal |
+|---|---|---|
+| 85–90 | High Trust | CISA KEV / single trusted-alone source (SEC, KrebsOnSecurity) |
+| 80 | High Trust | Trusted-alone source with primary evidence |
+| 75 | High Trust | Multiple corroborating sources |
+| 50–74 | Medium | Single core source with primary disclosure |
+| 25–49 | Low | Single core source, no primary disclosure |
+
+Key score drivers (additive):
+- Base: source count × weight
+- `tier_trusted_alone` source (SEC EDGAR, KrebsOnSecurity): treated as equivalent to multi-source corroboration
+- Primary source evidence (victim's own statement, SEC filing): +boost
+- Actor attribution: +boost (incident only)
+
+### High Impact Flag
+
+`is_high_impact` is a boolean set in `refresh_event()` in `clustering.py`, recomputed after attribution by `recompute_high_impact()`.
+
+| Signal type | High Impact when |
+|---|---|
+| Incident | `actor_name` is set, OR title/summary contains severity keyword |
+| Activity | Source is CISA KEV, OR title/summary contains severity keyword |
+| Intelligence | Never (always False) |
+
+Severity keywords (title + summary_short): `mass-exploited`, `mass exploited`, `actively exploited`, `widespread`, `large-scale`, `millions`, `critical infrastructure`, `data breach`, `wiper`.
+
+Activity-only severity keywords: `known exploited vulnerability` (in addition to the above subset).
+
+**High Trust and High Impact are independent.** An event can be high impact but low trust (e.g. single-source incident with a known actor) or high trust but not high impact (e.g. confirmed breach with no named actor and no severity keywords).
 
 ### Design Principles
 
@@ -47,10 +92,11 @@ Two and only two event kinds:
 
 ### Data Integrity Rules (hard constraints)
 
-- No victim → no actor
+- No victim → no actor (except actor-attributed supply-chain campaigns via Pass 2 in `attribute_events()`)
 - No actor → no attribution
 - Generic actor → discarded
 - Activity events: never enrich actor
+- Intelligence events: never enrich actor, never set high impact
 
 ### Operational Boundary
 
