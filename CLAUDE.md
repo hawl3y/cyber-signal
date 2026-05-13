@@ -4,10 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Remove ActorCandidateSighting (planned, next round)
-The actor audit pipeline stage writes sightings to `ActorCandidateSighting` on every run but nobody reviews them — the curator workflow was never adopted. Plan: remove `actor_candidate_audit_job.py`, the `ActorCandidateSighting` model, the DB table (migration needed), and the `audit_unrecognized_actors.py` script. The attribution pipeline (actor_recognition.py + threat_actors.py) handles finding and matching actors without it.
-
-### 2. Verify actor attribution after recent attribution overhaul
+### 1. Verify actor attribution after recent attribution overhaul
 A major rewrite of `find_actor_in_text` introduced `finditer` (checks all occurrences instead of just first), victim-proximity guard (victim_tokens parameter), and a narrowed historical-marker guard (50-char pre-actor window, not 200). These changes restored NVIDIA/ShinyHunters, Stryker/Handala, and Canvas attribution that had regressed. After the next deploy, run `scripts/diagnose_actors.py` to confirm all expected actors are present before running `force_reprocess.py`. **Critical constraint**: never clear actor fields (as `force_reprocess.py` does) without first running `diagnose_actors.py` to confirm all actors can be restored — clearing without that check has caused actor data loss in the past.
 
 ### 3. Score=25 no-victim campaign events (acceptable noise)
@@ -91,7 +88,7 @@ Avoid: guessing, over-engineering, one-off fixes.
 The application implements a live pipeline with six sequential stages:
 
 ```
-Ingest → Process → Extract → Cluster → Attribute → Audit
+Ingest → Process → Extract → Cluster → Attribute
 ```
 
 1. **Ingest**: Fetches from RSS feeds and JSON/EDGAR APIs
@@ -99,7 +96,6 @@ Ingest → Process → Extract → Cluster → Attribute → Audit
 3. **Extract**: Structures incident signals (victim org, attack type, CVE, geography)
 4. **Cluster**: Groups related extractions into unified CyberEvent objects; computes confidence score
 5. **Attribute**: Deterministic threat-actor matching against curated knowledge base (`app/data/threat_actors.py`)
-6. **Audit**: Scans recent articles for unrecognized actor candidates; persists to `ActorCandidateSighting` for curator review
 
 ### Core Models
 
@@ -108,7 +104,6 @@ Ingest → Process → Extract → Cluster → Attribute → Audit
 - **CyberEvent**: Unified event representing one incident, aggregated from multiple extractions
 - **EventSourceLink**: Junction table linking CyberEvent to source RawArticles with match scores and primary-source flag
 - **AutomationRun**: Tracks scheduler execution history
-- **ActorCandidateSighting**: Unrecognized actor candidates flagged by the audit stage for curator review
 - **EnrichmentAuditLog**: Per-event enrichment call audit (inputs, outputs, tokens, duration)
 - **SourceReputation**: Source credibility scoring (not active in MVP)
 
@@ -119,7 +114,6 @@ Ingest → Process → Extract → Cluster → Attribute → Audit
 - **extraction.py**: Pattern-based signal extraction using regex and heuristics
 - **clustering.py**: Matches extractions to existing events or creates new ones; computes deterministic `confidence_score`
 - **actor_recognition.py**: Deterministic threat-actor attribution via curated `THREAT_ACTORS` knowledge base
-- **actor_candidate_audit.py**: Shared logic for finding unrecognized actor candidates near attribution language
 - **summary.py**: Filters and formats events for API responses
 - **taxonomy.py**: Normalization maps for threat types, entity anchors, industries, actors
 
@@ -292,13 +286,6 @@ Rules:
 
 **Before clearing actor fields on existing events**, run `scripts/diagnose_actors.py` to verify that `find_actor_in_text` can find every actor that will be wiped. If any event would lose an actor that attribution cannot restore, do not clear — fix the pattern gap first. Clearing actors and re-running attribution is destructive: actors not in `THREAT_ACTORS` or not matched by current patterns are permanently lost.
 
-### Actor Candidate Audit
-
-**actor_candidate_audit.py** (shared logic) + **actor_candidate_audit_job.py** (pipeline stage):
-- Runs after attribution; scans the last 14 days of articles for capitalized phrases near attribution language that did not match any known actor
-- Persists unique sightings to `ActorCandidateSighting` for curator review
-- `scripts/audit_unrecognized_actors.py` renders a human-friendly report from the persisted sightings
-
 ### Source Registry
 
 **sources.py** defines active ingestion sources:
@@ -405,7 +392,7 @@ If actors were already cleared and lost, run `scripts/fix_stale_events.py` (does
 
 ### Canonical scripts (always use these — never one-off heredocs)
 
-**Run the full pipeline once** (ingest → enrich → process → extract → cluster → attribute → audit):
+**Run the full pipeline once** (ingest → enrich → process → extract → cluster → attribute):
 ```bash
 PYTHONPATH=. python scripts/run_pipeline_once.py
 ```
@@ -428,11 +415,6 @@ PYTHONPATH=. python scripts/diagnose_actors.py
 **Restore stale events without full reprocess** (refresh all events + re-run attribution, no clearing):
 ```bash
 PYTHONPATH=. python scripts/fix_stale_events.py
-```
-
-**View actor candidate audit report**:
-```bash
-PYTHONPATH=. python scripts/audit_unrecognized_actors.py
 ```
 
 ---
