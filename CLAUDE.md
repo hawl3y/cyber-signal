@@ -4,14 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. CheckMarx false attribution to Lapsus$ (high priority)
-Production shows `victim=CheckMarx attack=Malware [Lapsus$]`. The actual attacker was TeamPCP, not Lapsus$. The actor recognition system is matching Lapsus$ from body text — likely a comparison mention ("similar to Lapsus$ tactics") rather than a direct attribution. The data integrity rule is: no hallucinated actors. Fix: investigate what in the article body is matching Lapsus$, then either tighten the attribution context window or add a suppression for comparison-framing patterns.
+### 1. Shai Hulud / TeamPCP npm supply-chain event (investigate)
+Production shows this event with `victim=NPM`, `region=United States`, `industry=Unknown`. The United States geography is a false positive from incidental US company mentions in the article body. Victim display should likely be "npm" or omitted. Industry should be Technology. TeamPCP is now in THREAT_ACTORS so attribution should resolve after force_reprocess. Run `scripts/diagnose_shai_hulud.py` on production to inspect current state, then fix any remaining extraction issues.
 
-### 2. Score=25 no-victim campaign events (acceptable noise)
-Six score=25 incidents with no victim org: TrickMo banking malware (EU), Fake OpenAI Hugging Face infostealer, Google Ads/Claude.ai malvertising, Google AI zero-day report, Hackers/Mac malware, and one unknown new entry. Real campaigns, no named org victim. Current behavior is correct — low confidence, victim="-". No action needed unless scale increases.
+### 2. Remove ActorCandidateSighting (planned, next round)
+The actor audit pipeline stage writes sightings to `ActorCandidateSighting` on every run but nobody reviews them — the curator workflow was never adopted. Plan: remove `actor_candidate_audit_job.py`, the `ActorCandidateSighting` model, the DB table (migration needed), and the `audit_unrecognized_actors.py` script. The attribution pipeline (actor_recognition.py + threat_actors.py) handles finding and matching actors without it.
 
-### 3. Three score=80 no-victim incidents (KrebsOnSecurity)
-Anti-DDoS Firm attack on Brazilian ISPs, Russia Hacked Routers (mass router harvesting), and CanisterWorm wiper targeting Iran — all from KrebsOnSecurity with score=80 and no named victim. Legitimate geopolitical/infrastructure incidents without extractable org targets. Current behavior is correct.
+### 3. Score=25 no-victim campaign events (acceptable noise)
+Five score=25 incidents with no victim org: TrickMo banking malware (EU), Fake OpenAI Hugging Face infostealer, Google Ads/Claude.ai malvertising, Hackers/Mac malware, and the Google AI zero-day report (now industry=Technology). Real campaigns, no named org victim. Low confidence, victim="-". No action needed unless scale increases.
+
+### 4. Three score=80 no-victim incidents (KrebsOnSecurity)
+Anti-DDoS Firm attack on Brazilian ISPs, Russia Hacked Routers, and CanisterWorm wiper targeting Iran — score=80, no named victim. Legitimate geopolitical/infrastructure incidents. Current behavior is correct.
 
 ---
 
