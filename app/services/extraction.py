@@ -604,6 +604,11 @@ def _extract_industry(text):
             "clinic",
             "health system",
             "health service",
+            "pharmaceutical",
+            "pharma",
+            "biotech",
+            "medtech",
+            "health care",
         ],
         "Energy": [
             "energy company",
@@ -1055,6 +1060,45 @@ def run_rule_extraction(article):
         victim_org_name = None
 
     victim_org_normalized = _normalize_org_name(victim_org_name)
+
+    # Infer industry from the victim org name itself — most reliable signal because
+    # it reflects what the company IS, not what the article happens to mention.
+    industry = None
+    if victim_org_name:
+        name_lower = victim_org_name.lower()
+        if any(k in name_lower for k in [
+            "pharmaceutical", "pharma", "biopharmaceutical", "biopharma",
+            "hospital", "health", "medical", "clinic", "therapeutics",
+            "biotech", "biologics", "healthcare",
+        ]):
+            industry = "Healthcare"
+        elif any(k in name_lower for k in [
+            "bank", "bancorp", "bancshares", "financial", "finance",
+            "insurance", "capital", "investment", "credit union",
+            "asset management", "brokerage", "mortgage",
+        ]):
+            industry = "Financial Services"
+        elif any(k in name_lower for k in [
+            "university", "college", "school", "academy", "institute of technology",
+            "polytechnic", "edu",
+        ]):
+            industry = "Education"
+        elif any(k in name_lower for k in [
+            "energy", "power", "electric", "utility", "utilities",
+            "pipeline", "petroleum", "oil", "gas company", "water works",
+        ]):
+            industry = "Energy"
+        elif any(k in name_lower for k in [
+            "airline", "airways", "airport", "railway", "railroad",
+            "transit", "shipping", "logistics", "freight",
+        ]):
+            industry = "Transportation"
+        elif any(k in name_lower for k in [
+            "county", "municipality", "municipal", "city of", "department of",
+            "ministry of", "federal", "government",
+        ]):
+            industry = "Government"
+
     victim_context_text = ""
     if victim_org_name:
         # Use title + summary only — full article content is too noisy for industry
@@ -1065,7 +1109,8 @@ def run_rule_extraction(article):
             article.summary or "",
         ]).lower()
 
-    industry = _extract_industry(victim_context_text) if victim_context_text else None
+    if not industry:
+        industry = _extract_industry(victim_context_text) if victim_context_text else None
 
     if not industry:
         # When no victim context is available, restrict to title+summary to avoid
