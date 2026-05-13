@@ -1045,13 +1045,13 @@ def run_rule_extraction(article):
     victim_org_normalized = _normalize_org_name(victim_org_name)
     victim_context_text = ""
     if victim_org_name:
-        parts = [
+        # Use title + summary only — full article content is too noisy for industry
+        # classification because it often mentions industries the victim company
+        # *serves* (e.g. Trellix serving government) rather than what it *is*.
+        victim_context_text = " ".join([
             article.title or "",
             article.summary or "",
-            article.content or "",
-        ]
-        victim_context_parts = [part for part in parts if victim_org_name.lower() in part.lower()]
-        victim_context_text = " ".join(victim_context_parts).lower()
+        ]).lower()
 
     industry = _extract_industry(victim_context_text) if victim_context_text else None
 

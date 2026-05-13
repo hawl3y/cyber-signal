@@ -229,6 +229,12 @@ def is_relevant_incident(article):
         # Space-bounded " fixes " in a title is almost exclusively a patch announcement
         # in cybersecurity reporting.
         " fixes ",
+        # Vendor advisory — "X warns of critical Y" is disclosure, not incident
+        "warns of critical",
+        # Product feature / capability expansion announcements
+        "to expand",
+        "to introduce",
+        "will introduce",
     ]
 
     if any(pattern in title for pattern in negative_title_patterns):
