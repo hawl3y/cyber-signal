@@ -183,13 +183,25 @@ def find_actor_in_text(text, victim_tokens=None):
             if not any(phrase in window for phrase in all_attribution):
                 continue
 
-            # Guard 2: victim proximity — skip if attribution appears to be
-            # about a different subject (e.g. Cl0p claiming Thames Water in an
-            # article about South Staffordshire Water)
-            if victim_tokens and not victim_tokens.intersection(
-                set(re.findall(r"\w+", window))
-            ):
-                continue
+            # Guard 2: victim proximity — prevent attributions that are about a
+            # different victim mentioned in the same article.
+            # Single-token victims (e.g. "NVIDIA") only need to appear anywhere
+            # in the full text — the article body often uses a product name
+            # ("GeForce NOW") rather than the company name near the attribution.
+            # Multi-token victims require at least one significant token in the
+            # local window, which disambiguates e.g. "South Staffordshire Water"
+            # from "Thames Water" when Cl0p claims one in an article about the other.
+            if victim_tokens:
+                if len(victim_tokens) == 1:
+                    if not victim_tokens.intersection(
+                        set(re.findall(r"\w+", text.lower()))
+                    ):
+                        continue
+                else:
+                    if not victim_tokens.intersection(
+                        set(re.findall(r"\w+", window))
+                    ):
+                        continue
 
             # Guard 3: historical temporal marker in the 50 chars immediately
             # before the actor name suppresses this occurrence only

@@ -109,6 +109,17 @@ def is_relevant_incident(article):
         "seizure",
         "takedown",
         "take down",
+        # Regulatory fine announcements are legal aftermath of past incidents,
+        # not current cyber events.
+        "fined £",
+        "fined $",
+        "fined €",
+        " fines ",
+        "faces a fine",
+        "facing a fine",
+        "ordered to pay",
+        "regulatory fine",
+        "data protection fine",
     ]
 
     if any(pattern in title_and_summary for pattern in legal_followup_patterns):
