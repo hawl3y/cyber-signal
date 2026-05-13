@@ -7,6 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 1. Remove ActorCandidateSighting (planned, next round)
 The actor audit pipeline stage writes sightings to `ActorCandidateSighting` on every run but nobody reviews them — the curator workflow was never adopted. Plan: remove `actor_candidate_audit_job.py`, the `ActorCandidateSighting` model, the DB table (migration needed), and the `audit_unrecognized_actors.py` script. The attribution pipeline (actor_recognition.py + threat_actors.py) handles finding and matching actors without it.
 
+### 2. Verify actor attribution after recent attribution overhaul
+A major rewrite of `find_actor_in_text` introduced `finditer` (checks all occurrences instead of just first), victim-proximity guard (victim_tokens parameter), and a narrowed historical-marker guard (50-char pre-actor window, not 200). These changes restored NVIDIA/ShinyHunters, Stryker/Handala, and Canvas attribution that had regressed. After the next deploy, run `scripts/diagnose_actors.py` to confirm all expected actors are present before running `force_reprocess.py`. **Critical constraint**: never clear actor fields (as `force_reprocess.py` does) without first running `diagnose_actors.py` to confirm all actors can be restored — clearing without that check has caused actor data loss in the past.
+
 ### 3. Score=25 no-victim campaign events (acceptable noise)
 Five score=25 incidents with no victim org: TrickMo banking malware (EU), Fake OpenAI Hugging Face infostealer, Google Ads/Claude.ai malvertising, Hackers/Mac malware, and the Google AI zero-day report (now industry=Technology). Real campaigns, no named org victim. Low confidence, victim="-". No action needed unless scale increases.
 

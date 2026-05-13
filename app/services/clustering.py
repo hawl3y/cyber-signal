@@ -661,7 +661,6 @@ def refresh_event(event_id):
         event.is_high_impact = bool(
             event.actor_name
             or any(term in text for term in high_impact_terms)
-            or event.attack_type in {"Ransomware", "Data Breach", "Malware"}
         )
 
     db.session.commit()
