@@ -120,6 +120,21 @@ def is_relevant_incident(article):
         "ordered to pay",
         "regulatory fine",
         "data protection fine",
+        # Legislative / government-reaction articles — hearings, testimony requests,
+        # congressional inquiries — are political aftermath, not cyber events.
+        "seeks testimony",
+        "seek testimony",
+        "called to testify",
+        "calls to testify",
+        "testify before",
+        "congressional hearing",
+        "senate hearing",
+        "house hearing",
+        "faces questions from",
+        "demands answers",
+        "demands explanation",
+        "subpoenaed",
+        "government accountability",
     ]
 
     if any(pattern in title_and_summary for pattern in legal_followup_patterns):
