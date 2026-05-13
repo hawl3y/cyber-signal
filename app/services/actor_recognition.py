@@ -54,6 +54,7 @@ GENERIC_ACTOR_NAMES = {
 _CLAIMED_PATTERNS = [
     "claimed responsibility",
     "claims responsibility",
+    "claiming responsibility",
     "claimed the attack",
     "claimed the breach",
     "claimed credit",
@@ -64,6 +65,11 @@ _CLAIMED_PATTERNS = [
     "claimed to have",
     "claims to have",
     "claim to have",
+    "claiming to have",
+    "claimed to",
+    "claimed it",
+    "claimed that",
+    "claiming that",
     "claimed by",
     "has claimed",
     "have claimed",
@@ -269,6 +275,26 @@ def attribute_events():
         if attribute_event(event):
             summary["events_changed"] += 1
             event.last_enriched_at = datetime.utcnow()
+
+    # Pass 2: supply-chain / campaign incidents with no named org victim.
+    # The normal eligibility check blocks these because no victim → no actor,
+    # but when the article explicitly names a known actor with attribution
+    # language, propagate it directly.
+    no_victim_incidents = CyberEvent.query.filter(
+        CyberEvent.event_signal_type == "incident",
+        CyberEvent.victim_org_name.is_(None),
+        CyberEvent.actor_name.is_(None),
+    ).all()
+    for event in no_victim_incidents:
+        text = _event_articles_text(event)
+        result = find_actor_in_text(text)
+        if result:
+            canonical, actor_type, status, _ = result
+            event.actor_name = canonical
+            event.actor_type = actor_type
+            event.attribution_status = status
+            event.last_enriched_at = datetime.utcnow()
+            summary["events_changed"] += 1
 
     db.session.commit()
     return summary

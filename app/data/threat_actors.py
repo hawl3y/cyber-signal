@@ -318,4 +318,8 @@ THREAT_ACTORS = {
         "aliases": ["Team PCP", "PCP threat group"],
         "actor_type": "cybercriminal",
     },
+    "Nitrogen": {
+        "aliases": ["Nitrogen ransomware"],
+        "actor_type": "cybercriminal",
+    },
 }
