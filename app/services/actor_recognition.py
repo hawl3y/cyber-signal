@@ -84,6 +84,8 @@ _CLAIMED_PATTERNS = [
     "named on their leak site",
     "leaked data on its",
     "leaked data on their",
+    "demonstrated they",
+    "demonstrated access",
 ]
 _CONFIRMED_PATTERNS = [
     "officials confirmed",
@@ -96,6 +98,9 @@ _CONFIRMED_PATTERNS = [
     "the company attributed",
     "the company attributed the attack",
     "victim confirmed",
+    "decision to pay",
+    "agreed to pay",
+    "confirming their decision",
 ]
 _SUSPECTED_PATTERNS = [
     "suspected",
@@ -173,9 +178,11 @@ def find_actor_in_text(text):
         if not any(phrase in window for phrase in all_attribution):
             continue
 
-        # Guard 2: suppress historical context — temporal marker in the text
-        # immediately preceding the actor name indicates a past incident reference
-        pre_actor = text[window_start:offset]
+        # Guard 2: suppress historical context — temporal marker in the 50 chars
+        # immediately before the actor name suppresses the match.
+        # 50 chars (not the full 200-char window) so that "last year" in a prior
+        # sentence does not block a current attribution in the next sentence.
+        pre_actor = text[max(0, offset - 50):offset]
         if _HISTORICAL_MARKER_RE.search(pre_actor):
             continue
 
