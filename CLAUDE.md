@@ -4,9 +4,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 0. is_high_impact not recalculated after attribution (next session — start here)
-`force_reprocess.py` clears actor fields, re-clusters (setting `is_high_impact` at that point with `actor_name=None`), then runs attribution. But `is_high_impact` is never recalculated after actors are restored, so events with a known actor still show `is_high_impact=False`. Fix: after `attribute_events()` completes in `force_reprocess.py` (and wherever attribution runs), do a second pass that recomputes `is_high_impact` for all incident events. The simplest approach is a standalone function in `clustering.py` that reapplies the `is_high_impact` formula given current actor + text, called at the end of `attribute_events()` or `force_reprocess.py`.
-
 ### 1. Remove ActorCandidateSighting (planned, next round)
 The actor audit pipeline stage writes sightings to `ActorCandidateSighting` on every run but nobody reviews them — the curator workflow was never adopted. Plan: remove `actor_candidate_audit_job.py`, the `ActorCandidateSighting` model, the DB table (migration needed), and the `audit_unrecognized_actors.py` script. The attribution pipeline (actor_recognition.py + threat_actors.py) handles finding and matching actors without it.
 

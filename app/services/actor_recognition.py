@@ -18,6 +18,7 @@ from datetime import datetime
 from app.data.threat_actors import THREAT_ACTORS
 from app.extensions import db
 from app.models import CyberEvent, EventSourceLink, RawArticle
+from app.services.clustering import recompute_high_impact
 
 # Temporal markers that indicate an actor mention is a reference to a past/different
 # incident rather than the current one. When these appear in the text immediately
@@ -334,4 +335,8 @@ def attribute_events():
             summary["events_changed"] += 1
 
     db.session.commit()
+
+    high_impact_updated = recompute_high_impact()
+    summary["high_impact_recomputed"] = high_impact_updated
+
     return summary

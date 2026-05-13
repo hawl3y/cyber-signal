@@ -24,5 +24,6 @@ with app.app_context():
     print("running attribution...")
     result = attribute_events()
     print(f"  attribution: {result}")
+    print(f"  is_high_impact recomputed for {result.get('high_impact_recomputed', 0)} events")
 
     print("done.")

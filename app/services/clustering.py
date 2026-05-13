@@ -665,3 +665,38 @@ def refresh_event(event_id):
 
     db.session.commit()
     return True
+
+
+def recompute_high_impact():
+    """
+    Second-pass recomputation of is_high_impact for all incident events.
+
+    refresh_event() sets is_high_impact before attribution runs, so events
+    that gain an actor during attribution end up with is_high_impact=False.
+    Call this after attribute_events() completes to apply the correct value.
+    """
+    _high_impact_terms = [
+        "mass-exploited",
+        "mass exploited",
+        "actively exploited",
+        "widespread",
+        "large-scale",
+        "millions",
+        "critical infrastructure",
+        "data breach",
+        "wiper",
+    ]
+
+    events = CyberEvent.query.filter_by(event_signal_type="incident").all()
+    updated = 0
+    for event in events:
+        text = f"{(event.canonical_title or '').lower()} {(event.summary_short or '').lower()}"
+        should_be = bool(
+            event.actor_name
+            or any(term in text for term in _high_impact_terms)
+        )
+        if event.is_high_impact != should_be:
+            event.is_high_impact = should_be
+            updated += 1
+    db.session.commit()
+    return updated
