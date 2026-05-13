@@ -162,8 +162,12 @@ def is_relevant_incident(article):
     researcher_tool_patterns = [
         "proof-of-concept tool",
         "security researcher has released",
+        "researcher has published proof-of-concept",
         "researcher released a poc",
         "poc tool",
+        "poc released",
+        "proof-of-concept released",
+        "proof-of-concept exploits",
     ]
     if any(pattern in title_and_summary for pattern in researcher_tool_patterns):
         return False
@@ -215,10 +219,16 @@ def is_relevant_incident(article):
         # Vendor patch/advisory announcements — not incident reports
         "fixes critical vulnerabilities",
         "patches critical vulnerabilities",
+        "fixes critical flaws",
+        "patches critical flaws",
         "releases security updates",
         "releases security patches",
         "security updates addressing",
         "patch tuesday",
+        # Vendor fix announcements ("Microsoft fixes X issue", "Apple fixes X bug")
+        # Space-bounded " fixes " in a title is almost exclusively a patch announcement
+        # in cybersecurity reporting.
+        " fixes ",
     ]
 
     if any(pattern in title for pattern in negative_title_patterns):
