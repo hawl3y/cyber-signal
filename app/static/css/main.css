@@ -292,6 +292,34 @@ select option:disabled {
     gap: 14px;
 }
 
+.load-more-container {
+    display: flex;
+    justify-content: center;
+    padding: 20px 0 8px;
+}
+
+.load-more-btn {
+    padding: 10px 28px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel-soft);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.load-more-btn:hover {
+    background: var(--border);
+    color: var(--text);
+}
+
+.load-more-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .event-card {
     border: 1px solid var(--border);
     border-radius: 14px;

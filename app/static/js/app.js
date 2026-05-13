@@ -1,9 +1,14 @@
 const FILTER_STORAGE_KEY = "cyber_signal_filters_mvp";
+const PAGE_SIZE = 25;
+
+let currentOffset = 0;
+let hasMoreEvents = false;
+let allLoadedRawEvents = [];
 
 function getDefaultFilters() {
     return {
-        time_range: "30d",
-        signal_type: "",
+        time_range: "7d",
+        signal_type: "incident",
         industry: "",
         attack_type: "",
     };
@@ -532,37 +537,90 @@ function updateCardActiveStates() {
     });
 }
 
+function updateLoadMoreButton() {
+    const btn = document.getElementById("load-more-btn");
+    if (!btn) return;
+    btn.style.display = hasMoreEvents ? "block" : "none";
+}
+
+function updateFeedCount() {
+    const countEl = document.getElementById("feed-count");
+    if (!countEl) return;
+    const displayed = applyCardFilter(allLoadedRawEvents);
+    const totalNote = activeCardFilter && activeCardFilter !== "total"
+        ? ` of ${allLoadedRawEvents.length} loaded`
+        : "";
+    countEl.textContent = `${displayed.length} event${displayed.length === 1 ? "" : "s"}${totalNote}`;
+}
+
 async function loadEvents() {
+    currentOffset = 0;
+    hasMoreEvents = false;
+    allLoadedRawEvents = [];
+
+    const container = document.getElementById("event-feed");
+    if (!container) return;
+    container.innerHTML = "";
+
     try {
-        const query = buildQueryString(getCurrentFilters());
-        const response = await fetch(`/api/events/${query}`);
-        const allEvents = await response.json();
-        const events = applyCardFilter(allEvents);
+        const filters = getCurrentFilters();
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
+        params.append("limit", PAGE_SIZE);
 
-        const container = document.getElementById("event-feed");
-        const countEl = document.getElementById("feed-count");
+        const response = await fetch(`/api/events/?${params}`);
+        const newEvents = await response.json();
 
-        if (!container) return;
-        container.innerHTML = "";
+        hasMoreEvents = newEvents.length === PAGE_SIZE;
+        currentOffset = newEvents.length;
+        allLoadedRawEvents = newEvents;
 
-        if (countEl) {
-            const totalNote = activeCardFilter && activeCardFilter !== "total"
-                ? ` of ${allEvents.length}`
-                : "";
-            countEl.textContent = `${events.length} event${events.length === 1 ? "" : "s"}${totalNote}`;
-        }
+        const displayed = applyCardFilter(allLoadedRawEvents);
+        updateFeedCount();
 
-        if (!events.length) {
+        if (!displayed.length) {
             container.innerHTML = "<p class='placeholder-text'>No events found.</p>";
-            return;
+        } else {
+            displayed.forEach(event => container.appendChild(renderEventCard(event)));
         }
 
-        events.forEach(event => {
-            const el = renderEventCard(event);
-            container.appendChild(el);
-        });
+        updateLoadMoreButton();
     } catch (err) {
         console.error("Failed to load events:", err);
+    }
+}
+
+async function loadMoreEvents() {
+    if (!hasMoreEvents) return;
+
+    const container = document.getElementById("event-feed");
+    if (!container) return;
+
+    const btn = document.getElementById("load-more-btn");
+    if (btn) btn.disabled = true;
+
+    try {
+        const filters = getCurrentFilters();
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
+        params.append("limit", PAGE_SIZE);
+        params.append("offset", currentOffset);
+
+        const response = await fetch(`/api/events/?${params}`);
+        const newEvents = await response.json();
+
+        hasMoreEvents = newEvents.length === PAGE_SIZE;
+        currentOffset += newEvents.length;
+        allLoadedRawEvents = [...allLoadedRawEvents, ...newEvents];
+
+        const filteredNew = applyCardFilter(newEvents);
+        filteredNew.forEach(event => container.appendChild(renderEventCard(event)));
+        updateFeedCount();
+        updateLoadMoreButton();
+    } catch (err) {
+        console.error("Failed to load more events:", err);
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -635,6 +693,11 @@ async function resetFilters() {
 const resetButton = document.getElementById("reset-filters");
 if (resetButton) {
     resetButton.addEventListener("click", resetFilters);
+}
+
+const loadMoreBtn = document.getElementById("load-more-btn");
+if (loadMoreBtn) {
+    loadMoreBtn.addEventListener("click", loadMoreEvents);
 }
 
 async function handleCardClick(cardFilter) {
