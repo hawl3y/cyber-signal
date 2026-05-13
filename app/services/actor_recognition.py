@@ -145,19 +145,26 @@ for canonical, info in THREAT_ACTORS.items():
 _ACTOR_PATTERNS.sort(key=lambda row: len(row[2]), reverse=True)
 
 
-def find_actor_in_text(text):
+def find_actor_in_text(text, victim_tokens=None):
     """
     Scan text for any known actor name or alias.
 
     Returns (canonical_name, actor_type, attribution_status, match_offset)
     or None.
 
-    Two guards prevent false positives:
+    Guards (applied to every occurrence of the actor name via finditer):
     1. Attribution language must appear within 200 chars of the actor name.
-       Pure mentions (e.g. "similar to X tactics") are ignored.
-    2. Historical temporal markers ("In late April", "previously", etc.)
-       immediately before the actor name suppress the match — they indicate a
-       reference to a past/different incident, not the current one.
+       Pure mentions ("similar to X tactics", news analysis) are ignored.
+    2. If victim_tokens is provided, at least one victim token must appear in
+       the same 400-char window. This ties the attribution to the current
+       event's subject and prevents false positives from actor mentions that
+       describe attacks on different victims in the same article.
+    3. Historical temporal marker in the 50 chars immediately before the actor
+       name suppresses that occurrence (not the full 200-char window, so that
+       "last year" in a prior sentence does not block a current attribution).
+
+    Using finditer means every occurrence is checked: if the first mention is
+    in a historical sentence the next occurrence can still match.
     """
     if not text:
         return None
@@ -166,29 +173,35 @@ def find_actor_in_text(text):
 
     best = None
     for canonical, actor_type, _name, pattern in _ACTOR_PATTERNS:
-        match = pattern.search(text)
-        if not match:
-            continue
-        offset = match.start()
-        window_start = max(0, offset - 200)
-        window_end = min(len(text), offset + 200)
-        window = text[window_start:window_end].lower()
+        for match in pattern.finditer(text):
+            offset = match.start()
+            window_start = max(0, offset - 200)
+            window_end = min(len(text), offset + 200)
+            window = text[window_start:window_end].lower()
 
-        # Guard 1: require explicit attribution language near the actor name
-        if not any(phrase in window for phrase in all_attribution):
-            continue
+            # Guard 1: attribution language required near the actor name
+            if not any(phrase in window for phrase in all_attribution):
+                continue
 
-        # Guard 2: suppress historical context — temporal marker in the 50 chars
-        # immediately before the actor name suppresses the match.
-        # 50 chars (not the full 200-char window) so that "last year" in a prior
-        # sentence does not block a current attribution in the next sentence.
-        pre_actor = text[max(0, offset - 50):offset]
-        if _HISTORICAL_MARKER_RE.search(pre_actor):
-            continue
+            # Guard 2: victim proximity — skip if attribution appears to be
+            # about a different subject (e.g. Cl0p claiming Thames Water in an
+            # article about South Staffordshire Water)
+            if victim_tokens and not victim_tokens.intersection(
+                set(re.findall(r"\w+", window))
+            ):
+                continue
 
-        if best is None or offset < best[3]:
-            status = _classify_attribution_status(text, offset)
-            best = (canonical, actor_type, status, offset)
+            # Guard 3: historical temporal marker in the 50 chars immediately
+            # before the actor name suppresses this occurrence only
+            pre_actor = text[max(0, offset - 50):offset]
+            if _HISTORICAL_MARKER_RE.search(pre_actor):
+                continue
+
+            if best is None or offset < best[3]:
+                status = _classify_attribution_status(text, offset)
+                best = (canonical, actor_type, status, offset)
+            break  # found a valid occurrence for this actor; move to next actor
+
     return best
 
 
@@ -246,7 +259,12 @@ def attribute_event(event):
         return False
 
     text = _event_articles_text(event)
-    match = find_actor_in_text(text)
+    victim_tokens = (
+        set(re.findall(r"\w+", event.victim_org_name.lower()))
+        if event.victim_org_name
+        else None
+    )
+    match = find_actor_in_text(text, victim_tokens=victim_tokens)
     if not match:
         return False
 
