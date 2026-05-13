@@ -1076,6 +1076,8 @@ def run_rule_extraction(article):
             "bank", "bancorp", "bancshares", "financial", "finance",
             "insurance", "capital", "investment", "credit union",
             "asset management", "brokerage", "mortgage",
+            "bitcoin", "crypto", "blockchain", "payments", "fintech",
+            "exchange", "wallet", "trading",
         ]):
             industry = "Financial Services"
         elif any(k in name_lower for k in [
@@ -1091,6 +1093,7 @@ def run_rule_extraction(article):
         elif any(k in name_lower for k in [
             "airline", "airways", "airport", "railway", "railroad",
             "transit", "shipping", "logistics", "freight",
+            "auto", "automotive", "automobile", "motors", "vehicle",
         ]):
             industry = "Transportation"
         elif any(k in name_lower for k in [
