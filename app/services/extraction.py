@@ -886,9 +886,21 @@ def region_for_country(country):
     return _COUNTRY_TO_REGION.get(country)
 
 
-def _extract_geography(text):
+def _extract_geography(text, fallback_text=None):
+    """
+    Extract geography from text.
+
+    target_phrase_patterns scan the full `text` (title+summary+content) for
+    attack-context phrases like "attacks on X country".
+
+    The flat keyword scan (any country mention) uses `fallback_text` when
+    provided — typically title+summary only — to avoid picking up incidental
+    country mentions in article bodies (e.g. a US company listing its global
+    offices).
+    """
     country = None
     region = None
+    scan_text = fallback_text if fallback_text is not None else text
 
     geography_map = [
         (["united states", "u.s.", "u.s.a.", "usa", "american"], "United States", "North America"),
@@ -974,7 +986,7 @@ def _extract_geography(text):
                 }
 
     for keywords, mapped_country, mapped_region in geography_map:
-        if any(keyword in text for keyword in keywords):
+        if any(keyword in scan_text for keyword in keywords):
             country = mapped_country
             region = mapped_region
             break
@@ -992,7 +1004,7 @@ def _extract_geography(text):
         ]
 
         for keywords, mapped_region in region_map:
-            if any(keyword in text for keyword in keywords):
+            if any(keyword in scan_text for keyword in keywords):
                 region = mapped_region
                 break
 
@@ -1102,7 +1114,11 @@ def run_rule_extraction(article):
     if industry == "Unknown" and victim_org_name:
         industry = "Technology"
 
-    geography = _extract_geography(text)
+    title_summary_for_geo = " ".join([
+        (article.title or "").strip(),
+        (article.summary or "").strip(),
+    ]).lower()
+    geography = _extract_geography(text, fallback_text=title_summary_for_geo)
 
     # Strip "anti-ransomware" before ransomware keyword matching to avoid false positives
     # on articles about ransomware defenses.
