@@ -109,21 +109,19 @@ def is_relevant_incident(article):
         "seizure",
         "takedown",
         "take down",
-        # Regulatory fine announcements are legal aftermath of past incidents,
-        # not current cyber events.
-        "fined £",
-        "fined $",
-        "fined €",
-        " fines ",
+        # Regulatory fine announcements — "fined" as a standalone word covers
+        # "ICO fined South Staffordshire Water £X" and similar patterns where
+        # the org name sits between the verb and the currency amount.
+        " fined ",
         "faces a fine",
         "facing a fine",
         "ordered to pay",
         "regulatory fine",
         "data protection fine",
-        # Legislative / government-reaction articles — hearings, testimony requests,
-        # congressional inquiries — are political aftermath, not cyber events.
-        "seeks testimony",
-        "seek testimony",
+        # Legislative / government-reaction articles. "testimony" as a standalone
+        # word covers "seeks Instructure testimony", "called to provide testimony",
+        # "testify before congress", etc. without needing adjacent-word pairs.
+        "testimony",
         "called to testify",
         "calls to testify",
         "testify before",
