@@ -59,21 +59,10 @@ with app.app_context():
     db.session.commit()
     print(f"  refreshed {len(events)} events")
 
-    # --- Step 3: clear and re-run attribution ---
-    print("clearing actor fields for re-attribution...")
-    updated = (
-        CyberEvent.query
-        .filter(CyberEvent.event_signal_type == "incident")
-        .update({
-            "actor_name": None,
-            "actor_type": None,
-            "attribution_status": None,
-        })
-    )
-    db.session.commit()
-    print(f"  cleared {updated} events")
-
-    print("re-running attribution...")
+    # --- Step 3: run attribution for events with victims that have no actor yet ---
+    # Do NOT clear first — refresh_event already propagated extraction actors
+    # (e.g. supply-chain events like Shai Hulud), and clearing would wipe them.
+    print("running attribution...")
     result = attribute_events()
     print(f"  attribution: {result}")
 
