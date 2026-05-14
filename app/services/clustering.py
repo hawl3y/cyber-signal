@@ -310,17 +310,6 @@ def find_candidate_events(extraction):
         for candidate in exact_name:
             candidates_by_id[candidate.id] = candidate
 
-    narrowed = CyberEvent.query
-
-    if extraction.country:
-        narrowed = narrowed.filter_by(country=extraction.country)
-
-    if extraction.attack_type:
-        narrowed = narrowed.filter_by(attack_type=extraction.attack_type)
-
-    for candidate in narrowed.all():
-        candidates_by_id[candidate.id] = candidate
-
     return list(candidates_by_id.values())
 
 

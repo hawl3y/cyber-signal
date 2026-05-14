@@ -4,11 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Source Coverage (next build)
-Increase incident volume and geographic diversity. See Source Registry section for evaluated candidates. Decision pending on which to add first.
+### 1. Sector & clustering quality (current)
+Reduce Unknown sector count in production. Improve clustering so related articles reliably merge into one event rather than creating duplicates. See Key Design Patterns for extraction and clustering rules.
 
 ### 2. Region filter effectiveness (after next prod cycle)
-Measure whether the Region filter (added as Signal Type replacement) adds user value. If the data shows poor coverage or low engagement, drop to 3 filters (Time Range, Sector, Threat Type).
+Measure whether the Region filter adds user value. If data shows poor coverage or low engagement, drop to 3 filters (Time Range, Sector, Threat Type).
+
+### 3. Source coverage — quality over volume
+Evaluated ACSC (duplicate of CISA/NCSC joint advisories), CCCS (pure patch announcements), Graham Cluley (too mixed — podcasts, opinion, individual theft stories). None met the quality bar. Do not add a source unless it is as clean as Krebs on Security and fills a real geographic or sector gap that existing sources don't cover.
 
 ---
 
@@ -177,10 +180,11 @@ All endpoints live in `/api` and are stateless query/trigger routes:
 ### Frontend
 
 Single-page app loaded at `/`:
-- Filter controls: Time Range, Signal Type, Sector (labeled "Industry" in the database/API, "Sector" in the UI), Threat Type (formerly "Attack Type")
+- Filter controls: Time Range, Region, Sector (labeled "Industry" in the database/API, "Sector" in the UI), Threat Type (labeled "Attack Type" in the database/API)
+- All API calls hardcode `signal_type=incident` — no Signal Type filter exists in the UI
 - Event list sorted by priority tuple (see Event Prioritization below)
 - Event cards: expandable detail panel on click; primary-source badge nested in publisher cell
-- LocalStorage persists filter state
+- LocalStorage persists filter state (`cyber_signal_filters_v2`)
 
 ### Database Schema
 
@@ -254,20 +258,7 @@ flask db current
 
 Clear all data for a fresh start:
 ```bash
-python - <<'PY'
-from app import create_app
-from app.extensions import db
-from app.models import EventSourceLink, ArticleExtraction, CyberEvent, RawArticle
-
-app = create_app()
-with app.app_context():
-    EventSourceLink.query.delete()
-    ArticleExtraction.query.delete()
-    CyberEvent.query.delete()
-    RawArticle.query.delete()
-    db.session.commit()
-    print("Content reset complete.")
-PY
+PYTHONPATH=. python scripts/reset_content.py
 ```
 
 ---
@@ -350,7 +341,7 @@ Rules:
 ### Event Prioritization
 
 Frontend sorts events by tuple (do not reorder without product review):
-1. Signal type (incidents before activity)
+1. Signal type (incidents before activity) — vestigial at UI level since all events shown are incidents; still correct at pipeline level
 2. Confidence score descending (higher trust first)
 3. High-impact flag (high-impact first within trust band)
 4. Source count descending

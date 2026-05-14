@@ -281,7 +281,7 @@ def _normalize_org_name(value):
     normalized = re.sub(r"[^a-z0-9\s]", " ", normalized)
     normalized = re.sub(
         r"\b(inc|llc|ltd|corp|corporation|company|co|group|plc|sa|ag|gmbh|nv|bv"
-        r"|services|solutions|systems)\b",
+        r"|services|solutions|systems|holdings|enterprises|international|technologies)\b",
         "",
         normalized,
     )
@@ -637,6 +637,10 @@ def _extract_industry(text):
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(airport|airline|aviation|rail|railway|transit|metro|shipping|logistics|freight|port authority)\b", "Transportation"),
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(newspaper|news outlet|media company|broadcaster|television network|radio station|publisher)\b", "Media"),
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(manufacturer|manufacturing|factory|industrial|electronics maker|contract manufacturer)\b", "Manufacturing"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(retailer|retail chain|supermarket|department store|e-commerce|online store)\b", "Retail"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(telecom|telecommunications|isp|internet service provider|mobile carrier|wireless provider)\b", "Telecommunications"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(hotel|casino|resort|hospitality)\b", "Hospitality"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(law firm|legal services|accounting firm|professional services)\b", "Legal"),
     ]
 
     for pattern, industry in target_context_patterns:
@@ -760,6 +764,58 @@ def _extract_industry(text):
             "brokerage",
             "insurance company",
             "insurer",
+        ],
+        "Retail": [
+            "retailer",
+            "retail chain",
+            "retail store",
+            "retail company",
+            "retail group",
+            "e-commerce",
+            "ecommerce",
+            "online retailer",
+            "online store",
+            "online marketplace",
+            "supermarket",
+            "grocery chain",
+            "department store",
+            "clothing retailer",
+            "fashion retailer",
+        ],
+        "Telecommunications": [
+            "telecom",
+            "telecommunications",
+            "internet service provider",
+            "mobile carrier",
+            "wireless carrier",
+            "wireless provider",
+            "broadband provider",
+            "mobile network",
+            "phone company",
+            " isp ",
+            "telco",
+        ],
+        "Legal": [
+            "law firm",
+            "legal services",
+            "legal firm",
+            "law practice",
+            "attorneys at law",
+            "solicitors",
+            "accounting firm",
+            "audit firm",
+            "professional services firm",
+        ],
+        "Hospitality": [
+            "hotel chain",
+            "hotel group",
+            "hotel operator",
+            "casino operator",
+            "casino resort",
+            "resort chain",
+            "hospitality company",
+            "hospitality group",
+            "hospitality industry",
         ],
         "Technology": [
             "software provider",
@@ -1180,6 +1236,19 @@ def run_rule_extraction(article):
             "ministry of", "federal", "government",
         ]):
             industry = "Government"
+        elif any(k in name_lower for k in [
+            "telecom", "telecommunications", "wireless", "mobile network",
+            "broadband", "telco",
+        ]):
+            industry = "Telecommunications"
+        elif any(k in name_lower for k in [
+            "hotel", "resort", "casino", "hospitality",
+        ]):
+            industry = "Hospitality"
+        elif any(k in name_lower for k in [
+            "retail", "supermarket", "grocer",
+        ]):
+            industry = "Retail"
 
     victim_context_text = ""
     if victim_org_name:
@@ -1220,6 +1289,14 @@ def run_rule_extraction(article):
             industry = "Government"
         elif any(term in title_summary for term in ["bank", "banking", "fintech", "payment processor", "credit union"]):
             industry = "Financial Services"
+        elif any(term in title_summary for term in ["telecom", "telecommunications", "mobile carrier", "wireless carrier", "broadband provider", "internet service provider"]):
+            industry = "Telecommunications"
+        elif any(term in title_summary for term in ["hotel chain", "hotel group", "casino", "resort", "hospitality company", "hospitality group"]):
+            industry = "Hospitality"
+        elif any(term in title_summary for term in ["retailer", "retail chain", "supermarket", "e-commerce", "online retailer", "online store", "department store"]):
+            industry = "Retail"
+        elif any(term in title_summary for term in ["law firm", "legal services", "accounting firm", "professional services firm"]):
+            industry = "Legal"
         elif any(term in title_summary for term in [
             "software vendor", "software provider", "tech company", "tech firm",
             "saas", "hosting provider", "managed service provider", "msp",

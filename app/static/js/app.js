@@ -90,19 +90,6 @@ function formatMetaLabel(value) {
         .join(" ");
 }
 
-function formatSignalTypeLabel(value) {
-    if (value === "activity") return "Activity";
-    if (value === "intelligence") return "Intelligence";
-    return "Incident";
-}
-
-function formatSignalTypeLabelPlural(value) {
-    if (value === "activity") return "Activity";
-    if (value === "intelligence") return "Intelligence";
-    if (value === "incident") return "Incidents";
-    return "All Events";
-}
-
 function scoreBandFor(score) {
     if (score === null || score === undefined) return null;
     if (score >= 75) return "high";
