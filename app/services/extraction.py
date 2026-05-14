@@ -1170,7 +1170,7 @@ def _extract_geography(text, fallback_text=None):
             (["middle east"], "Middle East"),
             (["africa"], "Africa"),
             (["oceania"], "Oceania"),
-            (["global", "worldwide", "international"], "Global"),
+            (["global attack", "worldwide attack", "international attack", "global campaign", "worldwide campaign"], "Global"),
         ]
 
         for keywords, mapped_region in region_map:
@@ -1412,7 +1412,6 @@ def run_rule_extraction(article):
         "dependency confusion",
         "compromised vendor",
         "third-party compromise",
-        "software supply chain",
     ]):
         attack_type = "Supply Chain"
     elif not is_activity and not title_signals_breach and any(keyword in text_for_ransomware for keyword in [
