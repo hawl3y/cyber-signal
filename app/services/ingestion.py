@@ -336,14 +336,11 @@ def _fetch_ransomware_live_items(source):
         title = f"{post_title} hit by ransomware attack from {group_name}"
 
         victim_sentence = f"{post_title} was hit by a ransomware attack claimed by {group_name}."
-        if description:
-            summary = f"{victim_sentence} {description}"
-            if website:
-                summary = f"{summary} Victim website: {website}."
-        else:
-            summary = victim_sentence
-            if website:
-                summary += f" Victim website: {website}."
+        summary = victim_sentence
+        if country_full:
+            summary += f" Based in {country_full}."
+        elif website:
+            summary += f" ({website})"
 
         content_parts = [
             victim_sentence,
