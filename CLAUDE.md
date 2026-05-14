@@ -411,6 +411,21 @@ events = get_filtered_events(
 
 All commands require `PYTHONPATH=.` and must be run from the repo root. The `.venv` is pre-activated — never prefix with `source .venv/bin/activate`. These same commands work identically locally and on the Render production shell.
 
+### Production SSH access (Render)
+
+An SSH connection to the Render production web service is available for live diagnostics, log inspection, and running canonical scripts directly against the production database.
+
+**Rule: always ask for approval before running any SSH command.**
+Before executing anything over SSH, state exactly what command you plan to run and why, and wait for explicit confirmation. Production SSH access mutates live data — there is no undo for pipeline runs or content resets. One approval covers one stated command, not a sequence.
+
+Appropriate SSH uses:
+- Running `diagnose_prod.py` or `diagnose_actors.py` to inspect live state
+- Running `force_reprocess.py` or `fix_stale_events.py` after a confirmed deploy
+- Tailing logs to investigate an active issue
+- Running `run_pipeline_once.py` to manually trigger a pipeline cycle
+
+Never run destructive commands (content reset, database schema changes, branch resets) over SSH without explicit user instruction.
+
 ### Rule: after changing extraction or processing logic
 
 Any change to `extraction.py`, `processing.py`, or `clustering.py` **must** be followed by a force reprocess. This re-runs the full pipeline from the relevance filter through extraction and clustering — stale events from articles that are now filtered will be cleaned up automatically.
