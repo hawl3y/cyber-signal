@@ -328,6 +328,11 @@ def _extract_victim_org_name(article):
     ]
 
     target_patterns = [
+        # Supply-chain: "in [X] supply chain attack" — X is the entity whose supply chain
+        # was directly compromised. Must run before the "confirms" pattern so a headline
+        # like "OpenAI confirms breach in TanStack supply chain attack" returns TanStack,
+        # not OpenAI (which is only the disclosing downstream victim).
+        r"\bin\s+([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+supply[\s-]chain\s+attack\b",
         # Strong: subject of a disclosure verb at the start of the headline.
         # Uses [^,.;:]+? (not [A-Z]...) so it handles non-ASCII org names (e.g. Škoda, Über).
         r"^\s*([^,.;:]+?)\s+(?:confirms|confirmed|discloses|disclosed|acknowledges|acknowledged|admits|admitted|warns|reported|notified)\b",
