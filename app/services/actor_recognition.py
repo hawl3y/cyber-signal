@@ -20,6 +20,31 @@ from app.extensions import db
 from app.models import CyberEvent, EventSourceLink, RawArticle
 from app.services.clustering import recompute_high_impact
 
+# Short single-word aliases (≤5 alphabetic chars) are common English words
+# (Play, Hive, Maze, FOG, Royal, Snake …) and must appear near explicit
+# actor-class language to prevent matches on brand names / product names
+# (e.g. "Play" matching "Google Play Store").
+_ACTOR_CLASS_CONTEXT_RE = re.compile(
+    r"\b(?:"
+    r"ransomware|threat\s+(?:group|actor|actors|campaign)|"
+    r"hacking\s+(?:group|gang|crew)|cybercriminal|criminal\s+(?:group|gang)|"
+    r"hackers|hacktivist|nation.state|apt\b|cyber\s+(?:gang|group|crew)|"
+    r"gang|crew"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _alias_requires_actor_context(alias_name):
+    """Return True if the alias is short enough that it needs nearby actor-class
+    language to be a valid match (prevents common-word false positives)."""
+    return (
+        len(alias_name) <= 5
+        and alias_name.replace("-", "").isalpha()
+        and " " not in alias_name
+    )
+
+
 # Temporal markers that indicate an actor mention is a reference to a past/different
 # incident rather than the current one. When these appear in the text immediately
 # before an actor name in the attribution window, the match is suppressed.
@@ -183,6 +208,17 @@ def find_actor_in_text(text, victim_tokens=None):
             # Guard 1: attribution language required near the actor name
             if not any(phrase in window for phrase in all_attribution):
                 continue
+
+            # Guard 1.5: short single-word aliases must appear adjacent to
+            # explicit actor-class language to prevent brand-name collisions
+            # (e.g. "Play" matching "Google Play Store").  A tight ±30-char
+            # window ensures "Play ransomware" or "Play gang" match, but
+            # "Google Play Store / Protect" do not, even when the article body
+            # discusses threat actors elsewhere in the same paragraph.
+            if _alias_requires_actor_context(_name):
+                actor_window = text[max(0, offset - 30):min(len(text), offset + 30)]
+                if not _ACTOR_CLASS_CONTEXT_RE.search(actor_window):
+                    continue
 
             # Guard 2: victim proximity — prevent attributions that are about a
             # different victim mentioned in the same article.
