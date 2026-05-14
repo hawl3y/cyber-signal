@@ -25,11 +25,9 @@ Cyber Signal answers "What confirmed cyber incidents involving named organizatio
 
 ### Product Floor
 
-Every event shown in the incident feed must satisfy at least one of:
-- Named victim (`victim_org_name` is set), OR
-- Attributed actor (`actor_name` is set)
+Every event shown in the incident feed must have a named victim (`victim_org_name` is set).
 
-Events with neither are excluded from the API response. This is enforced in `get_filtered_events()` when `signal_type=incident`.
+Actor-only events (campaign or advisory reports with a known actor but no named victim org) are threat intelligence, not incident reports — they are excluded from the feed. This is enforced in `get_filtered_events()` when `signal_type=incident`.
 
 ### Event Model
 

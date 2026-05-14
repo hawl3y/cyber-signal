@@ -73,6 +73,16 @@ def is_relevant_incident(article):
             # at risk") produce Unknown attack type and no victim — not incident signals.
             "issued actions for",
             "actions for individuals",
+            # Defensive/hardening guidance — not incident reports
+            "defending against",
+            "how to defend",
+            "steps to defend",
+            "protect against",
+            "how to protect",
+            "reduce your",
+            "improve your",
+            "strengthening",
+            "resilience",
         ]
 
         if any(pattern in title_and_summary for pattern in ncsc_noise_patterns):
