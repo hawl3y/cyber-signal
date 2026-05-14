@@ -254,7 +254,8 @@ def _normalize_org_name(value):
     normalized = re.sub(r"'s\b", "", normalized)
     normalized = re.sub(r"[^a-z0-9\s]", " ", normalized)
     normalized = re.sub(
-        r"\b(inc|llc|ltd|corp|corporation|company|co|group|plc|sa|ag|gmbh|nv|bv)\b",
+        r"\b(inc|llc|ltd|corp|corporation|company|co|group|plc|sa|ag|gmbh|nv|bv"
+        r"|services|solutions|systems)\b",
         "",
         normalized,
     )
