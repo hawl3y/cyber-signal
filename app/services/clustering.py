@@ -510,6 +510,21 @@ def refresh_event(event_id):
     content_ranked = _ranked_extractions_for_content(event.id)
     article, extraction = _latest_linked_extraction(event.id)
 
+    # If all linked articles are now irrelevant (no active extractions exist),
+    # the event is a zombie — delete it so it doesn't persist with stale fields.
+    if not ranked:
+        links = EventSourceLink.query.filter_by(cyber_event_id=event.id).all()
+        all_irrelevant = all(
+            RawArticle.query.get(lnk.raw_article_id) and
+            RawArticle.query.get(lnk.raw_article_id).processing_status == "irrelevant"
+            for lnk in links
+        ) if links else False
+        if all_irrelevant:
+            for lnk in links:
+                db.session.delete(lnk)
+            db.session.delete(event)
+            return True
+
     def _apply(attr, value):
         """Set when the merge produced a value; otherwise leave the existing
         event field intact so we don't clobber prior AI-enriched data
