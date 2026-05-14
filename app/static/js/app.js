@@ -1,4 +1,4 @@
-const FILTER_STORAGE_KEY = "cyber_signal_filters_v2";
+const FILTER_STORAGE_KEY = "cyber_signal_filters_v3";
 const PAGE_SIZE = 25;
 
 let currentOffset = 0;
@@ -8,7 +8,6 @@ let allLoadedRawEvents = [];
 function getDefaultFilters() {
     return {
         time_range: "7d",
-        region: "",
         industry: "",
         attack_type: "",
     };
@@ -16,13 +15,11 @@ function getDefaultFilters() {
 
 function getCurrentFilters() {
     const timeRangeEl = document.getElementById("filter-time-range");
-    const regionEl = document.getElementById("filter-region");
     const industryEl = document.getElementById("filter-industry");
     const attackTypeEl = document.getElementById("filter-attack-type");
 
     return {
         time_range: timeRangeEl ? timeRangeEl.value : "7d",
-        region: regionEl ? regionEl.value : "",
         industry: industryEl ? industryEl.value : "",
         attack_type: attackTypeEl ? attackTypeEl.value : "",
     };
@@ -55,14 +52,12 @@ function saveFilters(filters) {
 
 function applyFiltersToControls(filters) {
     const timeRangeEl = document.getElementById("filter-time-range");
-    const regionEl = document.getElementById("filter-region");
     const industryEl = document.getElementById("filter-industry");
     const attackTypeEl = document.getElementById("filter-attack-type");
 
     if (timeRangeEl) {
         timeRangeEl.value = filters.time_range !== undefined ? filters.time_range : "7d";
     }
-    if (regionEl) regionEl.value = filters.region || "";
     if (industryEl) industryEl.value = filters.industry || "";
     if (attackTypeEl) attackTypeEl.value = filters.attack_type || "";
 }
@@ -110,14 +105,12 @@ function buildScoreTooltip(score, factors) {
     return `${base} — ${factors.join(" · ")}`;
 }
 
-const FACET_KEYS = ["region", "industry", "attack_type"];
+const FACET_KEYS = ["industry", "attack_type"];
 const FACET_SELECT_IDS = {
-    region: "filter-region",
     industry: "filter-industry",
     attack_type: "filter-attack-type",
 };
 const FACET_CHIP_LABELS = {
-    region: "Region",
     industry: "Sector",
     attack_type: "Threat Type",
 };
@@ -251,7 +244,6 @@ function updateContextLabels(filters) {
         const facets = [];
         if (filters.attack_type) facets.push(filters.attack_type);
         if (filters.industry) facets.push(filters.industry);
-        if (filters.region) facets.push(filters.region);
         feedLabel.textContent = facets.length ? facets.join(" · ") : "Incidents";
     }
 }
@@ -620,7 +612,6 @@ function buildEmptyStateMessage(filters) {
     const parts = [];
     if (filters.attack_type) parts.push(filters.attack_type.toLowerCase());
     if (filters.industry) parts.push(filters.industry.toLowerCase());
-    if (filters.region) parts.push(filters.region.toLowerCase());
     const what = parts.length ? parts.join(" · ") + " incidents" : "incidents";
     const when = filters.time_range ? `the last ${filters.time_range}` : "all time";
     return `No ${what} found in ${when}. Try adjusting the filters.`;
@@ -757,7 +748,6 @@ async function resetFilters() {
 
 [
     "filter-time-range",
-    "filter-region",
     "filter-industry",
     "filter-attack-type",
 ].forEach(id => {

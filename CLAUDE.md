@@ -4,16 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Region coverage (current)
-Region is populated for only 8 of 25 production events. The 17 without a region are articles that genuinely don't mention a country or state in their title, summary, or lead paragraph. Options: (a) accept this as a data limitation and consider dropping the Region filter per task #3, or (b) investigate whether extending geography extraction to more body text helps without introducing false positives.
-
-### 2. Clustering quality — production observation (ongoing)
+### 1. Clustering quality — production observation (ongoing)
 Watch for same-incident duplicate events in production. When a specific case is found, trace it to an extraction inconsistency (different victim name forms across sources) and fix the extraction pattern. The core matching logic is correct — duplicates are an extraction quality problem, not a clustering logic problem.
 
-### 3. Region filter effectiveness (after next prod cycle)
-Measure whether the Region filter adds user value. If data shows poor coverage or low engagement, drop to 3 filters (Time Range, Sector, Threat Type).
-
-### 4. Source coverage — quality over volume
+### 2. Source coverage — quality over volume
 Evaluated ACSC (duplicate of CISA/NCSC joint advisories), CCCS (pure patch announcements), Graham Cluley (too mixed — podcasts, opinion, individual theft stories). None met the quality bar. Do not add a source unless it is as clean as Krebs on Security and fills a real geographic or sector gap that existing sources don't cover.
 
 ---
@@ -179,8 +173,9 @@ All endpoints live in `/api` and are stateless query/trigger routes:
 ### Frontend
 
 Single-page app loaded at `/`:
-- Filter controls: Time Range, Region, Sector (labeled "Industry" in the database/API, "Sector" in the UI), Threat Type (labeled "Attack Type" in the database/API)
-- All API calls hardcode `signal_type=incident` — no Signal Type filter exists in the UI
+- Filter controls: Time Range, Sector (labeled "Industry" in the database/API), Threat Type (labeled "Attack Type" in the database/API)
+- All API calls hardcode `signal_type=incident` — no Signal Type or Region filter in the UI
+- Region is retained as a display field on event cards when present, but is not filterable
 - Event list sorted by priority tuple (see Event Prioritization below)
 - Event cards: expandable detail panel on click; primary-source badge nested in publisher cell
 - LocalStorage persists filter state (`cyber_signal_filters_v2`)
