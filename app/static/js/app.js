@@ -1,4 +1,4 @@
-const FILTER_STORAGE_KEY = "cyber_signal_filters_mvp";
+const FILTER_STORAGE_KEY = "cyber_signal_filters_v2";
 const PAGE_SIZE = 25;
 
 let currentOffset = 0;
@@ -8,7 +8,7 @@ let allLoadedRawEvents = [];
 function getDefaultFilters() {
     return {
         time_range: "7d",
-        signal_type: "incident",
+        region: "",
         industry: "",
         attack_type: "",
     };
@@ -16,13 +16,13 @@ function getDefaultFilters() {
 
 function getCurrentFilters() {
     const timeRangeEl = document.getElementById("filter-time-range");
-    const signalTypeEl = document.getElementById("filter-signal-type");
+    const regionEl = document.getElementById("filter-region");
     const industryEl = document.getElementById("filter-industry");
     const attackTypeEl = document.getElementById("filter-attack-type");
 
     return {
-        time_range: timeRangeEl ? timeRangeEl.value : "30d",
-        signal_type: signalTypeEl ? signalTypeEl.value : "",
+        time_range: timeRangeEl ? timeRangeEl.value : "7d",
+        region: regionEl ? regionEl.value : "",
         industry: industryEl ? industryEl.value : "",
         attack_type: attackTypeEl ? attackTypeEl.value : "",
     };
@@ -55,14 +55,14 @@ function saveFilters(filters) {
 
 function applyFiltersToControls(filters) {
     const timeRangeEl = document.getElementById("filter-time-range");
-    const signalTypeEl = document.getElementById("filter-signal-type");
+    const regionEl = document.getElementById("filter-region");
     const industryEl = document.getElementById("filter-industry");
     const attackTypeEl = document.getElementById("filter-attack-type");
 
     if (timeRangeEl) {
-        timeRangeEl.value = filters.time_range !== undefined ? filters.time_range : "30d";
+        timeRangeEl.value = filters.time_range !== undefined ? filters.time_range : "7d";
     }
-    if (signalTypeEl) signalTypeEl.value = filters.signal_type || "";
+    if (regionEl) regionEl.value = filters.region || "";
     if (industryEl) industryEl.value = filters.industry || "";
     if (attackTypeEl) attackTypeEl.value = filters.attack_type || "";
 }
@@ -123,14 +123,14 @@ function buildScoreTooltip(score, factors) {
     return `${base} — ${factors.join(" · ")}`;
 }
 
-const FACET_KEYS = ["signal_type", "industry", "attack_type"];
+const FACET_KEYS = ["region", "industry", "attack_type"];
 const FACET_SELECT_IDS = {
-    signal_type: "filter-signal-type",
+    region: "filter-region",
     industry: "filter-industry",
     attack_type: "filter-attack-type",
 };
 const FACET_CHIP_LABELS = {
-    signal_type: "Signal",
+    region: "Region",
     industry: "Sector",
     attack_type: "Threat Type",
 };
@@ -143,8 +143,7 @@ function eventMatchesFilters(event, filters, exceptFacet) {
         if (facet === exceptFacet) return true;
         const selected = filters[facet];
         if (!selected) return true;
-        const eventKey = facet === "signal_type" ? "event_signal_type" : facet;
-        return event[eventKey] === selected;
+        return event[facet] === selected;
     });
 }
 
@@ -186,7 +185,7 @@ function populateSelectWithCounts(selectId, countsMap, currentValue) {
 }
 
 function recomputeFacetCounts(filters) {
-    FACET_KEYS.filter(k => k !== "signal_type").forEach(facet => {
+    FACET_KEYS.forEach(facet => {
         const counts = buildCountsForFacet(cachedTimeRangeEvents, facet, filters);
         populateSelectWithCounts(FACET_SELECT_IDS[facet], counts, filters[facet] || "");
     });
@@ -197,6 +196,7 @@ async function loadFilterOptions(filters) {
         if (filters.time_range !== cachedTimeRange) {
             const params = new URLSearchParams();
             if (filters.time_range) params.append("time_range", filters.time_range);
+            params.append("signal_type", "incident");
             params.append("limit", "500");
             const response = await fetch(`/api/events/?${params}`);
             cachedTimeRangeEvents = await response.json();
@@ -246,9 +246,8 @@ async function clearOneFilter(key) {
 // ── Context labels ─────────────────────────────────────────
 
 function buildContextText(filters) {
-    const signal = formatSignalTypeLabelPlural(filters.signal_type);
     const time = filters.time_range || "All time";
-    return `${signal} · ${time}`;
+    return `Incidents · ${time}`;
 }
 
 function updateContextLabels(filters) {
@@ -265,9 +264,8 @@ function updateContextLabels(filters) {
         const facets = [];
         if (filters.attack_type) facets.push(filters.attack_type);
         if (filters.industry) facets.push(filters.industry);
-        feedLabel.textContent = facets.length
-            ? facets.join(" · ")
-            : formatSignalTypeLabelPlural(filters.signal_type);
+        if (filters.region) facets.push(filters.region);
+        feedLabel.textContent = facets.length ? facets.join(" · ") : "Incidents";
     }
 }
 
@@ -275,8 +273,11 @@ function updateContextLabels(filters) {
 
 async function loadSummary() {
     try {
-        const query = buildQueryString(getCurrentFilters());
-        const response = await fetch(`/api/summary/${query}`);
+        const filters = getCurrentFilters();
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
+        params.append("signal_type", "incident");
+        const response = await fetch(`/api/summary/?${params}`);
         const data = await response.json();
 
         const totalEl = document.getElementById("total-events");
@@ -284,10 +285,9 @@ async function loadSummary() {
         const highImpactEl = document.getElementById("high-impact-events");
         const newTodayEl = document.getElementById("new-today-events");
 
-        const isIntelligence = getCurrentFilters().signal_type === "intelligence";
         if (totalEl) totalEl.textContent = data.total_events ?? "--";
-        if (highTrustEl) highTrustEl.textContent = isIntelligence ? "N/A" : (data.high_trust_events ?? "--");
-        if (highImpactEl) highImpactEl.textContent = isIntelligence ? "N/A" : (data.high_impact_events ?? "--");
+        if (highTrustEl) highTrustEl.textContent = data.high_trust_events ?? "--";
+        if (highImpactEl) highImpactEl.textContent = data.high_impact_events ?? "--";
         if (newTodayEl) newTodayEl.textContent = data.new_today_events ?? "--";
     } catch (err) {
         console.error("Failed to load summary:", err);
@@ -376,8 +376,11 @@ function renderCountTrend(containerId, items, emptyMessage, suffix) {
 
 async function loadTrends() {
     try {
-        const query = buildQueryString(getCurrentFilters());
-        const response = await fetch(`/api/summary/trends${query}`);
+        const filters = getCurrentFilters();
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
+        params.append("signal_type", "incident");
+        const response = await fetch(`/api/summary/trends?${params}`);
         const data = await response.json();
 
         renderRisingTrend(data.rising_attack_types || []);
@@ -510,9 +513,6 @@ function renderEventCard(event) {
         .map(item => `<span class="meta-pill ${item.className || ""}">${formatMetaLabel(item.value)}</span>`)
         .join("");
 
-    const signalType = event.event_signal_type || "incident";
-    const signalTypePill = `<span class="signal-pill signal-${signalType}">${formatSignalTypeLabel(signalType)}</span>`;
-
     const tooltip = buildScoreTooltip(event.confidence_score, event.score_factors);
     const scoreLabel = scoreLabelFor(event.confidence_score);
     const scorePill = scoreBand
@@ -542,7 +542,6 @@ function renderEventCard(event) {
             <div class="event-card-header-pills">
                 ${impactBadge}
                 ${scorePill}
-                ${signalTypePill}
             </div>
         </div>
         <p class="event-summary-preview">${escapeHtml(event.summary || "")}</p>
@@ -632,10 +631,10 @@ function updateFeedCount() {
 
 function buildEmptyStateMessage(filters) {
     const parts = [];
-    if (filters.signal_type) parts.push(formatSignalTypeLabelPlural(filters.signal_type).toLowerCase());
     if (filters.attack_type) parts.push(filters.attack_type.toLowerCase());
     if (filters.industry) parts.push(filters.industry.toLowerCase());
-    const what = parts.length ? parts.join(" · ") : "events";
+    if (filters.region) parts.push(filters.region.toLowerCase());
+    const what = parts.length ? parts.join(" · ") + " incidents" : "incidents";
     const when = filters.time_range ? `the last ${filters.time_range}` : "all time";
     return `No ${what} found in ${when}. Try adjusting the filters.`;
 }
@@ -654,6 +653,7 @@ async function loadEvents() {
         const filters = getCurrentFilters();
         const params = new URLSearchParams();
         Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
+        params.append("signal_type", "incident");
         params.append("limit", PAGE_SIZE);
 
         const response = await fetch(`/api/events/?${params}`);
@@ -693,6 +693,7 @@ async function loadMoreEvents() {
         const filters = getCurrentFilters();
         const params = new URLSearchParams();
         Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
+        params.append("signal_type", "incident");
         params.append("limit", PAGE_SIZE);
         params.append("offset", currentOffset);
 
@@ -769,7 +770,7 @@ async function resetFilters() {
 
 [
     "filter-time-range",
-    "filter-signal-type",
+    "filter-region",
     "filter-industry",
     "filter-attack-type",
 ].forEach(id => {

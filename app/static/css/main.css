@@ -138,13 +138,6 @@ body {
     line-height: 1.3;
 }
 
-/* On mobile when filters are collapsed, hide the signal type chip —
-   the context label already shows signal type + time range */
-@media (max-width: 640px) {
-    .filters-panel:not(.expanded) .filter-chip[data-facet="signal_type"] {
-        display: none;
-    }
-}
 
 .filter-actions {
     display: inline-flex;
