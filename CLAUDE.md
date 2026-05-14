@@ -4,13 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Victim extraction — actor phrases blocked as victim/display names
-Fixed: nationality+actor phrases ("Iranian hackers", "Russian hackers") no longer extracted as victim_org_name or victim_display_label. Both `actor_start_terms` check in `_extract_victim_org_name` and `blocked_start_words` check in `_clean_anchor_candidate` now scan all tokens, not just the first word.
+### 1. Source Coverage (next build)
+Increase incident volume and geographic diversity. See Source Registry section for evaluated candidates. Decision pending on which to add first.
 
-### 2. Sources — evaluated, no additions pending
-- **CISA ICS Advisories**: already covered by existing `cisa-alerts-advisories` `all.xml` feed. No new source needed.
-- **HHS OCR Breach Portal**: no programmatic API available. Revisit if endpoint becomes available.
-- **SecurityWeek**: rejected — not high-value-low-noise enough for current stage.
+### 2. UI Polish (next build)
+Identify and address UX friction points — event card layout, filter interaction, mobile/responsive issues, loading states, empty states.
 
 ---
 
