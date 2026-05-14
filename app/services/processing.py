@@ -62,6 +62,13 @@ def is_relevant_incident(article):
             "review of the year",
             "look back",
             "anniversary",
+            # Document-format headers — "Executive Summary: ..." is a section of a report,
+            # not a standalone incident signal.
+            "executive summary",
+            # Pure advisory articles with no concrete attack ("issued actions for individuals
+            # at risk") produce Unknown attack type and no victim — not incident signals.
+            "issued actions for",
+            "actions for individuals",
         ]
 
         if any(pattern in title_and_summary for pattern in ncsc_noise_patterns):

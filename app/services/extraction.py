@@ -1281,7 +1281,21 @@ def run_rule_extraction(article):
     ])
 
     attack_type = "Unknown"
-    if not is_activity and not title_signals_breach and any(keyword in text_for_ransomware for keyword in [
+    # Supply Chain is checked first — it describes the attack vector (compromised dependency/
+    # package/update) and is more specific than Ransomware or Malware. A supply chain attack
+    # that happens to mention "ransomware" in passing should be labelled Supply Chain.
+    if not is_activity and any(keyword in text for keyword in [
+        "supply chain",
+        "malicious package",
+        "malicious update",
+        "poisoned package",
+        "dependency confusion",
+        "compromised vendor",
+        "third-party compromise",
+        "software supply chain",
+    ]):
+        attack_type = "Supply Chain"
+    elif not is_activity and not title_signals_breach and any(keyword in text_for_ransomware for keyword in [
         "ransomware",
         "ransom note",
         "ransom demand",
@@ -1298,52 +1312,6 @@ def run_rule_extraction(article):
         "traffic flood",
     ]):
         attack_type = "DDoS"
-    elif not is_activity and not title_signals_breach and any(keyword in text for keyword in [
-        "malware",
-        "trojan",
-        "infostealer",
-        "backdoor",
-        "loader",
-        "spyware",
-        "wiper",
-        "malicious executables",
-        "payload",
-        "payloads",
-        "deployed payloads",
-        "used to deploy malware",
-        "abused to deploy",
-        "deployed malware",
-        "deploy scripts",
-        "running with system privileges",
-        "disabled antivirus protections",
-        "killing scripts",
-    ]):
-        attack_type = "Malware"
-    elif not is_activity and any(keyword in text for keyword in [
-        "supply chain",
-        "malicious package",
-        "malicious update",
-        "poisoned package",
-        "dependency confusion",
-        "compromised vendor",
-        "third-party compromise",
-        "software supply chain",
-    ]):
-        attack_type = "Supply Chain"
-    elif any(keyword in text for keyword in [
-        "sql injection",
-        "command injection",
-        "os command injection",
-        "code injection",
-        "injection vulnerability",
-        "xpath injection",
-        "ldap injection",
-        "cross-site scripting",
-        "xss",
-        "stored xss",
-        "reflected xss",
-    ]):
-        attack_type = "Injection"
     elif not is_activity and not title_signals_breach and any(keyword in text for keyword in [
         "phishing",
         "phishing-as-a-service",
@@ -1411,6 +1379,43 @@ def run_rule_extraction(article):
         "local privilege escalation",
     ]):
         attack_type = "Privilege Escalation"
+    elif any(keyword in text for keyword in [
+        "sql injection",
+        "command injection",
+        "os command injection",
+        "code injection",
+        "injection vulnerability",
+        "xpath injection",
+        "ldap injection",
+        "cross-site scripting",
+        "xss",
+        "stored xss",
+        "reflected xss",
+    ]):
+        attack_type = "Injection"
+    # Malware is checked after all specific vulnerability/attack classes — it is a catch-all
+    # for malicious code delivery that doesn't fit a more specific category.
+    elif not is_activity and not title_signals_breach and any(keyword in text for keyword in [
+        "malware",
+        "trojan",
+        "infostealer",
+        "backdoor",
+        "loader",
+        "spyware",
+        "wiper",
+        "malicious executables",
+        "payload",
+        "payloads",
+        "deployed payloads",
+        "used to deploy malware",
+        "abused to deploy",
+        "deployed malware",
+        "deploy scripts",
+        "running with system privileges",
+        "disabled antivirus protections",
+        "killing scripts",
+    ]):
+        attack_type = "Malware"
     elif _has_exploitation_signal(text):
         attack_type = "Exploitation"
 
