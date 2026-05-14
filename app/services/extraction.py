@@ -318,9 +318,9 @@ def _extract_victim_org_name(article):
         # Strong: subject of a disclosure verb at the start of the headline.
         # Uses [^,.;:]+? (not [A-Z]...) so it handles non-ASCII org names (e.g. Škoda, Über).
         r"^\s*([^,.;:]+?)\s+(?:confirms|confirmed|discloses|disclosed|acknowledges|acknowledged|admits|admitted|warns|reported|notified)\b",
-        # Resolution-phase headlines: "X reaches agreement/deal/settlement with [threat actor]"
-        # The subject of an extortion settlement in security news is always the victim.
-        r"^\s*([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:reaches?|reached)\s+\S*(?:agreement|deal|settlement)\S*\s+with\b",
+        # Resolution-phase headlines: "X reaches [ransom] agreement/deal/settlement with [threat actor]"
+        # Allow 0-2 optional words between "reaches" and "agreement/deal/settlement" (e.g. "Ransom Agreement")
+        r"^\s*([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:reaches?|reached)\s+(?:\S+\s+){0,2}(?:agreement|deal|settlement)\b.*\s+with\b",
         # "X pays/paid ransom to [actor]" — victim paying extortion
         r"^\s*([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:pays?|paid)\s+ransom\b",
         # "fined [Org] £/$/€..." — regulatory fine confirms the org was the breach victim

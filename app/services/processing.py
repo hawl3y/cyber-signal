@@ -213,7 +213,7 @@ def is_relevant_incident(article):
     if any(pattern in title_and_summary for pattern in retraction_noise_patterns):
         return False
 
-    # Security researcher PoC/tool releases are not incidents
+    # Security researcher PoC/tool releases and vulnerability disclosures are not incidents
     researcher_tool_patterns = [
         "proof-of-concept tool",
         "security researcher has released",
@@ -223,6 +223,15 @@ def is_relevant_incident(article):
         "poc released",
         "proof-of-concept released",
         "proof-of-concept exploits",
+        # Researcher disclosure articles — vulnerability found/revealed, not actively exploited
+        "anonymous cybersecurity researcher",
+        "anonymous security researcher",
+        "researcher disclosed",
+        "researcher has disclosed",
+        "researcher discovered",
+        "researcher has discovered",
+        "researcher reveals",
+        "researcher has revealed",
     ]
     if any(pattern in title_and_summary for pattern in researcher_tool_patterns):
         return False
