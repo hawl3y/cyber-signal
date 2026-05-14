@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Deploy + verify (immediate)
-Push current branch. After deploy, run `force_reprocess` on production to apply sector/normalization changes. Verify: Unknown sector count drops on named-victim incidents; no new duplicate events; clustering stable.
+### 1. Region coverage (current)
+Region is populated for only 8 of 25 production events. The 17 without a region are articles that genuinely don't mention a country or state in their title, summary, or lead paragraph. Options: (a) accept this as a data limitation and consider dropping the Region filter per task #3, or (b) investigate whether extending geography extraction to more body text helps without introducing false positives.
 
 ### 2. Clustering quality — production observation (ongoing)
 Watch for same-incident duplicate events in production. When a specific case is found, trace it to an extraction inconsistency (different victim name forms across sources) and fix the extraction pattern. The core matching logic is correct — duplicates are an extraction quality problem, not a clustering logic problem.
@@ -28,18 +28,18 @@ Cyber Signal answers "What matters right now?" in under 10 seconds. It turns fra
 
 ### Event Model
 
-The product surfaces **incidents only**. The pipeline internally uses three `event_signal_type` values, but only `incident` reaches the UI. All frontend API calls hardcode `signal_type=incident`. There is no Signal Type filter in the UI.
+This is an **incident product**. Every UI view, API call, and filter hardcodes `signal_type=incident`. The pipeline assigns a `event_signal_type` to each event, but only `incident` is shown to users.
 
-| Type | Definition | UI visible? |
+| Type | What it is | Shown in UI? |
 |---|---|---|
-| **Incident** | Named-victim cyber event with confirmed impact (named victim OR actor-attributed campaign) | Yes |
-| **Activity** | Exploited vulnerability / active exploitation signal — from CISA KEV or CISA advisories | No — retained for pipeline quality only |
-| **Intelligence** | Low-confidence incident-source event with no named victim, no actor, score < 50 | No — pipeline artifact, not a product concept |
+| **Incident** | Named-victim cyber event with confirmed impact, or actor-attributed campaign | Yes — this is the product |
+| **Activity** | Exploited vulnerability from CISA KEV or CISA advisories | No — pipeline bookkeeping, kept to avoid polluting incident clustering |
 
-**Pipeline enrichment rules:**
+Low-confidence incident-source events that lack a named victim, actor, and score < 50 resolve to `event_signal_type = "intelligence"` in the database. This is a pipeline artifact, not a product concept — treat it the same as Activity for all practical purposes.
+
+**Pipeline enrichment by type:**
 - Incident: full enrichment — victim, actor attribution, geography, industry, is_high_impact
-- Activity: no victim, no actor, no attribution — CVE, attack type, is_high_impact only
-- Intelligence: no enrichment, is_high_impact always False
+- Activity: no victim, no actor, no attribution — CVE and attack type only
 
 ### Confidence Score & Trust Labels
 
@@ -67,7 +67,6 @@ Key score drivers (additive):
 |---|---|
 | Incident | `actor_name` is set, OR source is SEC EDGAR 8-K, OR title/summary contains severity keyword |
 | Activity | Source is CISA KEV, OR title/summary contains severity keyword |
-| Intelligence | Never |
 
 Severity keywords (title + summary_short): `mass-exploited`, `mass exploited`, `mass exploitation`, `actively exploited`, `widespread`, `large-scale`, `millions`, `critical infrastructure`, `data breach`, `wiper`, `ransomware`, `hacktivist`, `state-sponsored`, `nation-state`, `military intelligence`.
 
@@ -88,7 +87,7 @@ Activity-only severity keywords: `known exploited vulnerability` (in addition to
 - No victim → no actor (except actor-attributed supply-chain campaigns via Pass 2 in `attribute_events()`)
 - No actor → no attribution
 - Generic actor → discarded
-- Activity/Intelligence events: never enrich actor, never set high impact on Intelligence
+- Activity events: never enrich actor, never set high impact
 
 ### Operational Boundary
 
