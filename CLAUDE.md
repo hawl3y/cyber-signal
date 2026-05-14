@@ -4,23 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Pending: force_reprocess after next deploy
-Pipeline fixes waiting for `force_reprocess`:
-- **Manufacturing sector**: Foxconn and similar electronics/contract manufacturers now classify as Manufacturing instead of Technology
-- **Sector rename**: "Industry" field now labeled "Sector" in the UI
+### 1. Victim extraction — actor phrases blocked as victim/display names
+Fixed: nationality+actor phrases ("Iranian hackers", "Russian hackers") no longer extracted as victim_org_name or victim_display_label. Both `actor_start_terms` check in `_extract_victim_org_name` and `blocked_start_words` check in `_clean_anchor_candidate` now scan all tokens, not just the first word.
 
-After next deploy, run: `PYTHONPATH=. python scripts/force_reprocess.py`
-
-### 2. Score=25 no-victim campaign events (Intelligence type — acceptable)
-Events now correctly classified as Intelligence: TrickMo banking malware, Fake OpenAI infostealer, JDownloader hack, etc. Real campaigns, single source, low confidence. Hidden from default view. No action needed unless scale increases.
-
-### 3. Score=80 no-victim incidents (KrebsOnSecurity)
-Anti-DDoS Firm attack on Brazilian ISPs, Russia Hacked Routers, CanisterWorm wiper — score=80, no named victim. Legitimate geopolitical/infrastructure incidents. Current behavior is correct.
-
-### 4. Sources — evaluated, no additions pending
-- **CISA ICS Advisories**: already covered by existing `cisa-alerts-advisories` `all.xml` feed (ABB, Rockwell, Fuji Electric are ingested). No new source needed.
-- **HHS OCR Breach Portal**: no programmatic API — JSF web app, no JSON/CSV endpoint available. Cannot add without scraping.
-- **SecurityWeek**: rejected — moderate noise, not high-value-low-noise enough for current stage.
+### 2. Sources — evaluated, no additions pending
+- **CISA ICS Advisories**: already covered by existing `cisa-alerts-advisories` `all.xml` feed. No new source needed.
+- **HHS OCR Breach Portal**: no programmatic API available. Revisit if endpoint becomes available.
+- **SecurityWeek**: rejected — not high-value-low-noise enough for current stage.
 
 ---
 
