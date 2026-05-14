@@ -29,14 +29,13 @@ app = create_app()
 with app.app_context():
     cleared = 0
     events = CyberEvent.query.all()
-    print(f"Checking {len(events)} events...")
     for event in events:
-        if not event.victim_org_name:
+        # Check both fields — diagnose_prod falls back to victim_display_label
+        v = event.victim_org_name or event.victim_display_label
+        if not v:
             continue
-        v = event.victim_org_name
-        print(f"  id={event.id} victim={repr(v)}")
         if any(v.lower().startswith(p) for p in NON_ORG_VICTIM_PREFIXES):
-            print(f"Clearing id={event.id} victim={repr(v)} actor={repr(event.actor_name)}")
+            print(f"Clearing id={event.id} org={repr(event.victim_org_name)} label={repr(event.victim_display_label)} actor={repr(event.actor_name)}")
             event.victim_org_name = None
             event.victim_org_normalized = None
             event.victim_display_label = None
