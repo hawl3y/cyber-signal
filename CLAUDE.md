@@ -4,21 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Clustering quality — production observation (ongoing)
+### 1. Product quality — feed floor and visual hierarchy (active)
+The incident feed now enforces a quality floor: events with neither a named victim nor attributed actor are excluded from the API response. High-trust events (score ≥ 75) have a prominent left accent bar in the feed so the best events are immediately visually dominant. Next: monitor whether the floor correctly removes noise without hiding legitimate events.
+
+### 2. Clustering quality — production observation (ongoing)
 Watch for same-incident duplicate events in production. When a specific case is found, trace it to an extraction inconsistency (different victim name forms across sources) and fix the extraction pattern. The core matching logic is correct — duplicates are an extraction quality problem, not a clustering logic problem.
 
-### 2. Source coverage — quality over volume
-Evaluated ACSC (duplicate of CISA/NCSC joint advisories), CCCS (pure patch announcements), Graham Cluley (too mixed — podcasts, opinion, individual theft stories), ransomware.live /recentvictims (fire hose of obscure SMB victims, domain-only entries, stormous data-dump posts — dilutes quality feed; ingestion code kept but source is `active: False`). The actor knowledge base from ransomware.live was extracted via `scripts/update_threat_actors.py` — that value is captured. Do not add a source unless it is as clean as Krebs on Security and fills a real geographic or sector gap that existing sources don't cover.
+### 3. Source coverage — quality over volume
+Evaluated ACSC (duplicate of CISA/NCSC joint advisories), CCCS (pure patch announcements), Graham Cluley (too mixed — podcasts, opinion, individual theft stories), ransomware.live /recentvictims (fire hose of obscure SMB victims, domain-only entries — dilutes quality feed; source disabled, ingestion code kept, actor knowledge base captured in `update_threat_actors.py`). Do not add a source unless it is as clean as Krebs on Security and fills a real geographic or sector gap that existing sources don't cover.
 
 ---
 
 ## Product Purpose
 
-Cyber Signal answers "What matters right now?" in under 10 seconds. It turns fragmented cyber reporting into structured, scannable events for rapid situational awareness. **The unit of value is the event, not the article.**
+Cyber Signal answers "What confirmed cyber incidents involving named organizations happened recently, and who is behind them?" — in under 10 seconds, without reading anything. **The unit of value is the structured, deduplicated event, not the article.**
 
-**What it is**: a structured cyber incident intelligence layer — a fully deterministic pipeline with rule-based enrichment, and a real-time decision surface for cyber activity.
+**What it is**: a curated incident intelligence surface for named-victim, verified or attributed cyber events. Every event shown has a named victim or a named actor — no structureless noise. Differentiators: multi-source deduplication, deterministic confidence scoring, SEC EDGAR primary-disclosure integration, actor attribution against a maintained knowledge base.
 
-**What it is not**: a news aggregator, SIEM, threat intelligence platform, or analytics dashboard.
+**What it is not**: a news aggregator, a ransomware tracker, a SIEM, a vulnerability feed, or a comprehensive threat intelligence platform.
+
+### Product Floor
+
+Every event shown in the incident feed must satisfy at least one of:
+- Named victim (`victim_org_name` is set), OR
+- Attributed actor (`actor_name` is set)
+
+Events with neither are excluded from the API response. This is enforced in `get_filtered_events()` when `signal_type=incident`.
 
 ### Event Model
 
@@ -82,6 +93,7 @@ Activity-only severity keywords: `known exploited vulnerability` (in addition to
 - No actor → no attribution
 - Generic actor → discarded
 - Activity events: never enrich actor, never set high impact
+- **Feed floor**: incident API response excludes events with neither victim nor actor (see Product Floor above)
 
 ### Operational Boundary
 

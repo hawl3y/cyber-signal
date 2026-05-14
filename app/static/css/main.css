@@ -398,6 +398,7 @@ select option:disabled {
 .event-card.score-high {
     background: var(--score-high-bg);
     border-color: var(--score-high-border);
+    box-shadow: inset 3px 0 0 #16a34a;
 }
 
 .event-card.score-med {

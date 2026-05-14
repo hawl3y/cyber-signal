@@ -1,6 +1,7 @@
 from collections import Counter
 from datetime import datetime, timedelta
 
+from sqlalchemy import or_
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.models import CyberEvent, EventSourceLink
@@ -41,6 +42,16 @@ def get_filtered_events(
 
     if signal_type:
         query = query.filter(CyberEvent.event_signal_type == signal_type)
+
+    # Product floor: incident feed only shows events with a named victim or
+    # attributed actor. Events with neither are structurally unactionable.
+    if signal_type == "incident":
+        query = query.filter(
+            or_(
+                CyberEvent.victim_org_name.isnot(None),
+                CyberEvent.actor_name.isnot(None),
+            )
+        )
 
     if high_impact:
         query = query.filter(CyberEvent.is_high_impact == True)  # noqa: E712

@@ -94,6 +94,7 @@ function scoreBandFor(score) {
 
 function scoreLabelFor(score) {
     if (score === null || score === undefined) return "";
+    if (score >= 75) return "High Trust";
     return String(score);
 }
 
