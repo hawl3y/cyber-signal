@@ -1319,10 +1319,6 @@ THREAT_ACTORS = {
         "aliases": [],
         "actor_type": "cybercriminal",
     },
-    "global": {
-        "aliases": [],
-        "actor_type": "cybercriminal",
-    },
     "grief": {
         "aliases": [],
         "actor_type": "cybercriminal",

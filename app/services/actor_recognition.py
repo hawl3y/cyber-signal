@@ -74,6 +74,9 @@ GENERIC_ACTOR_NAMES = {
     "unknown",
     "unknown actor",
     "unidentified",
+    # "global" was an erroneous THREAT_ACTORS entry that matched company descriptions
+    # like "global medical technology company" — treat as generic so events re-attribute.
+    "global",
 }
 
 

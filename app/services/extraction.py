@@ -1360,6 +1360,11 @@ def run_rule_extraction(article):
     ]).lower()
     geography = _extract_geography(text, fallback_text=lead_text_for_geo)
 
+    title_summary_text = " ".join([
+        (article.title or "").strip(),
+        (article.summary or "").strip(),
+    ]).lower()
+
     # Strip "anti-ransomware" before ransomware keyword matching to avoid false positives
     # on articles about ransomware defenses.
     text_for_ransomware = re.sub(r"\banti-ransomware\b", "", text, flags=re.IGNORECASE)
@@ -1396,9 +1401,13 @@ def run_rule_extraction(article):
     # Supply Chain is checked first — it describes the attack vector (compromised dependency/
     # package/update) and is more specific than Ransomware or Malware. A supply chain attack
     # that happens to mention "ransomware" in passing should be labelled Supply Chain.
-    if not is_activity and any(keyword in text for keyword in [
-        # Attack-specific supply chain phrases only — "supply chain" alone
-        # fires on company business descriptions ("reliable supply chain").
+    #
+    # Contextual phrases ("supply chain attack") are only checked in title+summary —
+    # they appear in quoted expert commentary in unrelated articles (e.g. an expert
+    # calling a wiper attack a "supply chain attack" in a Krebs article about Stryker).
+    # Unambiguous technical indicators (malicious package, poisoned package, etc.) are
+    # checked in the full text since they never appear as business-context false positives.
+    _sc_title_summary_phrases = [
         "supply chain attack",
         "supply chain compromise",
         "supply chain hack",
@@ -1406,13 +1415,19 @@ def run_rule_extraction(article):
         "supply-chain attack",
         "supply chain infection",
         "attacked via supply chain",
+    ]
+    _sc_full_text_phrases = [
         "malicious package",
         "malicious update",
         "poisoned package",
         "dependency confusion",
         "compromised vendor",
         "third-party compromise",
-    ]):
+    ]
+    if not is_activity and (
+        any(p in title_summary_text for p in _sc_title_summary_phrases)
+        or any(p in text for p in _sc_full_text_phrases)
+    ):
         attack_type = "Supply Chain"
     elif not is_activity and not title_signals_breach and any(keyword in text_for_ransomware for keyword in [
         "ransomware",
