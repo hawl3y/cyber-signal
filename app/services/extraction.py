@@ -509,6 +509,19 @@ def _clean_anchor_candidate(value):
     if any(w.lower() in blocked_actor_terms for w in cleaned.split()):
         return None
 
+    # These words open advisory titles, clauses, or describe fake artifacts —
+    # they never start a useful anchor name (matches the same guard in _is_plausible_org_candidate).
+    _anchor_blocked_first_words = {
+        "defending", "targeting", "exploiting", "using", "abusing",
+        "protecting", "securing", "warning", "alerting", "exposing",
+        "bypassing", "hijacking", "stealing", "deploying", "tracking",
+        "fake", "false",
+        "executive", "summary", "advisory",
+    }
+    first_word = cleaned.split()[0].lower() if cleaned.split() else ""
+    if first_word in _anchor_blocked_first_words:
+        return None
+
     return cleaned
 
 
