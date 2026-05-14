@@ -72,6 +72,17 @@ SOURCE_REGISTRY = [
         "tier": "curated",
     },
     {
+        "name": "ransomware-live",
+        "display_label": "ransomware.live",
+        "source_class": "incident_news",
+        "signal_kind": "incident",
+        "ingest_type": "ransomware_live",
+        "url": "https://api.ransomware.live/recentvictims",
+        "active": True,
+        "tier": "curated",
+        "tier_trusted_alone": True,
+    },
+    {
         "name": "sec-edgar-cyber-8k",
         "display_label": "SEC EDGAR",
         "source_class": "primary_disclosure",

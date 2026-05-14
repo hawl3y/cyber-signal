@@ -353,6 +353,9 @@ def _extract_victim_org_name(article):
         r"\b([^,.;:]+?)\s+(?:confirms|confirmed|reports|reported|discloses|disclosed)\s+(?:a\s+)?(?:data\s+)?breach\b",
         r"\b([^,.;:]+?)\s+(?:hit by|suffered|suffers)\s+(?:a\s+)?(?:ransomware attack|cyberattack|cyber attack|data breach|security breach)\b",
         r"\b([^,.;:]+?)\s+(?:falls victim to|fell victim to)\s+(?:a\s+)?(?:ransomware attack|cyberattack|cyber attack|data breach|security breach)\b",
+        # Handles org names containing periods (e.g. "Schulte-Lindhorst GmbH & Co.") where
+        # [^,.;:] would stop at the embedded period before reaching "hit by"/"was hit by".
+        r"^(.+?)\s+(?:was\s+)?hit\s+by\s+(?:a\s+)?ransomware\s+attack\b",
     ]
 
     # Captures ending in audience nouns (e.g. "Armenian users", "Russian citizens")
