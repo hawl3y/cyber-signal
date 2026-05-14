@@ -61,11 +61,11 @@ Key score drivers (additive):
 
 | Signal type | High Impact when |
 |---|---|
-| Incident | `actor_name` is set, OR title/summary contains severity keyword |
+| Incident | `actor_name` is set, OR source is SEC EDGAR 8-K, OR title/summary contains severity keyword |
 | Activity | Source is CISA KEV, OR title/summary contains severity keyword |
 | Intelligence | Never (always False) |
 
-Severity keywords (title + summary_short): `mass-exploited`, `mass exploited`, `actively exploited`, `widespread`, `large-scale`, `millions`, `critical infrastructure`, `data breach`, `wiper`.
+Severity keywords (title + summary_short): `mass-exploited`, `mass exploited`, `mass exploitation`, `actively exploited`, `widespread`, `large-scale`, `millions`, `critical infrastructure`, `data breach`, `wiper`, `ransomware`, `hacktivist`, `state-sponsored`, `nation-state`, `military intelligence`.
 
 Activity-only severity keywords: `known exploited vulnerability` (in addition to the above subset).
 

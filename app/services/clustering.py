@@ -650,6 +650,7 @@ def refresh_event(event_id):
     high_impact_terms = [
         "mass-exploited",
         "mass exploited",
+        "mass exploitation",
         "actively exploited",
         "widespread",
         "large-scale",
@@ -657,6 +658,13 @@ def refresh_event(event_id):
         "critical infrastructure",
         "data breach",
         "wiper",
+        # Confirmed ransomware = operational disruption + extortion by definition
+        "ransomware",
+        # Hacktivist and state-actor campaigns flagged as signals by NCSC/trusted sources
+        "hacktivist",
+        "state-sponsored",
+        "nation-state",
+        "military intelligence",
     ]
 
     activity_high_impact_terms = [
@@ -679,6 +687,10 @@ def refresh_event(event_id):
     ):
         event.event_signal_type = "intelligence"
 
+    # SEC 8-K filings are legally required disclosures of material cybersecurity
+    # incidents — high impact by regulatory definition regardless of keyword coverage.
+    is_sec_disclosure = article is not None and article.source_name == "sec-edgar-cyber-8k"
+
     if event.event_signal_type == "activity":
         # CISA KEV entries are on the catalog because they have confirmed active exploitation
         # — the definition of "known exploited" is built into the source, not the text.
@@ -689,6 +701,7 @@ def refresh_event(event_id):
     else:
         event.is_high_impact = bool(
             event.actor_name
+            or is_sec_disclosure
             or any(term in text for term in high_impact_terms)
         )
 
@@ -707,6 +720,7 @@ def recompute_high_impact():
     _high_impact_terms = [
         "mass-exploited",
         "mass exploited",
+        "mass exploitation",
         "actively exploited",
         "widespread",
         "large-scale",
@@ -714,7 +728,21 @@ def recompute_high_impact():
         "critical infrastructure",
         "data breach",
         "wiper",
+        "ransomware",
+        "hacktivist",
+        "state-sponsored",
+        "nation-state",
+        "military intelligence",
     ]
+
+    # Pre-fetch which events have an SEC 8-K source so we avoid N+1 queries
+    sec_event_ids = {
+        row.cyber_event_id
+        for row in db.session.query(EventSourceLink.cyber_event_id)
+        .join(RawArticle, EventSourceLink.raw_article_id == RawArticle.id)
+        .filter(RawArticle.source_name == "sec-edgar-cyber-8k")
+        .all()
+    }
 
     events = CyberEvent.query.filter(
         CyberEvent.event_signal_type.in_(["incident", "intelligence"])
@@ -724,6 +752,7 @@ def recompute_high_impact():
         text = f"{(event.canonical_title or '').lower()} {(event.summary_short or '').lower()}"
         should_be = False if event.event_signal_type == "intelligence" else bool(
             event.actor_name
+            or event.id in sec_event_ids
             or any(term in text for term in _high_impact_terms)
         )
         if event.is_high_impact != should_be:
