@@ -328,11 +328,6 @@ def _extract_victim_org_name(article):
     ]
 
     target_patterns = [
-        # Supply-chain: "in [X] supply chain attack" — X is the entity whose supply chain
-        # was directly compromised. Must run before the "confirms" pattern so a headline
-        # like "OpenAI confirms breach in TanStack supply chain attack" returns TanStack,
-        # not OpenAI (which is only the disclosing downstream victim).
-        r"\bin\s+([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+supply[\s-]chain\s+attack\b",
         # Strong: subject of a disclosure verb at the start of the headline.
         # Uses [^,.;:]+? (not [A-Z]...) so it handles non-ASCII org names (e.g. Škoda, Über).
         r"^\s*([^,.;:]+?)\s+(?:confirms|confirmed|discloses|disclosed|acknowledges|acknowledged|admits|admitted|warns|reported|notified)\b",
@@ -459,6 +454,20 @@ def _extract_victim_org_name(article):
     # owned by, etc.) which are more authoritative than implicit title/summary patterns.
     # Run them first so "Canvas parent firm Instructure" beats "Canvas" from the title.
     content_candidates = extract_candidates(content, patterns=body_only_patterns) if content else []
+
+    # Supply-chain headline: the entity named before "supply chain attack" in the title
+    # is the direct victim. Check the title explicitly here before summary candidates,
+    # because the summary often only names the disclosing org ("OpenAI confirms...").
+    if not is_official_alert:
+        sc_match = re.search(
+            r"\bin\s+([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+supply[\s-]chain\s+attack\b",
+            title,
+            flags=re.IGNORECASE,
+        )
+        if sc_match:
+            candidate = _clean_org_name(sc_match.group(1))
+            if candidate and not is_generic_descriptor(candidate):
+                return candidate
 
     for candidate in content_candidates:
         if not is_generic_descriptor(candidate):

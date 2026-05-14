@@ -39,6 +39,10 @@ def is_relevant_incident(article):
     if article.source_name == "cisa-kev":
         return True
 
+    # Source is disabled — never admit its articles regardless of content.
+    if article.source_name == "ransomware-live":
+        return False
+
     if article.source_name == "ncsc-uk":
         ncsc_noise_patterns = [
             "questions to ask",
