@@ -96,11 +96,25 @@ function formatSignalTypeLabel(value) {
     return "Incident";
 }
 
+function formatSignalTypeLabelPlural(value) {
+    if (value === "activity") return "Activity";
+    if (value === "intelligence") return "Intelligence";
+    if (value === "incident") return "Incidents";
+    return "All Events";
+}
+
 function scoreBandFor(score) {
     if (score === null || score === undefined) return null;
     if (score >= 75) return "high";
     if (score >= 50) return "med";
     return "low";
+}
+
+function scoreLabelFor(score) {
+    if (score === null || score === undefined) return "";
+    if (score >= 75) return "High Trust";
+    if (score >= 50) return "Medium";
+    return "Low";
 }
 
 const SHIELD_SVG = '<svg class="score-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3z"/></svg>';
@@ -230,6 +244,36 @@ async function clearOneFilter(key) {
     await handleFilterChange();
 }
 
+// ── Context labels ─────────────────────────────────────────
+
+function buildContextText(filters) {
+    const signal = formatSignalTypeLabelPlural(filters.signal_type);
+    const time = filters.time_range || "All time";
+    return `${signal} · ${time}`;
+}
+
+function updateContextLabels(filters) {
+    const contextText = buildContextText(filters);
+
+    const filterLabel = document.getElementById("filter-context-label");
+    if (filterLabel) filterLabel.textContent = contextText;
+
+    const stickyView = document.getElementById("sticky-context-view");
+    if (stickyView) stickyView.textContent = contextText;
+
+    const feedLabel = document.getElementById("feed-view-label");
+    if (feedLabel) {
+        const facets = [];
+        if (filters.attack_type) facets.push(filters.attack_type);
+        if (filters.industry) facets.push(filters.industry);
+        feedLabel.textContent = facets.length
+            ? facets.join(" · ")
+            : formatSignalTypeLabelPlural(filters.signal_type);
+    }
+}
+
+// ── Summary loading ────────────────────────────────────────
+
 async function loadSummary() {
     try {
         const query = buildQueryString(getCurrentFilters());
@@ -249,6 +293,8 @@ async function loadSummary() {
         console.error("Failed to load summary:", err);
     }
 }
+
+// ── Trend rendering ────────────────────────────────────────
 
 function renderEmptyTrend(container, message) {
     container.innerHTML = `<p class='placeholder-text'>${message}</p>`;
@@ -352,13 +398,15 @@ async function loadTrends() {
     }
 }
 
+// ── Event card rendering ───────────────────────────────────
+
 function buildEventMeta(event) {
     return {
         primary: [
-            event.display_entity ? { value: event.display_entity } : null,
-            event.attack_type ? { value: event.attack_type } : null,
-            event.display_location ? { value: event.display_location } : null,
-            event.display_attribution ? { value: event.display_attribution } : null,
+            event.display_entity ? { value: event.display_entity, className: "" } : null,
+            event.attack_type    ? { value: event.attack_type, className: "meta-pill-attack" } : null,
+            event.display_location ? { value: event.display_location, className: "" } : null,
+            event.display_attribution ? { value: event.display_attribution, className: "meta-pill-actor" } : null,
         ].filter(Boolean),
         secondary: [
             formatMetaLabel(event.status),
@@ -469,8 +517,13 @@ function renderEventCard(event) {
     `;
 
     const tooltip = buildScoreTooltip(event.confidence_score, event.score_factors);
+    const scoreLabel = scoreLabelFor(event.confidence_score);
     const scorePill = scoreBand
-        ? `<span class="score-pill score-${scoreBand}" title="${escapeHtml(tooltip)}">${SHIELD_SVG}${event.confidence_score}</span>`
+        ? `<span class="score-pill score-${scoreBand}" title="${escapeHtml(tooltip)}">${SHIELD_SVG}${escapeHtml(scoreLabel)}</span>`
+        : "";
+
+    const impactBadge = event.high_impact
+        ? `<span class="high-impact-badge">High Impact</span>`
         : "";
 
     const metaRow = primaryPills ? `<div class="event-meta">${primaryPills}</div>` : "";
@@ -490,6 +543,7 @@ function renderEventCard(event) {
         <div class="event-card-header">
             <h3>${escapeHtml(event.title || "Untitled Event")}</h3>
             <div class="event-card-header-pills">
+                ${impactBadge}
                 ${scorePill}
                 ${signalTypePill}
             </div>
@@ -507,6 +561,26 @@ function renderEventCard(event) {
 
     return el;
 }
+
+// ── Skeleton loading ───────────────────────────────────────
+
+function showSkeleton(container, count = 4) {
+    if (!container) return;
+    container.innerHTML = Array.from({ length: count }, () => `
+        <div class="skeleton-card">
+            <div class="skeleton-line skeleton-title"></div>
+            <div class="skeleton-line skeleton-body"></div>
+            <div class="skeleton-line skeleton-body-short"></div>
+            <div class="skeleton-pills">
+                <div class="skeleton-line skeleton-pill" style="width:80px"></div>
+                <div class="skeleton-line skeleton-pill" style="width:90px"></div>
+                <div class="skeleton-line skeleton-pill" style="width:70px"></div>
+            </div>
+        </div>
+    `).join("");
+}
+
+// ── Card filter / feed count ───────────────────────────────
 
 let activeCardFilter = null;
 
@@ -545,12 +619,28 @@ function updateLoadMoreButton() {
 
 function updateFeedCount() {
     const countEl = document.getElementById("feed-count");
-    if (!countEl) return;
     const displayed = applyCardFilter(allLoadedRawEvents);
     const totalNote = activeCardFilter && activeCardFilter !== "total"
         ? ` of ${allLoadedRawEvents.length} loaded`
         : "";
-    countEl.textContent = `${displayed.length} event${displayed.length === 1 ? "" : "s"}${totalNote}`;
+    const countText = `${displayed.length} event${displayed.length === 1 ? "" : "s"}${totalNote}`;
+
+    if (countEl) countEl.textContent = countText;
+
+    const stickyCount = document.getElementById("sticky-context-count");
+    if (stickyCount) stickyCount.textContent = countText;
+}
+
+// ── Event loading ──────────────────────────────────────────
+
+function buildEmptyStateMessage(filters) {
+    const parts = [];
+    if (filters.signal_type) parts.push(formatSignalTypeLabelPlural(filters.signal_type).toLowerCase());
+    if (filters.attack_type) parts.push(filters.attack_type.toLowerCase());
+    if (filters.industry) parts.push(filters.industry.toLowerCase());
+    const what = parts.length ? parts.join(" · ") : "events";
+    const when = filters.time_range ? `the last ${filters.time_range}` : "all time";
+    return `No ${what} found in ${when}. Try adjusting the filters.`;
 }
 
 async function loadEvents() {
@@ -560,7 +650,8 @@ async function loadEvents() {
 
     const container = document.getElementById("event-feed");
     if (!container) return;
-    container.innerHTML = "";
+
+    showSkeleton(container);
 
     try {
         const filters = getCurrentFilters();
@@ -576,10 +667,11 @@ async function loadEvents() {
         allLoadedRawEvents = newEvents;
 
         const displayed = applyCardFilter(allLoadedRawEvents);
+        container.innerHTML = "";
         updateFeedCount();
 
         if (!displayed.length) {
-            container.innerHTML = "<p class='placeholder-text'>No events found.</p>";
+            container.innerHTML = `<p class='placeholder-text'>${buildEmptyStateMessage(filters)}</p>`;
         } else {
             displayed.forEach(event => container.appendChild(renderEventCard(event)));
         }
@@ -587,6 +679,7 @@ async function loadEvents() {
         updateLoadMoreButton();
     } catch (err) {
         console.error("Failed to load events:", err);
+        container.innerHTML = "<p class='placeholder-text'>Failed to load events. Please try again.</p>";
     }
 }
 
@@ -626,17 +719,12 @@ async function loadMoreEvents() {
 
 function setLoading(isLoading) {
     [
-        document.getElementById("event-feed"),
-        document.getElementById("trend-attack-types"),
-        document.getElementById("trend-industries"),
+        document.getElementById("trend-rising"),
+        document.getElementById("trend-active-actors"),
+        document.getElementById("trend-sources"),
     ].forEach(section => {
         if (!section) return;
-
-        if (isLoading) {
-            section.classList.add("loading");
-        } else {
-            section.classList.remove("loading");
-        }
+        section.classList.toggle("loading", isLoading);
     });
 }
 
@@ -652,6 +740,7 @@ async function handleFilterChange() {
     try {
         const filters = getCurrentFilters();
         saveFilters(filters);
+        updateContextLabels(filters);
         await loadFilterOptions(filters);
         applyFiltersToControls(filters);
         renderFilterChips(filters);
@@ -668,6 +757,7 @@ async function resetFilters() {
         const defaults = getDefaultFilters();
         saveFilters(defaults);
         activeCardFilter = null;
+        updateContextLabels(defaults);
         await loadFilterOptions(defaults);
         applyFiltersToControls(defaults);
         renderFilterChips(defaults);
@@ -677,6 +767,8 @@ async function resetFilters() {
         setLoading(false);
     }
 }
+
+// ── Filter controls wiring ─────────────────────────────────
 
 [
     "filter-time-range",
@@ -705,6 +797,7 @@ async function handleCardClick(cardFilter) {
         activeCardFilter = null;
         const filters = { ...getDefaultFilters(), time_range: getCurrentFilters().time_range };
         saveFilters(filters);
+        updateContextLabels(filters);
         await loadFilterOptions(filters);
         applyFiltersToControls(filters);
         renderFilterChips(filters);
@@ -724,6 +817,8 @@ document.querySelectorAll(".summary-card[data-card-filter]").forEach(card => {
         handleCardClick(key);
     });
 });
+
+// ── Filter toggle ──────────────────────────────────────────
 
 const toggleFiltersBtn = document.getElementById("toggle-filters");
 const filtersPanel = document.querySelector(".filters-panel");
@@ -753,6 +848,45 @@ if (toggleFiltersBtn && filtersPanel) {
 
     updateFilterToggleLabel();
 }
+
+// ── Trends panel toggle (mobile) ───────────────────────────
+
+const trendsPanel = document.getElementById("trends-panel");
+const trendsHeader = document.getElementById("trends-header");
+
+if (trendsPanel && trendsHeader) {
+    trendsHeader.addEventListener("click", () => {
+        if (window.innerWidth > 640) return;
+        const expanded = trendsPanel.classList.toggle("expanded");
+        trendsHeader.setAttribute("aria-expanded", String(expanded));
+    });
+
+    trendsHeader.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            trendsHeader.click();
+        }
+    });
+}
+
+// ── Sticky context bar ─────────────────────────────────────
+
+const stickyBar = document.getElementById("sticky-context-bar");
+const summaryStrip = document.querySelector(".summary-strip");
+
+if (stickyBar && summaryStrip && typeof IntersectionObserver !== "undefined") {
+    const observer = new IntersectionObserver(
+        ([entry]) => {
+            const shouldShow = !entry.isIntersecting;
+            stickyBar.classList.toggle("visible", shouldShow);
+            stickyBar.setAttribute("aria-hidden", String(!shouldShow));
+        },
+        { threshold: 0 }
+    );
+    observer.observe(summaryStrip);
+}
+
+// ── Footer ─────────────────────────────────────────────────
 
 function formatEasternTimestamp(value) {
     const date = value ? new Date(value) : new Date();
@@ -794,11 +928,14 @@ async function loadFooterStatus() {
     }
 }
 
+// ── Init ───────────────────────────────────────────────────
+
 setLoading(true);
 
 (async () => {
     try {
         const initialFilters = getSavedFilters();
+        updateContextLabels(initialFilters);
         await loadFilterOptions(initialFilters);
         applyFiltersToControls(initialFilters);
         renderFilterChips(initialFilters);

@@ -19,11 +19,18 @@
         </div>
     </header>
 
+    <div class="sticky-context-bar" id="sticky-context-bar" aria-hidden="true">
+        <div class="sticky-context-inner">
+            <span class="sticky-context-view" id="sticky-context-view">Incidents · 7d</span>
+            <span class="sticky-context-count" id="sticky-context-count"></span>
+        </div>
+    </div>
+
     <div class="page">
         <main class="layout">
             <section class="panel filters-panel">
                 <div class="panel-header-simple">
-                    <h2>Filters</h2>
+                    <span class="filter-context-label" id="filter-context-label">Incidents · 7d</span>
                     <div class="filter-actions">
                         <button id="toggle-filters" type="button" class="filter-reset-button">
                             Show Filters
@@ -103,7 +110,7 @@
 
             <section class="panel feed-panel">
                 <div class="feed-header">
-                    <h2>High-Signal Events</h2>
+                    <h2 id="feed-view-label">Events</h2>
                     <span id="feed-count" class="feed-count"></span>
                 </div>
                 <div id="event-feed" class="feed-list"></div>
@@ -114,13 +121,16 @@
                 </div>
             </section>
 
-            <section class="panel trends-panel">
-                <div class="panel-header-simple">
-                    <h2>Trend Snapshot</h2>
-                    <span class="panel-subtitle">Direction-driven signals</span>
+            <section class="panel trends-panel" id="trends-panel">
+                <div class="panel-header-simple trends-header" id="trends-header" role="button" aria-expanded="false" tabindex="0">
+                    <div class="trends-header-text">
+                        <h2>Trend Snapshot</h2>
+                        <span class="panel-subtitle">Direction-driven signals</span>
+                    </div>
+                    <span class="trends-toggle-icon" aria-hidden="true"></span>
                 </div>
 
-                <div class="trends-grid">
+                <div class="trends-grid" id="trends-grid">
                     <div class="trend-block">
                         <h3>Rising <span class="trend-window">(7d Δ)</span></h3>
                         <div id="trend-rising" class="trend-list"></div>
