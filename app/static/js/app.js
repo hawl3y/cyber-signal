@@ -112,9 +112,7 @@ function scoreBandFor(score) {
 
 function scoreLabelFor(score) {
     if (score === null || score === undefined) return "";
-    if (score >= 75) return "High";
-    if (score >= 50) return "Med";
-    return "Low";
+    return String(score);
 }
 
 const SHIELD_SVG = '<svg class="score-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3z"/></svg>';

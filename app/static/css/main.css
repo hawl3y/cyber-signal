@@ -138,14 +138,9 @@ body {
     line-height: 1.3;
 }
 
-/* On mobile when filters are collapsed:
-   - hide the context label (feed header carries it)
-   - hide the signal type chip (context label already shows signal + time range) */
+/* On mobile when filters are collapsed, hide the signal type chip —
+   the context label already shows signal type + time range */
 @media (max-width: 640px) {
-    .filters-panel:not(.expanded) .filter-context-label {
-        display: none;
-    }
-
     .filters-panel:not(.expanded) .filter-chip[data-facet="signal_type"] {
         display: none;
     }

@@ -300,6 +300,7 @@ def is_relevant_incident(article):
         "this week in",
         "week in review",
         "weekly digest",
+        "weekly recap",
         "daily digest",
         "news digest",
         "roundup",
