@@ -1237,6 +1237,15 @@ def run_rule_extraction(article):
         "breach at",
         "breach disrupts",
         "breach exposes",
+        # Data-theft outcome markers — outcome type beats initial-access vector
+        "data leak",
+        "data theft",
+        " leak",
+        "tb leak",
+        "gb leak",
+        "mb leak",
+        "stolen data",
+        "data stolen",
     ])
 
     attack_type = "Unknown"

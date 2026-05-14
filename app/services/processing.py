@@ -294,6 +294,16 @@ def is_relevant_incident(article):
         "on pace to",
         "patch wave",
         "vulnerability record",
+        # News digests and round-ups — not individual incident reports
+        "bulletin:",
+        " bulletin ",
+        "this week in",
+        "week in review",
+        "weekly digest",
+        "daily digest",
+        "news digest",
+        "roundup",
+        "round-up",
     ]
 
     if any(pattern in title for pattern in negative_title_patterns):
@@ -397,14 +407,6 @@ def is_relevant_incident(article):
         "trojan",
         "wiper",
         "spyware",
-        # Active in-the-wild exploitation is itself concrete impact
-        "actively exploited",
-        "under active exploitation",
-        "active exploitation",
-        "exploited in the wild",
-        "mass exploitation",
-        "widespread exploitation",
-        "exploited for",
     ])
 
     has_attack_target_context = any(term in text for term in [
