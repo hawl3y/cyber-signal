@@ -145,7 +145,7 @@ def _is_plausible_org_candidate(value):
     return True
 
 _GENERIC_ORG_TERMINAL_WORDS = {
-    "agency", "bank", "company", "firm", "government", "group",
+    "agency", "bank", "company", "cybersecurity", "firm", "government", "group",
     "hospital", "ministry", "organization", "organisation", "provider",
     "school", "service", "university", "vendor",
 }

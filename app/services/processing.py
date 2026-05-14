@@ -39,6 +39,61 @@ def is_relevant_incident(article):
     if article.source_name == "cisa-kev":
         return True
 
+    if article.source_name == "ncsc-uk":
+        ncsc_noise_patterns = [
+            "questions to ask",
+            "passkeys are the future",
+            "leave passwords in the past",
+            "vibe coding",
+            "convene in",
+            "bargain hunters",
+            "awards for good",
+            "submissions now open",
+            "good cyber hygiene",
+            "cyber hygiene",
+            "cyber essentials",
+            "cyber aware",
+            "stay safe online",
+            "at a glance",
+            "consultation",
+            "guidance published",
+            "new guidance",
+            "reflections on",
+            "review of the year",
+            "look back",
+            "anniversary",
+        ]
+
+        if any(pattern in title_and_summary for pattern in ncsc_noise_patterns):
+            return False
+
+        ncsc_signal_patterns = [
+            "exploitation of",
+            "exploiting",
+            "exploited",
+            "hijacking",
+            "hacktivist",
+            "malware",
+            "ransomware",
+            "espionage",
+            "warning over",
+            "warns of",
+            "targeted by",
+            "attack on",
+            "cyberattack",
+            "cyber attack",
+            "data breach",
+            "compromised",
+            "state-sponsored",
+            "nation-state",
+            "disrupting",
+            "disruption",
+            "phishing",
+            "credential",
+        ]
+
+        return any(pattern in title_and_summary for pattern in ncsc_signal_patterns)
+
     if article.source_name == "cisa-alerts-advisories":
         advisory_noise_patterns = [
             "cisa adds",
@@ -255,7 +310,8 @@ def is_relevant_incident(article):
         re.search(
             r"\b(?:"
             r"data breach|security breach|breach of|breach at|hack of|hack at|attack on|attack against|"
-            r"hit by ransomware|forced offline|taken offline|"
+            r"hit by ransomware|hit by .{0,40}exploitation|forced offline|taken offline|"
+            r"exploitation of|exploiting .{0,30}vulnerability|"
             r"used in attacks on|used in attacks against|"
             r"hacked to push malware to|push malware to|pushed malware to|"
             r"used to deploy malware|abused to deploy|deployed malware against|deployed malware to|"
@@ -283,6 +339,7 @@ def is_relevant_incident(article):
         "taken offline",
         "disrupted",
         "disrupts",
+        "disrupting",
         "data leaked",
         "stolen data",
         "downloaded personal data",
@@ -298,6 +355,13 @@ def is_relevant_incident(article):
         "push malware to",
         "pushed malware to",
         "abused to deploy",
+        "exfiltrate",
+        "exfiltrated",
+        "exfiltrating",
+        "hijacking",
+        "hijacked",
+        "compromises",
+        "stole ",
     ])
 
     has_concrete_impact = any(term in text for term in [
@@ -329,6 +393,14 @@ def is_relevant_incident(article):
         "trojan",
         "wiper",
         "spyware",
+        # Active in-the-wild exploitation is itself concrete impact
+        "actively exploited",
+        "under active exploitation",
+        "active exploitation",
+        "exploited in the wild",
+        "mass exploitation",
+        "widespread exploitation",
+        "remote code execution",
     ])
 
     has_attack_target_context = any(term in text for term in [
@@ -367,11 +439,21 @@ def is_relevant_incident(article):
         "infrastructure",
 ])
 
+    has_active_exploitation_language = bool(
+        re.search(
+            r"\b(?:actively exploited|under active exploitation|active exploitation|"
+            r"exploited in the wild|mass exploitation|widespread exploitation)\b",
+            title_and_summary,
+            flags=re.IGNORECASE,
+        )
+    )
+
     has_only_advisory_exploitation = (
         _has_exploitation_signal(text)
         and not has_concrete_impact
         and not has_direct_attack_construction
         and not victim_org_name
+        and not has_active_exploitation_language
     )
     if has_only_advisory_exploitation:
         return False
