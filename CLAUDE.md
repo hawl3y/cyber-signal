@@ -4,13 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Priority Tasks
 
-### 1. Sector & clustering quality (current)
-Reduce Unknown sector count in production. Improve clustering so related articles reliably merge into one event rather than creating duplicates. See Key Design Patterns for extraction and clustering rules.
+### 1. Deploy + verify (immediate)
+Push current branch. After deploy, run `force_reprocess` on production to apply sector/normalization changes. Verify: Unknown sector count drops on named-victim incidents; no new duplicate events; clustering stable.
 
-### 2. Region filter effectiveness (after next prod cycle)
+### 2. Clustering quality — production observation (ongoing)
+Watch for same-incident duplicate events in production. When a specific case is found, trace it to an extraction inconsistency (different victim name forms across sources) and fix the extraction pattern. The core matching logic is correct — duplicates are an extraction quality problem, not a clustering logic problem.
+
+### 3. Region filter effectiveness (after next prod cycle)
 Measure whether the Region filter adds user value. If data shows poor coverage or low engagement, drop to 3 filters (Time Range, Sector, Threat Type).
 
-### 3. Source coverage — quality over volume
+### 4. Source coverage — quality over volume
 Evaluated ACSC (duplicate of CISA/NCSC joint advisories), CCCS (pure patch announcements), Graham Cluley (too mixed — podcasts, opinion, individual theft stories). None met the quality bar. Do not add a source unless it is as clean as Krebs on Security and fills a real geographic or sector gap that existing sources don't cover.
 
 ---
@@ -25,20 +28,18 @@ Cyber Signal answers "What matters right now?" in under 10 seconds. It turns fra
 
 ### Event Model
 
-Three event signal types exist at the pipeline level (`event_signal_type`), but **the UI surfaces incidents only**. Activity and Intelligence events are retained in the database to support data quality (actor attribution, CVE enrichment) but are never shown to users.
+The product surfaces **incidents only**. The pipeline internally uses three `event_signal_type` values, but only `incident` reaches the UI. All frontend API calls hardcode `signal_type=incident`. There is no Signal Type filter in the UI.
 
-| Type | Definition | Classification criteria |
+| Type | Definition | UI visible? |
 |---|---|---|
-| **Incident** | Named-victim cyber event with confirmed impact | Named victim org OR actor-attributed campaign OR score ≥ 50 with no victim |
-| **Activity** | Exploited vulnerability / active exploitation signal | Source `signal_kind = "activity"` (CISA KEV, CISA advisories) |
-| **Intelligence** | Active threat campaign without a named org victim | Incident source + no victim org + no actor + confidence score < 50 |
+| **Incident** | Named-victim cyber event with confirmed impact (named victim OR actor-attributed campaign) | Yes |
+| **Activity** | Exploited vulnerability / active exploitation signal — from CISA KEV or CISA advisories | No — retained for pipeline quality only |
+| **Intelligence** | Low-confidence incident-source event with no named victim, no actor, score < 50 | No — pipeline artifact, not a product concept |
 
-**UI**: Incidents only. All API calls from the frontend hardcode `signal_type=incident`. There is no Signal Type filter in the UI.
-
-**Pipeline rules by type:**
+**Pipeline enrichment rules:**
 - Incident: full enrichment — victim, actor attribution, geography, industry, is_high_impact
-- Activity: no victim, no actor, no attribution — only CVE, attack type, is_high_impact
-- Intelligence: no actor attribution, is_high_impact always False
+- Activity: no victim, no actor, no attribution — CVE, attack type, is_high_impact only
+- Intelligence: no enrichment, is_high_impact always False
 
 ### Confidence Score & Trust Labels
 
@@ -66,7 +67,7 @@ Key score drivers (additive):
 |---|---|
 | Incident | `actor_name` is set, OR source is SEC EDGAR 8-K, OR title/summary contains severity keyword |
 | Activity | Source is CISA KEV, OR title/summary contains severity keyword |
-| Intelligence | Never (always False) |
+| Intelligence | Never |
 
 Severity keywords (title + summary_short): `mass-exploited`, `mass exploited`, `mass exploitation`, `actively exploited`, `widespread`, `large-scale`, `millions`, `critical infrastructure`, `data breach`, `wiper`, `ransomware`, `hacktivist`, `state-sponsored`, `nation-state`, `military intelligence`.
 
@@ -87,8 +88,7 @@ Activity-only severity keywords: `known exploited vulnerability` (in addition to
 - No victim → no actor (except actor-attributed supply-chain campaigns via Pass 2 in `attribute_events()`)
 - No actor → no attribution
 - Generic actor → discarded
-- Activity events: never enrich actor
-- Intelligence events: never enrich actor, never set high impact
+- Activity/Intelligence events: never enrich actor, never set high impact on Intelligence
 
 ### Operational Boundary
 
@@ -98,7 +98,7 @@ Two deployment modes share the same code:
 
 **Critical**: only the cron job is permitted to mutate enriched data. Web requests must never write enrichment fields.
 
-Note: `AI_ENRICHMENT_ENABLED` is a vestigial env var — AI enrichment has been fully removed. All attribution and classification is deterministic.
+All attribution and classification is deterministic. `AI_ENRICHMENT_ENABLED` env var is vestigial — ignore it.
 
 ### Working Method
 
@@ -211,7 +211,6 @@ Requires `.env` with:
 ```
 SECRET_KEY=<random-string>
 DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<dbname>
-AI_ENRICHMENT_ENABLED=true|false (optional, vestigial — actor attribution is now deterministic)
 SEC_USER_AGENT="Cyber Signal contact@yourdomain" (required for SEC EDGAR ingestion, per their fair-use policy)
 ```
 
