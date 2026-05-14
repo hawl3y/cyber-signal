@@ -965,6 +965,14 @@ def _extract_geography(text, fallback_text=None):
 
     geography_map = [
         (["united states", "u.s.", "u.s.a.", "usa", "american"], "United States", "North America"),
+        # US states — breach articles often name the state rather than the country
+        (["california", "texas", "new york", "new jersey", "virginia", "washington state",
+           "washington, d.c.", "washington dc", "florida", "illinois", "georgia", "pennsylvania",
+           "massachusetts", "ohio", "michigan", "north carolina", "arizona", "colorado",
+           "maryland", "nevada", "minnesota", "indiana", "tennessee", "missouri", "wisconsin",
+           "connecticut", "oregon", "utah", "louisiana", "alabama", "kentucky",
+           "oklahoma", "kansas", "arkansas", "iowa", "mississippi", "nebraska",
+           "idaho", "new mexico", "hawaii", "alaska", "west virginia"], "United States", "North America"),
         (["canada", "canadian"], "Canada", "North America"),
         (["mexico", "mexican"], "Mexico", "North America"),
 
@@ -1021,6 +1029,16 @@ def _extract_geography(text, fallback_text=None):
         (["saudi arabia", "saudi"], "Saudi Arabia", "Middle East"),
         (["qatar"], "Qatar", "Middle East"),
         (["turkey", "turkish"], "Turkey", "Middle East"),
+        (["iran", "iranian"], "Iran", "Middle East"),
+        (["iraq", "iraqi"], "Iraq", "Middle East"),
+
+        (["armenia", "armenian"], "Armenia", "Central Asia"),
+        (["azerbaijan"], "Azerbaijan", "Central Asia"),
+        (["kazakhstan"], "Kazakhstan", "Central Asia"),
+        (["uzbekistan"], "Uzbekistan", "Central Asia"),
+        (["pakistan", "pakistani"], "Pakistan", "Asia"),
+        (["bangladesh"], "Bangladesh", "Asia"),
+        (["afghanistan"], "Afghanistan", "Asia"),
     ]
 
     target_phrase_patterns = [
@@ -1223,11 +1241,12 @@ def run_rule_extraction(article):
     if industry == "Unknown" and victim_org_name:
         industry = "Technology"
 
-    title_summary_for_geo = " ".join([
+    lead_text_for_geo = " ".join([
         (article.title or "").strip(),
         (article.summary or "").strip(),
+        (article.content or "")[:500].strip(),
     ]).lower()
-    geography = _extract_geography(text, fallback_text=title_summary_for_geo)
+    geography = _extract_geography(text, fallback_text=lead_text_for_geo)
 
     # Strip "anti-ransomware" before ransomware keyword matching to avoid false positives
     # on articles about ransomware defenses.
