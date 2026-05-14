@@ -35,7 +35,7 @@ def _ranked_extractions(event_id):
     ranked = []
     for link in links:
         article = RawArticle.query.get(link.raw_article_id)
-        if not article:
+        if not article or article.processing_status == "irrelevant":
             continue
         extraction = ArticleExtraction.query.filter_by(raw_article_id=article.id).first()
         if not extraction:
@@ -88,7 +88,7 @@ def _ranked_extractions_for_content(event_id):
     ranked = []
     for link in links:
         article = RawArticle.query.get(link.raw_article_id)
-        if not article:
+        if not article or article.processing_status == "irrelevant":
             continue
         extraction = ArticleExtraction.query.filter_by(raw_article_id=article.id).first()
         if not extraction:
