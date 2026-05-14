@@ -226,6 +226,7 @@ function renderFilterChips(filters) {
         const chip = document.createElement("button");
         chip.type = "button";
         chip.className = "filter-chip";
+        chip.setAttribute("data-facet", key);
         chip.setAttribute("aria-label", `Clear ${FACET_CHIP_LABELS[key]} filter`);
         chip.innerHTML = `
             <span class="filter-chip-label">${FACET_CHIP_LABELS[key]}: ${formatMetaLabel(filters[key])}</span>
@@ -510,12 +511,8 @@ function renderEventCard(event) {
         .map(item => `<span class="meta-pill ${item.className || ""}">${formatMetaLabel(item.value)}</span>`)
         .join("");
 
-    // Signal type pill only shown for non-incident types — Incident is the default
-    // view and labelling every card "Incident" adds noise without information.
     const signalType = event.event_signal_type || "incident";
-    const signalTypePill = signalType !== "incident"
-        ? `<span class="signal-pill signal-${signalType}">${formatSignalTypeLabel(signalType)}</span>`
-        : "";
+    const signalTypePill = `<span class="signal-pill signal-${signalType}">${formatSignalTypeLabel(signalType)}</span>`;
 
     const tooltip = buildScoreTooltip(event.confidence_score, event.score_factors);
     const scoreLabel = scoreLabelFor(event.confidence_score);
