@@ -20,6 +20,8 @@ def get_filtered_events(
     attack_type=None,
     time_range=None,
     signal_type=None,
+    high_impact=None,
+    high_trust=None,
 ):
     """
     Return live events filtered by the MVP's minimal structured fields.
@@ -39,6 +41,12 @@ def get_filtered_events(
 
     if signal_type:
         query = query.filter(CyberEvent.event_signal_type == signal_type)
+
+    if high_impact:
+        query = query.filter(CyberEvent.is_high_impact == True)  # noqa: E712
+
+    if high_trust:
+        query = query.filter(CyberEvent.confidence_score >= 75)
 
     events = query.all()
 

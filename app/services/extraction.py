@@ -196,10 +196,15 @@ def _clean_org_name(value):
     cleaned = re.sub(r"^(?:the)\s+", "", cleaned, flags=re.IGNORECASE)
     # Truncate at sentence boundary: "DoD. The attack..." → "DoD"
     # Safe for abbreviations like "U.S. Navy" because those aren't followed by sentence-starter words.
+    _before = cleaned
     cleaned = re.sub(
         r'\.\s+(?:The|A|An|This|These|Those|It|They|He|She|We|Its)\b.*$',
         '', cleaned, flags=re.IGNORECASE,
-    ).rstrip('.')
+    )
+    # Only strip trailing period when the regex actually consumed a sentence
+    # continuation — not for legitimate trailing periods in org names like "Co."
+    if cleaned != _before:
+        cleaned = cleaned.rstrip('.')
     cleaned = ORG_CLAUSE_BOUNDARY_RE.split(cleaned, maxsplit=1)[0].strip()
     cleaned = re.sub(r"\s+", " ", cleaned).strip(" -,:;\"'[]{}“”‘’")
 

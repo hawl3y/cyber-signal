@@ -117,6 +117,7 @@ const FACET_CHIP_LABELS = {
 
 let cachedTimeRangeEvents = [];
 let cachedTimeRange = null;
+let lastSummaryData = null;
 
 function eventMatchesFilters(event, filters, exceptFacet) {
     return FACET_KEYS.every(facet => {
@@ -264,6 +265,7 @@ async function loadSummary() {
         const highImpactEl = document.getElementById("high-impact-events");
         const newTodayEl = document.getElementById("new-today-events");
 
+        lastSummaryData = data;
         if (totalEl) totalEl.textContent = data.total_events ?? "--";
         if (highTrustEl) highTrustEl.textContent = data.high_trust_events ?? "--";
         if (highImpactEl) highImpactEl.textContent = data.high_impact_events ?? "--";
@@ -594,16 +596,24 @@ function updateLoadMoreButton() {
 
 function updateFeedCount() {
     const countEl = document.getElementById("feed-count");
-    const displayed = applyCardFilter(allLoadedRawEvents);
-    const totalNote = activeCardFilter && activeCardFilter !== "total"
-        ? ` of ${allLoadedRawEvents.length} loaded`
-        : "";
-    const countText = `${displayed.length} event${displayed.length === 1 ? "" : "s"}${totalNote}`;
+    const n = allLoadedRawEvents.length;
+    let text = `${n} event${n !== 1 ? "s" : ""}`;
 
-    if (countEl) countEl.textContent = countText;
+    if (activeCardFilter && activeCardFilter !== "total" && lastSummaryData) {
+        const serverTotals = {
+            new: lastSummaryData.new_today_events,
+            high_impact: lastSummaryData.high_impact_events,
+            high_trust: lastSummaryData.high_trust_events,
+        };
+        const serverTotal = serverTotals[activeCardFilter];
+        if (serverTotal != null && serverTotal > n) {
+            text += ` of ${serverTotal}`;
+        }
+    }
 
+    if (countEl) countEl.textContent = text;
     const stickyCount = document.getElementById("sticky-context-count");
-    if (stickyCount) stickyCount.textContent = countText;
+    if (stickyCount) stickyCount.textContent = text;
 }
 
 // ── Event loading ──────────────────────────────────────────
@@ -634,6 +644,16 @@ async function loadEvents() {
         params.append("signal_type", "incident");
         params.append("limit", PAGE_SIZE);
 
+        // Push card filters to the API so pagination works correctly.
+        // "new" overrides time_range to 24h; others add server-side flags.
+        if (activeCardFilter === "new") {
+            params.set("time_range", "24h");
+        } else if (activeCardFilter === "high_impact") {
+            params.append("high_impact", "true");
+        } else if (activeCardFilter === "high_trust") {
+            params.append("high_trust", "true");
+        }
+
         const response = await fetch(`/api/events/?${params}`);
         const newEvents = await response.json();
 
@@ -641,14 +661,13 @@ async function loadEvents() {
         currentOffset = newEvents.length;
         allLoadedRawEvents = newEvents;
 
-        const displayed = applyCardFilter(allLoadedRawEvents);
         container.innerHTML = "";
         updateFeedCount();
 
-        if (!displayed.length) {
+        if (!newEvents.length) {
             container.innerHTML = `<p class='placeholder-text'>${buildEmptyStateMessage(filters)}</p>`;
         } else {
-            displayed.forEach(event => container.appendChild(renderEventCard(event)));
+            newEvents.forEach(event => container.appendChild(renderEventCard(event)));
         }
 
         updateLoadMoreButton();
@@ -675,6 +694,14 @@ async function loadMoreEvents() {
         params.append("limit", PAGE_SIZE);
         params.append("offset", currentOffset);
 
+        if (activeCardFilter === "new") {
+            params.set("time_range", "24h");
+        } else if (activeCardFilter === "high_impact") {
+            params.append("high_impact", "true");
+        } else if (activeCardFilter === "high_trust") {
+            params.append("high_trust", "true");
+        }
+
         const response = await fetch(`/api/events/?${params}`);
         const newEvents = await response.json();
 
@@ -682,8 +709,7 @@ async function loadMoreEvents() {
         currentOffset += newEvents.length;
         allLoadedRawEvents = [...allLoadedRawEvents, ...newEvents];
 
-        const filteredNew = applyCardFilter(newEvents);
-        filteredNew.forEach(event => container.appendChild(renderEventCard(event)));
+        newEvents.forEach(event => container.appendChild(renderEventCard(event)));
         updateFeedCount();
         updateLoadMoreButton();
     } catch (err) {

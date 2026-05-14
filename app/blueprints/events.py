@@ -166,6 +166,8 @@ def list_events():
     attack_type = request.args.get("attack_type")
     time_range = request.args.get("time_range")
     signal_type = request.args.get("signal_type")
+    high_impact = request.args.get("high_impact") in ("true", "1")
+    high_trust = request.args.get("high_trust") in ("true", "1")
     limit = request.args.get("limit", type=int)
     offset = request.args.get("offset", default=0, type=int)
 
@@ -175,6 +177,8 @@ def list_events():
         attack_type=attack_type,
         time_range=time_range,
         signal_type=signal_type,
+        high_impact=high_impact or None,
+        high_trust=high_trust or None,
     )
 
     if offset is None or offset < 0:
