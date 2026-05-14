@@ -138,6 +138,13 @@ body {
     line-height: 1.3;
 }
 
+/* Hide context label on mobile when filters are collapsed — feed header carries the context */
+@media (max-width: 640px) {
+    .filters-panel:not(.expanded) .filter-context-label {
+        display: none;
+    }
+}
+
 .filter-actions {
     display: inline-flex;
     align-items: center;

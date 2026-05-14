@@ -112,8 +112,8 @@ function scoreBandFor(score) {
 
 function scoreLabelFor(score) {
     if (score === null || score === undefined) return "";
-    if (score >= 75) return "High Trust";
-    if (score >= 50) return "Medium";
+    if (score >= 75) return "High";
+    if (score >= 50) return "Med";
     return "Low";
 }
 
@@ -510,11 +510,12 @@ function renderEventCard(event) {
         .map(item => `<span class="meta-pill ${item.className || ""}">${formatMetaLabel(item.value)}</span>`)
         .join("");
 
-    const signalTypePill = `
-        <span class="signal-pill signal-${event.event_signal_type || "incident"}">
-            ${formatSignalTypeLabel(event.event_signal_type)}
-        </span>
-    `;
+    // Signal type pill only shown for non-incident types — Incident is the default
+    // view and labelling every card "Incident" adds noise without information.
+    const signalType = event.event_signal_type || "incident";
+    const signalTypePill = signalType !== "incident"
+        ? `<span class="signal-pill signal-${signalType}">${formatSignalTypeLabel(signalType)}</span>`
+        : "";
 
     const tooltip = buildScoreTooltip(event.confidence_score, event.score_factors);
     const scoreLabel = scoreLabelFor(event.confidence_score);
