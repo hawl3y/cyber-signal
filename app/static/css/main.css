@@ -119,6 +119,10 @@ body {
     margin-bottom: 16px;
 }
 
+.filters-panel:not(.expanded) .panel-header-simple {
+    margin-bottom: 0;
+}
+
 .panel-header-simple h2 {
     margin: 0;
     font-size: 18px;
