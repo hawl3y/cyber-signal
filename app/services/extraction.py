@@ -1144,17 +1144,25 @@ def _extract_geography(text, fallback_text=None):
         r"\bmalware\s+used\s+in\s+attacks?\s+(?:on|against)\s+([^.;:]+)",
     ]
 
+    _audience_in_span_re = re.compile(
+        r'\b\w+(?:ian|ish|ese|an)\s+(?:users?|customers?|citizens?|people|residents?|'
+        r'nationals?|workers?|members?|subscribers?|patients?|students?|employees?)\b',
+        re.IGNORECASE,
+    )
+
     target_spans = []
     for pattern in target_phrase_patterns:
         for match in re.finditer(pattern, text, flags=re.IGNORECASE):
             span = match.group(1).strip()
             if not span:
                 continue
-            # "targeted systems running Russian-language software" describes the software
-            # language, not a geographic target — skip these spans.
             if re.search(r'\b\w+-language\s+(?:software|systems?|apps?|tools?|platforms?|code)\b', span, re.IGNORECASE):
                 continue
-            target_spans.append(span)
+            # Strip audience-adjective contexts ("targeting Armenian users") from spans
+            # so the nationality doesn't register as the attack geography.
+            span = _audience_in_span_re.sub('', span).strip()
+            if span:
+                target_spans.append(span)
 
     for span in target_spans:
         for keywords, mapped_country, mapped_region in geography_map:
@@ -1366,9 +1374,12 @@ def run_rule_extraction(article):
     lead_text_for_geo = " ".join([
         (article.title or "").strip(),
         (article.summary or "").strip(),
-        (article.content or "")[:500].strip(),
     ]).lower()
     geography = _extract_geography(text, fallback_text=lead_text_for_geo)
+
+    # SEC EDGAR 8-K filers are US-domiciled by definition.
+    if article.source_name == "sec-edgar-cyber-8k" and not geography.get("country"):
+        geography = {"country": "United States", "region": "North America", "city": None}
 
     title_summary_text = " ".join([
         (article.title or "").strip(),
