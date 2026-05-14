@@ -472,8 +472,8 @@ def _clean_anchor_candidate(value):
     if cleaned.lower() in blocked:
         return None
 
-    blocked_start_words = {"official", "hackers", "researchers", "attackers", "threat"}
-    if cleaned.split()[0].lower() in blocked_start_words:
+    blocked_actor_terms = {"official", "hackers", "researchers", "attackers", "threat", "criminals", "adversaries"}
+    if any(w.lower() in blocked_actor_terms for w in cleaned.split()):
         return None
 
     return cleaned
