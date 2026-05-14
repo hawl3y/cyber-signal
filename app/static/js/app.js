@@ -119,7 +119,7 @@ const FACET_SELECT_IDS = {
 };
 const FACET_CHIP_LABELS = {
     signal_type: "Signal",
-    industry: "Industry",
+    industry: "Sector",
     attack_type: "Threat Type",
 };
 

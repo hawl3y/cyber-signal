@@ -5,21 +5,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Priority Tasks
 
 ### 1. Pending: force_reprocess after next deploy
-Three committed-but-not-yet-applied pipeline fixes are waiting for `force_reprocess`:
-- **Geography false positives**: `_extract_geography` flat scan now restricted to title+summary (prevents West Pharmaceutical showing South Africa from office-location mentions in body text)
-- **Industry false positives**: `victim_context_text` for industry detection now restricted to title+summary (prevents Trellix → Government, Foxconn → Education from article body keywords)
-- **Processing filters**: "warns of critical", "to expand", " fixes ", PoC release patterns added to filter advisory/feature noise
+Pipeline fixes waiting for `force_reprocess`:
+- **Manufacturing sector**: Foxconn and similar electronics/contract manufacturers now classify as Manufacturing instead of Technology
+- **Sector rename**: "Industry" field now labeled "Sector" in the UI
 
 After next deploy, run: `PYTHONPATH=. python scripts/force_reprocess.py`
 
-### 2. Consider minimum score threshold for default view (open question)
-Default view (Incidents, 7d) shows 13 events: 6 high-trust (score ≥ 75), 7 low-trust (score 25–30). The low-trust events are real campaigns/incidents but single-source with no named org victim. Consider adding a minimum score filter (e.g. score ≥ 50) to the default view to surface only credible events, with a UI option to lower it. No decision made yet.
+### 2. Score=25 no-victim campaign events (Intelligence type — acceptable)
+Events now correctly classified as Intelligence: TrickMo banking malware, Fake OpenAI infostealer, JDownloader hack, etc. Real campaigns, single source, low confidence. Hidden from default view. No action needed unless scale increases.
 
-### 3. Score=25 no-victim campaign events (acceptable noise)
-Events with no victim org: TrickMo banking malware, Fake OpenAI Hugging Face infostealer, Google Ads/Claude.ai malvertising, JDownloader hack, Google AI zero-day. Real campaigns, single source, low confidence. No action needed unless scale increases. Related to task #2 above.
+### 3. Score=80 no-victim incidents (KrebsOnSecurity)
+Anti-DDoS Firm attack on Brazilian ISPs, Russia Hacked Routers, CanisterWorm wiper — score=80, no named victim. Legitimate geopolitical/infrastructure incidents. Current behavior is correct.
 
-### 4. Three score=80 no-victim incidents (KrebsOnSecurity)
-Anti-DDoS Firm attack on Brazilian ISPs, Russia Hacked Routers, and CanisterWorm wiper targeting Iran — score=80, no named victim. Legitimate geopolitical/infrastructure incidents. Current behavior is correct.
+### 4. Sources — evaluated, no additions pending
+- **CISA ICS Advisories**: already covered by existing `cisa-alerts-advisories` `all.xml` feed (ABB, Rockwell, Fuji Electric are ingested). No new source needed.
+- **HHS OCR Breach Portal**: no programmatic API — JSF web app, no JSON/CSV endpoint available. Cannot add without scraping.
+- **SecurityWeek**: rejected — moderate noise, not high-value-low-noise enough for current stage.
 
 ---
 
@@ -188,7 +189,7 @@ All endpoints live in `/api` and are stateless query/trigger routes:
 ### Frontend
 
 Single-page app loaded at `/`:
-- Filter controls: Time Range, Signal Type, Industry, Threat Type (formerly "Attack Type")
+- Filter controls: Time Range, Signal Type, Sector (labeled "Industry" in the database/API, "Sector" in the UI), Threat Type (formerly "Attack Type")
 - Event list sorted by priority tuple (see Event Prioritization below)
 - Event cards: expandable detail panel on click; primary-source badge nested in publisher cell
 - LocalStorage persists filter state

@@ -589,6 +589,7 @@ def _extract_industry(text):
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(utility|utilities|power grid|water utility|water company|oil pipeline|gas pipeline|energy provider|energy company)\b", "Energy"),
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(airport|airline|aviation|rail|railway|transit|metro|shipping|logistics|freight|port authority)\b", "Transportation"),
         (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(newspaper|news outlet|media company|broadcaster|television network|radio station|publisher)\b", "Media"),
+        (r"\battacks?\s+(?:on|against)\s+[^.;:]*\b(manufacturer|manufacturing|factory|industrial|electronics maker|contract manufacturer)\b", "Manufacturing"),
     ]
 
     for pattern, industry in target_context_patterns:
@@ -674,6 +675,14 @@ def _extract_industry(text):
             "vehicle",
             "automotive",
             "fleet",
+        ],
+        "Manufacturing": [
+            "contract manufacturer",
+            "electronics manufacturer",
+            "manufacturing company",
+            "manufacturing firm",
+            "contract electronics",
+            "industrial manufacturer",
         ],
         "Media": [
             "newspaper",
@@ -1096,6 +1105,11 @@ def run_rule_extraction(article):
             "auto", "automotive", "automobile", "motors", "vehicle",
         ]):
             industry = "Transportation"
+        elif any(k in name_lower for k in [
+            "manufacturing", "foxconn", "hon hai",
+            "industrial systems", "industrial automation",
+        ]):
+            industry = "Manufacturing"
         elif any(k in name_lower for k in [
             "county", "municipality", "municipal", "city of", "department of",
             "ministry of", "federal", "government",
