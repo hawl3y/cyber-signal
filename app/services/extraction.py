@@ -157,7 +157,7 @@ def _is_generic_org_descriptor(value):
 
 ORG_CLAUSE_BOUNDARY_RE = re.compile(
     r"\s+(?:"
-    r"affects?|affected|impacting|impacts?|hits?|hit|after|via|through|using|"
+    r"affects?|affected|impacting|impacts?|hits?|hit|after|via|through|using|on|"
     r"linked\s+to|with|in|as|amid|following|from|that|which|where|when|"
     r"according\s+to|said|says|confirmed|confirms|reported|reportedly"
     r")\b",
@@ -228,6 +228,13 @@ def _clean_org_name(value):
         "threat actors",
         "official website",
         "download links",
+        "new",
+        "official",
+        "multiple",
+        "several",
+        "hundreds",
+        "thousands",
+        "millions",
     }
 
     if not cleaned or lowered in blocked_exact:
