@@ -303,6 +303,15 @@ def _fetch_ransomware_live_items(source):
         if not group_name or not post_title:
             continue
 
+        # Skip data-dump announcement entries (e.g. stormous posts "VICTIM UPDATE-FULL DATA 20GB")
+        # These are not named-victim incident reports — they're data sample announcements.
+        _GARBAGE_TITLE_MARKERS = [
+            "update-full data", "update-partial data", "sample-free",
+            "sample data", "full data dump", "partial data dump",
+        ]
+        if any(marker in post_title.lower() for marker in _GARBAGE_TITLE_MARKERS):
+            continue
+
         published_at = fetched_at
         for date_str in [discovered, published]:
             if date_str:

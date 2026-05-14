@@ -254,6 +254,14 @@ def _clean_org_name(value):
         "hundreds",
         "thousands",
         "millions",
+        # Pronouns — never a victim org name
+        "they",
+        "he",
+        "she",
+        "it",
+        "we",
+        "them",
+        "their",
     }
 
     if not cleaned or lowered in blocked_exact:
@@ -351,7 +359,7 @@ def _extract_victim_org_name(article):
         r"\b([A-Z][A-Za-z0-9&._' -]{1,80}?)\s+(?:confirms|confirmed|acknowledges|acknowledged)\s+(?:the\s+)?(?:incident|cyberattack|cyber attack|attack|breach)\b",
         r"\b([^,.;:]+?)\s+(?:was|were|has been|have been)\s+(?:breached|hacked|attacked|targeted|compromised|disrupted|extorted)\b",
         r"\b([^,.;:]+?)\s+(?:confirms|confirmed|reports|reported|discloses|disclosed)\s+(?:a\s+)?(?:data\s+)?breach\b",
-        r"\b([^,.;:]+?)\s+(?:hit by|suffered|suffers)\s+(?:a\s+)?(?:ransomware attack|cyberattack|cyber attack|data breach|security breach)\b",
+        r"\b([^,.;:]+?)\s+(?:was\s+|were\s+)?(?:hit by|suffered|suffers)\s+(?:a\s+)?(?:ransomware attack|cyberattack|cyber attack|data breach|security breach)\b",
         r"\b([^,.;:]+?)\s+(?:falls victim to|fell victim to)\s+(?:a\s+)?(?:ransomware attack|cyberattack|cyber attack|data breach|security breach)\b",
         # Handles org names containing periods (e.g. "Schulte-Lindhorst GmbH & Co.") where
         # [^,.;:] would stop at the embedded period before reaching "hit by"/"was hit by".
@@ -1365,7 +1373,15 @@ def run_rule_extraction(article):
     # package/update) and is more specific than Ransomware or Malware. A supply chain attack
     # that happens to mention "ransomware" in passing should be labelled Supply Chain.
     if not is_activity and any(keyword in text for keyword in [
-        "supply chain",
+        # Attack-specific supply chain phrases only — "supply chain" alone
+        # fires on company business descriptions ("reliable supply chain").
+        "supply chain attack",
+        "supply chain compromise",
+        "supply chain hack",
+        "supply chain intrusion",
+        "supply-chain attack",
+        "supply chain infection",
+        "attacked via supply chain",
         "malicious package",
         "malicious update",
         "poisoned package",
