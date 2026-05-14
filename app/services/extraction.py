@@ -138,6 +138,25 @@ def _is_plausible_org_candidate(value):
     if len(words) >= 2 and words[-2] in action_terms:
         return False
 
+    # Document headers and advisory titles contain colons; org names never do.
+    if ":" in cleaned:
+        return False
+
+    # These words open clauses, documents, or describe fake artifacts —
+    # they never begin a real org name. This is a structural rule, not a blocklist.
+    non_org_first_words = {
+        # Action gerunds — sentence starters in advisory titles
+        "defending", "targeting", "exploiting", "using", "abusing",
+        "protecting", "securing", "warning", "alerting", "exposing",
+        "bypassing", "hijacking", "stealing", "deploying", "tracking",
+        # Inauthenticity adjectives
+        "fake", "false",
+        # Document structure terms
+        "executive", "summary", "advisory",
+    }
+    if words and words[0] in non_org_first_words:
+        return False
+
     uppercase_tokens = re.findall(r"\b[A-Z][A-Za-z0-9&._-]*\b", cleaned)
     if not uppercase_tokens and not re.search(r"[A-Z]{2,}", cleaned) and not cleaned[0].isupper():
         return False
@@ -406,8 +425,15 @@ def _extract_victim_org_name(article):
             return True
         return _is_generic_org_descriptor(value)
 
-    title_candidates = extract_candidates(title)
-    summary_candidates = extract_candidates(summary) if summary else []
+    # Official alert sources (NCSC, CISA) use advisory titles as document headers,
+    # not incident descriptions — "Defending against China-nexus..." is not a victim.
+    # Skip title/summary extraction entirely; only accept explicit company relationships
+    # from the article body via body_only_patterns.
+    source_config = get_source_config(article.source_name) if article.source_name else {}
+    is_official_alert = (source_config or {}).get("source_class") == "official_alert"
+
+    title_candidates = [] if is_official_alert else extract_candidates(title)
+    summary_candidates = [] if is_official_alert else (extract_candidates(summary) if summary else [])
     # body_only_patterns express explicit company relationships (parent firm, maker of,
     # owned by, etc.) which are more authoritative than implicit title/summary patterns.
     # Run them first so "Canvas parent firm Instructure" beats "Canvas" from the title.
