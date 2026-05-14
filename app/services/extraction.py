@@ -387,7 +387,7 @@ def _extract_victim_org_name(article):
                 if blocked_action_phrase.search(candidate):
                     continue
 
-                if candidate.split()[0].lower() in actor_start_terms:
+                if any(token.lower() in actor_start_terms for token in candidate.split()):
                     continue
 
                 candidates.append(candidate)
