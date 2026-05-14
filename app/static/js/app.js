@@ -284,9 +284,10 @@ async function loadSummary() {
         const highImpactEl = document.getElementById("high-impact-events");
         const newTodayEl = document.getElementById("new-today-events");
 
+        const isIntelligence = getCurrentFilters().signal_type === "intelligence";
         if (totalEl) totalEl.textContent = data.total_events ?? "--";
-        if (highTrustEl) highTrustEl.textContent = data.high_trust_events ?? "--";
-        if (highImpactEl) highImpactEl.textContent = data.high_impact_events ?? "--";
+        if (highTrustEl) highTrustEl.textContent = isIntelligence ? "N/A" : (data.high_trust_events ?? "--");
+        if (highImpactEl) highImpactEl.textContent = isIntelligence ? "N/A" : (data.high_impact_events ?? "--");
         if (newTodayEl) newTodayEl.textContent = data.new_today_events ?? "--";
     } catch (err) {
         console.error("Failed to load summary:", err);
@@ -821,11 +822,11 @@ const filtersPanel = document.querySelector(".filters-panel");
 
 function updateFilterToggleLabel() {
     if (!toggleFiltersBtn || !filtersPanel) return;
-
+    const mobile = window.innerWidth <= 640;
     if (filtersPanel.classList.contains("expanded")) {
-        toggleFiltersBtn.textContent = "Hide Filters";
+        toggleFiltersBtn.textContent = mobile ? "Hide" : "Hide Filters";
     } else {
-        toggleFiltersBtn.textContent = "Show Filters";
+        toggleFiltersBtn.textContent = mobile ? "Filters" : "Show Filters";
     }
 }
 
