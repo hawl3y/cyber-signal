@@ -561,24 +561,6 @@ function showSkeleton(container, count = 4) {
 
 let activeCardFilter = null;
 
-function applyCardFilter(events) {
-    if (!activeCardFilter || activeCardFilter === "total") return events;
-    if (activeCardFilter === "high_trust") {
-        return events.filter(e => typeof e.confidence_score === "number" && e.confidence_score >= 75);
-    }
-    if (activeCardFilter === "high_impact") {
-        return events.filter(e => e.high_impact);
-    }
-    if (activeCardFilter === "new") {
-        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-        return events.filter(e => {
-            if (!e.published_at) return false;
-            const t = new Date(e.published_at).getTime();
-            return Number.isFinite(t) && t >= cutoff;
-        });
-    }
-    return events;
-}
 
 function updateCardActiveStates() {
     document.querySelectorAll(".summary-card").forEach(card => {
@@ -608,6 +590,11 @@ function updateFeedCount() {
         const serverTotal = serverTotals[activeCardFilter];
         if (serverTotal != null && serverTotal > n) {
             text += ` of ${serverTotal}`;
+        }
+    } else if ((!activeCardFilter || activeCardFilter === "total") && lastSummaryData) {
+        const total = lastSummaryData.total_events;
+        if (total != null && total > n) {
+            text += ` of ${total}`;
         }
     }
 

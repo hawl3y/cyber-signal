@@ -78,7 +78,7 @@ SOURCE_REGISTRY = [
         "signal_kind": "incident",
         "ingest_type": "ransomware_live",
         "url": "https://api.ransomware.live/recentvictims",
-        "active": True,
+        "active": False,
         "tier": "curated",
         "tier_trusted_alone": True,
     },

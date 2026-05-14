@@ -39,11 +39,6 @@ def is_relevant_incident(article):
     if article.source_name == "cisa-kev":
         return True
 
-    # ransomware.live entries are confirmed victims from dark web leak sites —
-    # every entry is a named victim with a named ransomware actor.
-    if article.source_name == "ransomware-live":
-        return True
-
     if article.source_name == "ncsc-uk":
         ncsc_noise_patterns = [
             "questions to ask",
