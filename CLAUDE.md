@@ -436,15 +436,16 @@ Any change to `extraction.py`, `processing.py`, or `clustering.py` **must** be f
 PYTHONPATH=. python scripts/force_reprocess.py
 ```
 
+By default, `force_reprocess` **preserves existing actor fields** and only re-runs attribution to fill gaps. This is safe for all extraction/processing/clustering changes.
+
 ### Rule: never clear enriched actor fields without verifying restoration
 
-`force_reprocess.py` clears all actor fields on incident events before re-running attribution. This is correct after changes to `actor_recognition.py` or `threat_actors.py`, **but only if attribution can restore every actor it is about to wipe.**
+Only use `--clear-actors` after changes to `actor_recognition.py` or `threat_actors.py`, and only after verifying restoration:
 
-Before running force_reprocess after any attribution logic change:
 1. Run `scripts/diagnose_actors.py` on production to see which events have actors
 2. Verify `find_actor_in_text` returns a result for each attributed event
-3. If any event would lose an actor that cannot be restored, fix the pattern gap in `_CLAIMED_PATTERNS` / `_CONFIRMED_PATTERNS` / `_SUSPECTED_PATTERNS` or add the actor to `THREAT_ACTORS` first
-4. Only then run force_reprocess
+3. If any event would lose an actor that cannot be restored, fix the pattern gap first
+4. Only then run: `PYTHONPATH=. python scripts/force_reprocess.py --clear-actors`
 
 If actors were already cleared and lost, run `scripts/fix_stale_events.py` (does not clear — just refreshes events and re-runs attribution) to restore what can be restored.
 

@@ -1138,8 +1138,13 @@ def _extract_geography(text, fallback_text=None):
     for pattern in target_phrase_patterns:
         for match in re.finditer(pattern, text, flags=re.IGNORECASE):
             span = match.group(1).strip()
-            if span:
-                target_spans.append(span)
+            if not span:
+                continue
+            # "targeted systems running Russian-language software" describes the software
+            # language, not a geographic target — skip these spans.
+            if re.search(r'\b\w+-language\s+(?:software|systems?|apps?|tools?|platforms?|code)\b', span, re.IGNORECASE):
+                continue
+            target_spans.append(span)
 
     for span in target_spans:
         for keywords, mapped_country, mapped_region in geography_map:
