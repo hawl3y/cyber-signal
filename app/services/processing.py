@@ -290,6 +290,10 @@ def is_relevant_incident(article):
         "to expand",
         "to introduce",
         "will introduce",
+        # Trend / analysis / pace-of-change articles — not incidents
+        "on pace to",
+        "patch wave",
+        "vulnerability record",
     ]
 
     if any(pattern in title for pattern in negative_title_patterns):
@@ -400,7 +404,7 @@ def is_relevant_incident(article):
         "exploited in the wild",
         "mass exploitation",
         "widespread exploitation",
-        "remote code execution",
+        "exploited for",
     ])
 
     has_attack_target_context = any(term in text for term in [
@@ -442,7 +446,7 @@ def is_relevant_incident(article):
     has_active_exploitation_language = bool(
         re.search(
             r"\b(?:actively exploited|under active exploitation|active exploitation|"
-            r"exploited in the wild|mass exploitation|widespread exploitation)\b",
+            r"exploited in the wild|mass exploitation|widespread exploitation|exploited for)\b",
             title_and_summary,
             flags=re.IGNORECASE,
         )
