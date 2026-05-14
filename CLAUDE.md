@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 1. Source Coverage (next build)
 Increase incident volume and geographic diversity. See Source Registry section for evaluated candidates. Decision pending on which to add first.
 
-### 2. UI Polish (next build)
-Identify and address UX friction points — event card layout, filter interaction, mobile/responsive issues, loading states, empty states.
+### 2. Region filter effectiveness (after next prod cycle)
+Measure whether the Region filter (added as Signal Type replacement) adds user value. If the data shows poor coverage or low engagement, drop to 3 filters (Time Range, Sector, Threat Type).
 
 ---
 
@@ -22,7 +22,7 @@ Cyber Signal answers "What matters right now?" in under 10 seconds. It turns fra
 
 ### Event Model
 
-Three event signal types, set at clustering (`event_signal_type`):
+Three event signal types exist at the pipeline level (`event_signal_type`), but **the UI surfaces incidents only**. Activity and Intelligence events are retained in the database to support data quality (actor attribution, CVE enrichment) but are never shown to users.
 
 | Type | Definition | Classification criteria |
 |---|---|---|
@@ -30,7 +30,7 @@ Three event signal types, set at clustering (`event_signal_type`):
 | **Activity** | Exploited vulnerability / active exploitation signal | Source `signal_kind = "activity"` (CISA KEV, CISA advisories) |
 | **Intelligence** | Active threat campaign without a named org victim | Incident source + no victim org + no actor + confidence score < 50 |
 
-**UI default**: Incidents only (7d). Activity and Intelligence are opt-in via the Signal Type filter.
+**UI**: Incidents only. All API calls from the frontend hardcode `signal_type=incident`. There is no Signal Type filter in the UI.
 
 **Pipeline rules by type:**
 - Incident: full enrichment — victim, actor attribution, geography, industry, is_high_impact
@@ -222,6 +222,12 @@ gunicorn --bind 0.0.0.0:5001 "app:create_app()"
 ```bash
 python run.py
 ```
+
+**LAN dev server** (test on desktop + mobile devices on the same network):
+```bash
+./scripts/run_lan_dev.sh
+```
+This binds to `0.0.0.0:5001` with hot reload so the app is reachable at your machine's LAN IP (e.g. `http://192.168.x.x:5001`) from a phone or tablet. Use this whenever verifying mobile layout changes.
 
 **Run the pipeline once** (as the Render cron job does):
 ```bash
