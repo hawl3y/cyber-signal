@@ -1049,6 +1049,16 @@ def _extract_geography(text, fallback_text=None):
     region = None
     scan_text = fallback_text if fallback_text is not None else text
 
+    # Strip "Armenian users", "Russian citizens", etc. so a nationality adjective
+    # describing who was affected doesn't get treated as the victim's country.
+    scan_text = re.sub(
+        r'\b\w+(?:ian|ish|ese|an)\s+(?:users?|customers?|citizens?|people|residents?|'
+        r'nationals?|workers?|members?|subscribers?|patients?|students?|employees?)\b',
+        '',
+        scan_text,
+        flags=re.IGNORECASE,
+    )
+
     geography_map = [
         (["united states", "u.s.", "u.s.a.", "usa", "american"], "United States", "North America"),
         # US states — breach articles often name the state rather than the country
