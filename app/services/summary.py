@@ -303,21 +303,6 @@ def build_trends(
         high_trust=high_trust or None,
     )
 
-    # Compute a cutoff for source articles so only articles actually published
-    # within the time window are counted. Without this, an event touched by the
-    # pipeline today (updating last_seen_at) would surface week-old articles
-    # from outlets that covered it when it first broke, making Sources appear
-    # much broader than the current view warrants.
-    source_article_cutoff = None
-    if time_range == "24h":
-        source_article_cutoff = now - timedelta(hours=24)
-    elif time_range == "7d":
-        source_article_cutoff = now - timedelta(days=7)
-    elif time_range == "30d":
-        source_article_cutoff = now - timedelta(days=30)
-    elif time_range == "90d":
-        source_article_cutoff = now - timedelta(days=90)
-
     source_counts = Counter()
     for event in filtered_events:
         seen = set()
@@ -325,9 +310,6 @@ def build_trends(
             article = link.raw_article
             if not article:
                 continue
-            if source_article_cutoff and article.published_at:
-                if article.published_at < source_article_cutoff:
-                    continue
             config = get_source_config(article.source_name) or {}
             label = (
                 config.get("display_label")
