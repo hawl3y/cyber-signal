@@ -469,6 +469,19 @@ def _extract_victim_org_name(article):
             if candidate and not is_generic_descriptor(candidate):
                 return candidate
 
+        # "X confirms [Product] data breach" — the product/service named after "confirms"
+        # is the victim, not X (the disclosing entity). Body patterns extract X via
+        # "X's service" possessive, so this must return early before body candidates.
+        cd_match = re.search(
+            r"\bconfirms?\s+([A-Z][A-Za-z0-9._-]+(?:\s+(?!(?:data|breach)\b)[A-Z][A-Za-z0-9._-]*){0,2})\s+(?:data\s+)?breach\b",
+            title,
+            flags=re.IGNORECASE,
+        )
+        if cd_match:
+            candidate = _clean_org_name(cd_match.group(1))
+            if candidate and not is_generic_descriptor(candidate):
+                return candidate
+
     for candidate in content_candidates:
         if not is_generic_descriptor(candidate):
             return candidate
@@ -1142,6 +1155,9 @@ def _extract_geography(text, fallback_text=None):
         r"\btarget(?:ing|ed)\s+([^.;:]+)",
         r"\bcampaign(?:s)?\s+against\s+([^.;:]+)",
         r"\bmalware\s+used\s+in\s+attacks?\s+(?:on|against)\s+([^.;:]+)",
+        # "X based in [Country]" / "partner based in Armenia" — identifies the location of
+        # the breached entity when country appears only in the article body, not title/summary.
+        r"\bbased\s+in\s+([^.;:,]+)",
     ]
 
     _audience_in_span_re = re.compile(
