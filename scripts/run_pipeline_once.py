@@ -3,7 +3,7 @@ from datetime import datetime, UTC
 from app import create_app
 from app.extensions import db
 from app.jobs import run_full_pipeline
-from app.models import AutomationRun
+from app.models import AutomationRun, RawArticle
 
 app = create_app()
 
@@ -52,6 +52,12 @@ with app.app_context():
 
         db.session.commit()
         print(_format_summary(result))
+
+        deleted = RawArticle.query.filter_by(processing_status="irrelevant").delete()
+        db.session.commit()
+        if deleted:
+            print(f"  cleanup    deleted {deleted} irrelevant articles")
+
     except Exception as exc:
         run.finished_at = utc_now_naive()
         run.success = False

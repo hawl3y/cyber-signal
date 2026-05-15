@@ -73,25 +73,25 @@
 
             <section class="summary-strip">
                 <button type="button" class="summary-card" data-card-filter="total"
-                        title="All events matching the current filters. Click to clear facet filters and any active card filter."
+                        title="All named-victim incidents in the current time range. Click to clear any active filter."
                         aria-label="Show all events">
                     <span class="label">Total Events</span>
                     <span class="value" id="total-events">--</span>
                 </button>
                 <button type="button" class="summary-card" data-card-filter="high_trust"
-                        title="Trust score 75 or higher — multi-source corroboration, primary disclosure, or tier-1 trusted source. Click to filter the feed."
+                        title="Confidence score ≥ 75 — corroborated by multiple sources or a trusted primary source. Click to filter."
                         aria-label="Filter to high trust events">
                     <span class="label">High Trust</span>
                     <span class="value" id="high-trust-events">--</span>
                 </button>
                 <button type="button" class="summary-card" data-card-filter="high_impact"
-                        title="Events flagged as high impact — large victim, critical-infrastructure target, or wide blast radius. Click to filter the feed."
+                        title="Events with a named actor, SEC filing, or severity keywords such as ransomware or critical infrastructure. Click to filter."
                         aria-label="Filter to high impact events">
                     <span class="label">High Impact</span>
                     <span class="value" id="high-impact-events">--</span>
                 </button>
                 <button type="button" class="summary-card" data-card-filter="new"
-                        title="Events first seen in the last 24 hours. Click to filter the feed."
+                        title="Incidents first seen in the last 24 hours. Click to filter."
                         aria-label="Filter to events from the last 24 hours">
                     <span class="label">New (24h)</span>
                     <span class="value" id="new-today-events">--</span>
@@ -132,7 +132,7 @@
                     </div>
 
                     <div class="trend-block">
-                        <h3>Coverage <span class="trend-window">(current view)</span></h3>
+                        <h3>Sources <span class="trend-window">(current view)</span></h3>
                         <div id="trend-sources" class="trend-list"></div>
                     </div>
                 </div>

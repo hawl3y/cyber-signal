@@ -282,10 +282,17 @@ function renderEmptyTrend(container, message) {
     container.innerHTML = `<p class='placeholder-text'>${message}</p>`;
 }
 
-function renderRisingTrend(items) {
+function renderRisingTrend(items, activeAttackType) {
     const container = document.getElementById("trend-rising");
     if (!container) return;
     container.innerHTML = "";
+
+    if (activeAttackType) {
+        const note = document.createElement("p");
+        note.className = "trend-filter-note";
+        note.textContent = `Threat type filter active — showing trend across all types for context.`;
+        container.appendChild(note);
+    }
 
     if (!items || !items.length) {
         renderEmptyTrend(container, "No activity in the last 7 days.");
@@ -365,7 +372,7 @@ async function loadTrends() {
         const response = await fetch(`/api/summary/trends?${params}`);
         const data = await response.json();
 
-        renderRisingTrend(data.rising_attack_types || []);
+        renderRisingTrend(data.rising_attack_types || [], filters.attack_type || null);
         renderCountTrend(
             "trend-active-actors",
             data.active_actors || [],
@@ -388,7 +395,7 @@ async function loadTrends() {
 function buildEventMeta(event) {
     return {
         primary: [
-            event.display_entity ? { value: event.display_entity, className: "" } : null,
+            event.display_entity ? { value: event.display_entity, className: "meta-pill-victim" } : null,
             event.attack_type    ? { value: event.attack_type, className: "meta-pill-attack" } : null,
             event.display_location ? { value: event.display_location, className: "" } : null,
             event.display_attribution ? { value: event.display_attribution, className: "meta-pill-actor" } : null,
@@ -483,11 +490,6 @@ function renderEventCard(event) {
     const el = document.createElement("article");
     const scoreBand = scoreBandFor(event.confidence_score);
     el.className = `event-card score-${scoreBand || "low"}`;
-
-    const highTrust = typeof event.confidence_score === "number" && event.confidence_score >= 80;
-    if (event.actor_name || highTrust) {
-        el.classList.add("high-signal");
-    }
 
     const meta = buildEventMeta(event);
 
