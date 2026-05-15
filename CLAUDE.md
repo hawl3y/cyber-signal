@@ -448,20 +448,29 @@ If actors were already cleared and lost, run `scripts/fix_stale_events.py` (does
 
 ### Canonical scripts (always use these — never one-off heredocs)
 
-**Run the full pipeline once** (ingest → enrich → process → extract → cluster → attribute):
+**Primary feed quality check** (named-victim events in feed vs. excluded; quality flags per event):
+```bash
+PYTHONPATH=. python scripts/diagnose_incidents.py
+```
+Run this after every force_reprocess or pipeline run to verify feed state. This is the main quality tool — use it instead of eyeballing the UI.
+
+**Run the full pipeline once** (ingest → process → extract → cluster → attribute):
 ```bash
 PYTHONPATH=. python scripts/run_pipeline_once.py
 ```
+Use this to pull in new articles from all sources. Does not re-process existing articles.
 
-**Force re-extract and re-cluster all existing articles** (use after any extraction/processing logic change):
+**Force re-extract and re-cluster all existing articles** (use after any extraction/processing/clustering logic change):
 ```bash
 PYTHONPATH=. python scripts/force_reprocess.py
 ```
+Resets all articles to pending and re-runs the full pipeline on them. Preserves existing actor fields by default.
 
-**Inspect current production state** (events with scores/sources/victims/attack types, article status counts, recent extractions):
+**Inspect raw pipeline state** (article status counts, recent extractions, event scores/sources):
 ```bash
 PYTHONPATH=. python scripts/diagnose_prod.py
 ```
+Lower-level than `diagnose_incidents.py` — use when debugging why an article isn't extracting or clustering correctly.
 
 **Inspect actor attribution gaps** (incident events with a victim but no actor — shows extraction actor, find_actor_in_text result, and nearby attribution language):
 ```bash
@@ -475,15 +484,29 @@ PYTHONPATH=. python scripts/fix_stale_events.py
 
 ---
 
+### Standard workflow after any pipeline logic change
+
+Follow this sequence every time `extraction.py`, `processing.py`, `clustering.py`, or `actor_recognition.py` changes:
+
+1. Push the change and wait for it to deploy on Render.
+2. Run `force_reprocess.py` — re-extracts and re-clusters all articles against the new logic.
+3. Run `diagnose_incidents.py` — review the feed quality flags (NO ACTOR, NO GEO, UNKNOWN TYPE, LOW SCORE).
+4. If something looks wrong, run `diagnose_prod.py` to inspect article-level state, then fix the pipeline stage.
+5. Repeat from step 2 until the feed is clean.
+
+For ingestion-only changes (new source, URL update): run `run_pipeline_once.py` instead of `force_reprocess.py`, then check `diagnose_incidents.py`.
+
+---
+
 ### Diagnosis workflow
 
-When output looks wrong (bad attack type, missing victim, wrong industry, events not clustering):
+When a specific event looks wrong (bad attack type, missing victim, wrong geo, wrong actor):
 
-1. Run `diagnose_prod.py` to see the current event/article state at a glance.
-2. If a specific article/victim needs closer inspection, write a targeted script in `scripts/` (e.g. `diagnose_canvas.py`) — never use inline heredocs in the Render shell, they fail.
-3. Fix the pipeline stage (not the symptom).
-4. Push, wait for deploy, then run `force_reprocess.py`.
-5. Re-run `diagnose_prod.py` to verify.
+1. Run `diagnose_incidents.py` to see the full feed state and quality flags.
+2. Run `diagnose_prod.py` for article-level detail (extraction results, article status counts).
+3. If a specific victim/article needs closer inspection, write a targeted script in `scripts/` (e.g. `diagnose_canvas.py`) — never use inline heredocs in the Render shell, they fail.
+4. Fix the pipeline stage (not the symptom).
+5. Push, run `force_reprocess.py`, then re-run `diagnose_incidents.py` to verify.
 
 ---
 
