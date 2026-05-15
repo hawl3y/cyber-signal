@@ -2,16 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Priority Tasks
-
-### 1. Clustering quality — production observation (ongoing)
-Watch for same-incident duplicate events in production. When a specific case is found, trace it to an extraction inconsistency (different victim name forms across sources) and fix the extraction pattern. The core matching logic is correct — duplicates are an extraction quality problem, not a clustering logic problem.
-
-### 2. Source coverage — quality over volume
-Evaluated and rejected: ACSC (duplicate of CISA/NCSC joint advisories), CCCS (pure patch announcements), Graham Cluley (too mixed — podcasts, opinion, individual theft stories), ransomware.live (fire hose of obscure SMB victims, domain-only entries — fully removed). Do not add a source unless it is as clean as Krebs on Security and fills a real geographic or sector gap that existing sources don't cover.
-
----
-
 ## Product Purpose
 
 Cyber Signal answers "What confirmed cyber incidents involving named organizations happened recently, and who is behind them?" — in under 10 seconds, without reading anything. **The unit of value is the structured, deduplicated event, not the article.**
@@ -32,14 +22,12 @@ This is an **incident product**. Every UI view, API call, and filter hardcodes `
 
 | Type | What it is | Shown in UI? |
 |---|---|---|
-| **Incident** | Named-victim cyber event with confirmed impact, or actor-attributed campaign | Yes — this is the product |
-| **Activity** | Exploited vulnerability from CISA KEV or CISA advisories | No — pipeline bookkeeping, kept to avoid polluting incident clustering |
-
-Low-confidence incident-source events that lack a named victim, actor, and score < 50 resolve to `event_signal_type = "intelligence"` in the database. This is a pipeline artifact, not a product concept — treat it the same as Activity for all practical purposes.
+| **Incident** | Named-victim cyber event with confirmed impact | Yes — this is the product |
+| **Activity** | Exploited vulnerability from CISA KEV or CISA advisories | No — pipeline internal only |
 
 **Pipeline enrichment by type:**
 - Incident: full enrichment — victim, actor attribution, geography, industry, is_high_impact
-- Activity: no victim, no actor, no attribution — CVE and attack type only
+- Activity: no victim, no actor, no attribution — CVE and attack type only; never reaches the feed
 
 ### Confidence Score & Trust Labels
 
@@ -61,16 +49,11 @@ Key score drivers (additive):
 
 ### High Impact Flag
 
-`is_high_impact` is a boolean set in `refresh_event()` in `clustering.py`, recomputed after attribution by `recompute_high_impact()`.
+`is_high_impact` is a boolean set in `refresh_event()` in `clustering.py`, recomputed after attribution by `recompute_high_impact()`. Applies to incident events only (Activity events never reach the feed).
 
-| Signal type | High Impact when |
-|---|---|
-| Incident | `actor_name` is set, OR source is SEC EDGAR 8-K, OR title/summary contains severity keyword |
-| Activity | Source is CISA KEV, OR title/summary contains severity keyword |
+An incident is high impact when: `actor_name` is set, OR source is SEC EDGAR 8-K, OR title/summary contains a severity keyword.
 
 Severity keywords (title + summary_short): `mass-exploited`, `mass exploited`, `mass exploitation`, `actively exploited`, `widespread`, `large-scale`, `millions`, `critical infrastructure`, `data breach`, `wiper`, `ransomware`, `hacktivist`, `state-sponsored`, `nation-state`, `military intelligence`.
-
-Activity-only severity keywords: `known exploited vulnerability` (in addition to the above subset).
 
 **High Trust and High Impact are independent.** An event can be high impact but low trust (e.g. single-source incident with a known actor) or high trust but not high impact (e.g. confirmed breach with no named actor and no severity keywords).
 
@@ -98,8 +81,6 @@ Two deployment modes share the same code:
 
 **Critical**: only the cron job is permitted to mutate enriched data. Web requests must never write enrichment fields.
 
-All attribution and classification is deterministic. `AI_ENRICHMENT_ENABLED` env var is vestigial — ignore it.
-
 ### Working Method
 
 1. Inspect output first
@@ -125,13 +106,13 @@ Avoid: guessing, over-engineering, one-off fixes.
 - **Server**: Gunicorn
 - **Frontend**: Vanilla JavaScript (client-side filtering, localStorage)
 - **Data Processing**: feedparser, requests for ingestion
-- **AI Enrichment**: Removed. Actor attribution is now fully deterministic via `actor_recognition.py`.
+- **Actor Attribution**: Fully deterministic via `actor_recognition.py` and `app/data/threat_actors.py` — no AI calls.
 
 ## Architecture
 
 ### High-Level Data Flow
 
-The application implements a live pipeline with six sequential stages:
+The application implements a live pipeline with five sequential stages:
 
 ```
 Ingest → Process → Extract → Cluster → Attribute
@@ -150,8 +131,6 @@ Ingest → Process → Extract → Cluster → Attribute
 - **CyberEvent**: Unified event representing one incident, aggregated from multiple extractions
 - **EventSourceLink**: Junction table linking CyberEvent to source RawArticles with match scores and primary-source flag
 - **AutomationRun**: Tracks scheduler execution history
-- **EnrichmentAuditLog**: Per-event enrichment call audit (inputs, outputs, tokens, duration)
-- **SourceReputation**: Source credibility scoring (not active in MVP)
 
 ### Service Layers
 
@@ -279,10 +258,10 @@ The `attack_type` field is labeled "Threat Type" in the UI. It covers both attac
 | Account Compromise | Incident news |
 | Supply Chain | Incident or advisory |
 | Exploitation | Active in-the-wild exploitation (CVE present, no more specific class) |
-| Authentication Bypass | CISA/vendor advisories |
-| Remote Code Execution | CISA/vendor advisories |
-| Privilege Escalation | CISA/vendor advisories |
-| Injection | CISA/vendor advisories (SQL, command, etc.) |
+| Authentication Bypass | CISA advisories (Activity — pipeline internal, not shown in feed) |
+| Remote Code Execution | CISA advisories (Activity — pipeline internal, not shown in feed) |
+| Privilege Escalation | CISA advisories (Activity — pipeline internal, not shown in feed) |
+| Injection | CISA advisories (Activity — pipeline internal, not shown in feed) |
 | Disruption | Incident news |
 | Unknown | No signal found |
 
@@ -337,6 +316,14 @@ Rules:
 - **SEC EDGAR** (material cybersecurity 8-K filings via EDGAR full-text search, tier: official, `tier_trusted_alone`)
 
 `tier_trusted_alone=True` means a single article from that source is enough to confirm an event (affects confidence scoring).
+
+**Evaluated and rejected sources** — do not re-add without a clear gap justification:
+- ACSC — duplicate of CISA/NCSC joint advisories
+- CCCS — pure patch announcements, no incident signal
+- Graham Cluley — too mixed (podcasts, opinion, individual theft stories)
+- ransomware.live — fire hose of obscure SMB victims, domain-only entries; fully removed
+
+Do not add a source unless it is as clean as Krebs on Security and fills a real geographic or sector gap that existing sources don't cover.
 
 ### Event Prioritization
 
@@ -482,6 +469,11 @@ PYTHONPATH=. python scripts/diagnose_actors.py
 PYTHONPATH=. python scripts/fix_stale_events.py
 ```
 
+**Clean up database garbage** (delete ransomware-live articles and irrelevant articles — interactive, shows counts before deleting):
+```bash
+PYTHONPATH=. python scripts/cleanup_db.py
+```
+
 ---
 
 ### Standard workflow after any pipeline logic change
@@ -497,6 +489,10 @@ Follow this sequence every time `extraction.py`, `processing.py`, `clustering.py
 For ingestion-only changes (new source, URL update): run `run_pipeline_once.py` instead of `force_reprocess.py`, then check `diagnose_incidents.py`.
 
 ---
+
+### Clustering quality
+
+Duplicate events (same incident from multiple sources creating two separate events) are an extraction quality problem, not a clustering logic problem. The core matching logic is correct. When a duplicate is found: identify which field differs between the two extractions (usually victim name form), fix the extraction pattern, then force-reprocess.
 
 ### Diagnosis workflow
 
