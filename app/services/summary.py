@@ -227,6 +227,8 @@ def build_trends(
     attack_type=None,
     time_range=None,
     signal_type=None,
+    high_impact=None,
+    high_trust=None,
 ):
     """
     Trend snapshot for the triage view. Three direction-driven blocks instead
@@ -297,6 +299,8 @@ def build_trends(
         attack_type=attack_type,
         time_range=time_range,
         signal_type=signal_type,
+        high_impact=high_impact or None,
+        high_trust=high_trust or None,
     )
 
     # Compute a cutoff for source articles so only articles actually published
@@ -337,8 +341,9 @@ def build_trends(
     # Show every source contributing to the current view rather than capping.
     # The registry is small (~6 entries) and dropping a high-credibility
     # source like SEC EDGAR off the bottom would distort the coverage signal.
+    total_for_pct = len(filtered_events) or 1
     top_sources = [
-        {"label": label, "count": count}
+        {"label": label, "count": count, "pct": round(count / total_for_pct * 100)}
         for label, count in source_counts.most_common()
     ]
 

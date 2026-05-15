@@ -340,7 +340,7 @@ function trendDeltaIndicator(item) {
     };
 }
 
-function renderCountTrend(containerId, items, emptyMessage, suffix) {
+function renderCountTrend(containerId, items, emptyMessage, suffix, showPct) {
     const container = document.getElementById(containerId);
     if (!container) return;
     container.innerHTML = "";
@@ -353,8 +353,13 @@ function renderCountTrend(containerId, items, emptyMessage, suffix) {
     items.forEach(item => {
         const row = document.createElement("div");
         row.className = "trend-row";
-        const label = (suffix && item.count === 1) ? suffix.singular : (suffix && suffix.plural);
-        const countText = label ? `${item.count} ${label}` : `${item.count}`;
+        let countText;
+        if (showPct && item.pct !== undefined) {
+            countText = `${item.pct}%`;
+        } else {
+            const label = (suffix && item.count === 1) ? suffix.singular : (suffix && suffix.plural);
+            countText = label ? `${item.count} ${label}` : `${item.count}`;
+        }
         row.innerHTML = `
             <span class="trend-label">${item.label}</span>
             <span class="trend-count">${countText}</span>
@@ -369,6 +374,17 @@ async function loadTrends() {
         const params = new URLSearchParams();
         Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
         params.append("signal_type", "incident");
+
+        // Mirror the same card-filter overrides applied in loadEvents so
+        // trends always reflect the same window as the feed.
+        if (activeCardFilter === "new") {
+            params.set("time_range", "24h");
+        } else if (activeCardFilter === "high_impact") {
+            params.append("high_impact", "true");
+        } else if (activeCardFilter === "high_trust") {
+            params.append("high_trust", "true");
+        }
+
         const response = await fetch(`/api/summary/trends?${params}`);
         const data = await response.json();
 
@@ -383,7 +399,8 @@ async function loadTrends() {
             "trend-sources",
             data.top_sources || [],
             "No coverage data.",
-            { singular: "event", plural: "events" }
+            null,
+            true
         );
     } catch (err) {
         console.error("Failed to load trends:", err);
@@ -800,6 +817,7 @@ async function handleCardClick(cardFilter) {
     activeCardFilter = activeCardFilter === cardFilter ? null : cardFilter;
     updateCardActiveStates();
     await loadEvents();
+    await loadTrends();
 }
 
 document.querySelectorAll(".summary-card[data-card-filter]").forEach(card => {
