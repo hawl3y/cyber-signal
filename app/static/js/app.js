@@ -853,17 +853,14 @@ if (toggleFiltersBtn && filtersPanel) {
     });
 
     // Clicking anywhere on the header bar toggles filters, not just the button.
+    // Ignore clicks that originated from the reset button.
     if (filtersHeader) {
         filtersHeader.style.cursor = "pointer";
-        filtersHeader.addEventListener("click", () => {
+        filtersHeader.addEventListener("click", (e) => {
+            if (resetFiltersBtn && resetFiltersBtn.contains(e.target)) return;
             filtersPanel.classList.toggle("expanded");
             updateFilterToggleLabel();
         });
-    }
-
-    // Reset click must not bubble up to the header toggle.
-    if (resetFiltersBtn) {
-        resetFiltersBtn.addEventListener("click", (e) => e.stopPropagation(), true);
     }
 
     // Default: collapsed on mobile, expanded on desktop
