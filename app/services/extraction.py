@@ -469,6 +469,19 @@ def _extract_victim_org_name(article):
             if candidate and not is_generic_descriptor(candidate):
                 return candidate
 
+        # "[Org] Supply Chain Attack Hits/Affects/..." — title-subject form where the
+        # compromised vendor leads the headline rather than following "in".
+        # e.g. "TanStack Supply Chain Attack Hits Two OpenAI Employee Devices"
+        sc_subject_match = re.search(
+            r"^([A-Z][A-Za-z0-9._-]+(?:\s+[A-Z][A-Za-z0-9._-]*){0,2})\s+supply[\s-]chain\s+attack\b",
+            title,
+            flags=re.IGNORECASE,
+        )
+        if sc_subject_match:
+            candidate = _clean_org_name(sc_subject_match.group(1))
+            if candidate and not is_generic_descriptor(candidate):
+                return candidate
+
         # "X confirms [Product] data breach" — the product/service named after "confirms"
         # is the victim, not X (the disclosing entity). Body patterns extract X via
         # "X's service" possessive, so this must return early before body candidates.
