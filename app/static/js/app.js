@@ -842,11 +842,29 @@ function updateFilterToggleLabel() {
     }
 }
 
+const filtersHeader = filtersPanel && filtersPanel.querySelector(".panel-header-simple");
+const resetFiltersBtn = document.getElementById("reset-filters");
+
 if (toggleFiltersBtn && filtersPanel) {
-    toggleFiltersBtn.addEventListener("click", () => {
+    toggleFiltersBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         filtersPanel.classList.toggle("expanded");
         updateFilterToggleLabel();
     });
+
+    // Clicking anywhere on the header bar toggles filters, not just the button.
+    if (filtersHeader) {
+        filtersHeader.style.cursor = "pointer";
+        filtersHeader.addEventListener("click", () => {
+            filtersPanel.classList.toggle("expanded");
+            updateFilterToggleLabel();
+        });
+    }
+
+    // Reset click must not bubble up to the header toggle.
+    if (resetFiltersBtn) {
+        resetFiltersBtn.addEventListener("click", (e) => e.stopPropagation(), true);
+    }
 
     // Default: collapsed on mobile, expanded on desktop
     if (window.innerWidth > 640) {
