@@ -310,8 +310,10 @@ def is_relevant_incident(article):
         # Space-bounded " fixes " in a title is almost exclusively a patch announcement
         # in cybersecurity reporting.
         " fixes ",
-        # Vendor advisory — "X warns of critical Y" is disclosure, not incident
-        "warns of critical",
+        # Vendor advisory — "X warns of Y flaw/vulnerability" is disclosure, not incident
+        # "warns of critical" is a subset; " warns of " is broader and catches all variants
+        # (e.g. "Cisco warns of new critical SD-WAN flaw exploited in zero-day attacks")
+        " warns of ",
         # Product feature / capability expansion announcements
         "to expand",
         "to introduce",
@@ -334,6 +336,16 @@ def is_relevant_incident(article):
     ]
 
     if any(pattern in title for pattern in negative_title_patterns):
+        return False
+
+    # Unsuccessful or unconfirmed exploit attempts are not incidents — check title+summary
+    non_incident_attempt_patterns = [
+        "unsuccessfully exploit",
+        "unsuccessful exploit",
+        "may have attempted to exploit",
+        "attempted to exploit but",
+    ]
+    if any(p in title_and_summary for p in non_incident_attempt_patterns):
         return False
 
     victim_org_name = _extract_victim_org_name(article)
