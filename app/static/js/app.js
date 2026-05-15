@@ -846,14 +846,9 @@ const filtersHeader = filtersPanel && filtersPanel.querySelector(".panel-header-
 const resetFiltersBtn = document.getElementById("reset-filters");
 
 if (toggleFiltersBtn && filtersPanel) {
-    toggleFiltersBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        filtersPanel.classList.toggle("expanded");
-        updateFilterToggleLabel();
-    });
-
-    // Clicking anywhere on the header bar toggles filters, not just the button.
-    // Ignore clicks that originated from the reset button.
+    // Single click handler on the header bar. The toggle button is a child of the
+    // header, so clicks on it bubble here naturally — no separate listener needed.
+    // Skip only when the reset button was clicked.
     if (filtersHeader) {
         filtersHeader.style.cursor = "pointer";
         filtersHeader.addEventListener("click", (e) => {
