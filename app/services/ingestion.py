@@ -646,7 +646,7 @@ def fetch_source_items(source):
 
 _ARTICLE_FETCH_TIMEOUT = 10
 _ARTICLE_MAX_CHARS = 5000
-_FETCH_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; CyberSignal/1.0)"}
+_FETCH_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; CyberBLUF/1.0)"}
 
 
 def _fetch_article_body(url):

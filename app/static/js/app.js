@@ -1,4 +1,4 @@
-const FILTER_STORAGE_KEY = "cyber_signal_filters_v3";
+const FILTER_STORAGE_KEY = "cyber_bluf_filters_v1";
 const PAGE_SIZE = 25;
 
 let currentOffset = 0;

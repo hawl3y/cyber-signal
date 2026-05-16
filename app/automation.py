@@ -47,14 +47,14 @@ def _scheduled_pipeline_run(app):
 
     try:
         with app.app_context():
-            logger.info("Starting scheduled Cyber Signal pipeline run")
+            logger.info("Starting scheduled Cyber BLUF pipeline run")
             result = run_full_pipeline(force_extract=False)
-            logger.info("Completed scheduled Cyber Signal pipeline run: %s", result)
+            logger.info("Completed scheduled Cyber BLUF pipeline run: %s", result)
 
         automation_status["last_run_success"] = True
         automation_status["last_run_result"] = result
     except Exception as exc:
-        logger.exception("Scheduled Cyber Signal pipeline run failed")
+        logger.exception("Scheduled Cyber BLUF pipeline run failed")
         automation_status["last_run_success"] = False
         automation_status["last_run_error"] = str(exc)
     finally:
@@ -87,7 +87,7 @@ def start_scheduler(app):
         trigger="interval",
         minutes=interval_minutes,
         args=[app],
-        id="cyber_signal_pipeline",
+        id="cyber_bluf_pipeline",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

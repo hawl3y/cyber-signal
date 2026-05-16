@@ -1,6 +1,6 @@
-# Cyber Signal
+# Cyber BLUF
 
-Cyber Signal is a single-page cyber event intelligence application that provides a clean, structured view of high-signal cyber activity.
+Cyber BLUF is a single-page cyber event intelligence application that provides a clean, structured view of high-signal cyber activity.
 
 It ingests reporting from curated sources, extracts structured signals, clusters related activity into unified events, and presents a fast, filterable view of what matters now.
 
