@@ -15,6 +15,34 @@ def _combined_article_text(article):
         ]
     ).lower()
 
+_SUMMARY_ABBREVS = {
+    'dr', 'mr', 'mrs', 'ms', 'st', 'vs', 'no', 'inc', 'corp', 'ltd', 'co',
+    'dept', 'govt', 'fig', 'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug',
+    'sep', 'oct', 'nov', 'dec', 'ave', 'blvd', 'est', 'approx', 'prof', 'gen',
+    'rep', 'sen', 'sgt', 'capt', 'lt', 'col', 'maj',
+}
+
+
+def _trim_to_complete_sentence(text):
+    if not text:
+        return text
+    if re.search(r'[.!?]["\')]?\s*$', text):
+        return text
+    last_sent_end = None
+    for m in re.finditer(r'[.!?]["\')]?(?=\s+[A-Z])', text):
+        preceding_word = re.search(r'(\w+)\s*$', text[:m.start()])
+        if preceding_word:
+            word = preceding_word.group(1)
+            if len(word) == 1 and word.isupper():
+                continue
+            if word.lower() in _SUMMARY_ABBREVS:
+                continue
+        last_sent_end = m.end()
+    if last_sent_end:
+        return text[:last_sent_end].strip()
+    return text
+
+
 def _clean_summary_text(value):
     if not value:
         return None
@@ -23,7 +51,8 @@ def _clean_summary_text(value):
     cleaned = re.sub(r"\s*\[\.\.\.\]\s*$", "", cleaned).strip()
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
 
-    return cleaned or None
+    return _trim_to_complete_sentence(cleaned) or None
+
 
 def _build_short_event_summary(article):
     summary = _clean_summary_text(article.summary)
