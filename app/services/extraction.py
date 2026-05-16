@@ -852,6 +852,23 @@ def _extract_industry(text):
             "atm",
             "cryptocurrency exchange",
             "crypto exchange",
+            "crypto platform",
+            "crypto protocol",
+            "crypto bridge",
+            "defi platform",
+            "defi protocol",
+            "defi project",
+            "defi attack",
+            "defi hack",
+            "decentralized finance",
+            "web3 platform",
+            "blockchain protocol",
+            "flash loan",
+            "rug pull",
+            "rugpull",
+            "smart contract",
+            "crypto heist",
+            "crypto theft",
             "fintech",
             "payment processor",
             "credit union",
@@ -1270,13 +1287,22 @@ def _extract_geography(text, fallback_text=None):
     }
 
 def _has_exploitation_signal(text):
+    """
+    Returns True when the text describes a confirmed cyber intrusion at any level
+    of specificity. Covers both precise technical signals (CVE, exploit code) and
+    generic incident language (hacked, cyberattack, unauthorized access).
+
+    This function is the VERIS Hacking action catch-all: any article describing
+    unauthorized technical access to systems should return True here if no more
+    specific type (Ransomware, Financial Theft, Data Breach, etc.) was matched first.
+    """
     if not text:
         return False
 
     patterns = [
+        # Precise technical signals
         r"\bcve-\d{4}-\d+\b",
-        r"\bexploit\b",
-        r"\bexploited\b",
+        r"\bexploit(?:ed|s|ing)?\b",
         r"\bexploitation\b",
         r"\bactively exploited\b",
         r"\bunder active exploitation\b",
@@ -1284,6 +1310,21 @@ def _has_exploitation_signal(text):
         r"\bpre-auth\b",
         r"\bremote code execution\b",
         r"\brce\b",
+        r"\bzero.?day\b",
+        r"\bvulnerability\b",
+        r"\bpatch(?:ed)?\b",
+        # Generic intrusion language — any confirmed unauthorized access
+        # maps here when no more specific type was detected above.
+        r"\bhacked\b",
+        r"\bcyber.?attack\b",
+        r"\bunauthorized access\b",
+        r"\bsecurity incident\b",
+        r"\bintrusion\b",
+        r"\binfiltrat(?:ed|ion)\b",
+        r"\bbroke into\b",
+        r"\bgained access\b",
+        r"\bcompromised (?:the |its |their )?\b(?:system|network|server|infrastructure|environment)\b",
+        r"\battackers? (?:accessed|gained|obtained)\b",
     ]
 
     return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
@@ -1326,8 +1367,9 @@ def run_rule_extraction(article):
             "bank", "bancorp", "bancshares", "financial", "finance",
             "insurance", "capital", "investment", "credit union",
             "asset management", "brokerage", "mortgage",
-            "bitcoin", "crypto", "blockchain", "payments", "fintech",
-            "exchange", "wallet", "trading",
+            "bitcoin", "crypto", "blockchain", "defi", "dao",
+            "payments", "fintech", "exchange", "wallet", "trading",
+            "protocol", "bridge",
         ]):
             industry = "Financial Services"
         elif any(k in name_lower for k in [
@@ -1485,161 +1527,172 @@ def run_rule_extraction(article):
         "data stolen",
     ])
 
+    # Attack type detection — ordered most-specific first per VERIS hierarchy.
+    # See taxonomy.py for VERIS/DBIR provenance of each type.
     attack_type = "Unknown"
-    # Supply Chain is checked first — it describes the attack vector (compromised dependency/
-    # package/update) and is more specific than Ransomware or Malware. A supply chain attack
-    # that happens to mention "ransomware" in passing should be labelled Supply Chain.
-    #
-    # Contextual phrases ("supply chain attack") are only checked in title+summary —
-    # they appear in quoted expert commentary in unrelated articles (e.g. an expert
-    # calling a wiper attack a "supply chain attack" in a Krebs article about Stryker).
-    # Unambiguous technical indicators (malicious package, poisoned package, etc.) are
-    # checked in the full text since they never appear as business-context false positives.
+
+    # --- Supply Chain (VERIS: Hacking/Malware via third-party) ---
+    # Checked first: describes the attack vector, not the payload. A supply chain
+    # attack that also mentions ransomware stays Supply Chain.
+    # Contextual phrases confined to title+summary — they appear in quoted expert
+    # commentary in unrelated articles. Unambiguous technical indicators can use
+    # full text since they never appear as business-context false positives.
     _sc_title_summary_phrases = [
-        "supply chain attack",
-        "supply chain compromise",
-        "supply chain hack",
-        "supply chain intrusion",
-        "supply-chain attack",
-        "supply chain infection",
+        "supply chain attack", "supply chain compromise", "supply chain hack",
+        "supply chain intrusion", "supply-chain attack", "supply chain infection",
         "attacked via supply chain",
     ]
     _sc_full_text_phrases = [
-        "malicious package",
-        "malicious update",
-        "poisoned package",
-        "dependency confusion",
-        "compromised vendor",
-        "third-party compromise",
+        "malicious package", "malicious update", "poisoned package",
+        "dependency confusion", "compromised vendor", "third-party compromise",
     ]
     if not is_activity and (
         any(p in title_summary_text for p in _sc_title_summary_phrases)
         or any(p in text for p in _sc_full_text_phrases)
     ):
         attack_type = "Supply Chain"
-    elif not is_activity and not title_signals_breach and any(keyword in text_for_ransomware for keyword in [
-        "ransomware",
-        "ransom note",
-        "ransom demand",
-        "double extortion",
-        "extortion gang",
-        "encryptor",
+
+    # --- Ransomware (VERIS: Malware/Ransomware | DBIR: Ransomware) ---
+    elif not is_activity and not title_signals_breach and any(p in text_for_ransomware for p in [
+        "ransomware", "ransom note", "ransom demand",
+        "double extortion", "extortion gang", "encryptor",
     ]):
         attack_type = "Ransomware"
-    elif not is_activity and any(keyword in text for keyword in [
-        "ddos",
-        "denial of service",
-        "distributed denial of service",
-        "botnet",
-        "traffic flood",
+
+    # --- Financial Theft (VERIS: Hacking | DBIR: System Intrusion, financial) ---
+    # Funds, cryptocurrency, or other monetary assets stolen. Distinct from Data Breach
+    # (no personal data angle). Quantified loss phrases ("million stolen") are title/summary
+    # only — they appear as historical context in full article bodies. Specific DeFi/heist
+    # terms are low enough false-positive risk to check in full text.
+    elif not is_activity and (
+        any(p in title_summary_text for p in [
+            # Quantified monetary loss
+            "million stolen", "billion stolen", "million drained", "billion drained",
+            "million in crypto", "million in bitcoin", "million in ethereum", "million in ether",
+            "million worth of crypto",
+            # Dollar amount as the outcome of a hack ("hacked for $625 million")
+            "hacked for $", "stolen $", "theft of $",
+            # Direct fund theft
+            "funds stolen", "stolen funds", "crypto stolen", "cryptocurrency stolen",
+            "funds drained", "drained funds", "assets stolen", "assets drained",
+            "wallet drained", "treasury drained",
+            # General financial crime
+            "cyber heist", "crypto heist", "crypto theft", "cryptocurrency theft",
+            "wire fraud", "bank fraud",
+        ])
+        or any(p in text for p in [
+            # DeFi/Web3 attack patterns — unambiguous, safe in full text
+            "flash loan", "flash-loan",
+            "rug pull", "rugpull",
+            "defi exploit", "defi hack", "defi attack",
+            "bridge exploit", "bridge hack", "bridge attack",
+            "smart contract exploit", "protocol exploit", "protocol hack",
+            "drain attack", "drained the protocol",
+        ])
+    ):
+        attack_type = "Financial Theft"
+
+    # --- DDoS (VERIS: Hacking/DoS | DBIR: Denial of Service) ---
+    elif not is_activity and any(p in text for p in [
+        "ddos", "denial of service", "distributed denial of service",
+        "botnet", "traffic flood",
     ]):
         attack_type = "DDoS"
-    elif not is_activity and not title_signals_breach and any(keyword in text for keyword in [
-        "phishing",
-        "phishing-as-a-service",
-        "credential harvesting",
-        "spear-phishing",
-        "malicious email",
-        "business email compromise",
-        "bec ",
+
+    # --- Phishing (VERIS: Social | DBIR: Social Engineering) ---
+    elif not is_activity and not title_signals_breach and any(p in text for p in [
+        "phishing", "phishing-as-a-service", "spear-phishing",
+        "credential harvesting", "malicious email",
+        "business email compromise", "bec ",
+        "vishing", "smishing", "spear phishing",
     ]):
         attack_type = "Phishing"
-    elif not is_activity and any(keyword in text for keyword in [
-        "data breach",
-        "security breach",
-        "source code breach",
-        "breached",
-        "breaching systems",
-        "breach of",
-        "hack at",
-        "hack of",
-        "data theft",
-        "data leak",
-        "data stolen",
-        "stolen data",
-        "stolen data records",
-        "stolen records",
-        "stole data",
-        "exposed data",
-        "data exposed",
-        "unauthorized access to data",
-        "customer data was accessed",
-        "records were accessed",
+
+    # --- Data Breach (VERIS: Hacking + Exfiltrate | DBIR: System Intrusion / Web App) ---
+    elif not is_activity and any(p in text for p in [
+        "data breach", "security breach", "source code breach",
+        "breached", "breaching systems", "breach of",
+        "hack at", "hack of",
+        "data theft", "data leak", "data stolen", "stolen data",
+        "stolen data records", "stolen records", "stole data",
+        "exposed data", "data exposed",
+        "unauthorized access to data", "customer data was accessed",
+        "records were accessed", "personal information was accessed",
+        "sensitive data", "personally identifiable information", "pii",
+        "patient data", "medical records exposed",
     ]):
         attack_type = "Data Breach"
-    elif not is_activity and any(keyword in text for keyword in [
-        "credential theft",
-        "stolen credentials",
-        "account takeover",
-        "compromised account",
-        "hijacked account",
-        "accounts were compromised",
-        "obtained control of credentials",
+
+    # --- Account Compromise (VERIS: Hacking/stolen creds, Misuse | DBIR: Privilege Misuse) ---
+    elif not is_activity and any(p in text for p in [
+        "credential theft", "stolen credentials", "credentials stolen",
+        "account takeover", "compromised account", "hijacked account",
+        "accounts were compromised", "obtained control of credentials",
+        "credential stuffing", "password spraying", "brute force",
+        "unauthorized login", "fraudulent login",
     ]):
         attack_type = "Account Compromise"
-    elif any(keyword in text for keyword in [
-        "authentication bypass",
-        "auth bypass",
-        "improper authentication",
-        "broken authentication",
-        "bypass authentication",
-        "authentication vulnerability",
-        "missing authentication",
+
+    # --- Activity-only vulnerability classes (CISA advisories / KEV) ---
+    # Not shown in the incident feed. Checked here so CISA events are classified
+    # correctly before the incident catch-alls below fire.
+    elif any(p in text for p in [
+        "authentication bypass", "auth bypass", "improper authentication",
+        "broken authentication", "bypass authentication",
+        "authentication vulnerability", "missing authentication",
     ]):
         attack_type = "Authentication Bypass"
-    elif any(keyword in text for keyword in [
-        "remote code execution",
-        "arbitrary code execution",
+    elif any(p in text for p in [
+        "remote code execution", "arbitrary code execution",
         "code execution vulnerability",
     ]):
         attack_type = "Remote Code Execution"
-    elif any(keyword in text for keyword in [
-        "privilege escalation",
-        "elevation of privilege",
-        "escalate privileges",
-        "escalating privileges",
+    elif any(p in text for p in [
+        "privilege escalation", "elevation of privilege",
+        "escalate privileges", "escalating privileges",
         "local privilege escalation",
     ]):
         attack_type = "Privilege Escalation"
-    elif any(keyword in text for keyword in [
-        "sql injection",
-        "command injection",
-        "os command injection",
-        "code injection",
-        "injection vulnerability",
-        "xpath injection",
-        "ldap injection",
-        "cross-site scripting",
-        "xss",
-        "stored xss",
-        "reflected xss",
+    elif any(p in text for p in [
+        "sql injection", "command injection", "os command injection",
+        "code injection", "injection vulnerability",
+        "xpath injection", "ldap injection",
+        "cross-site scripting", "xss", "stored xss", "reflected xss",
     ]):
         attack_type = "Injection"
-    # Malware is checked after all specific vulnerability/attack classes — it is a catch-all
-    # for malicious code delivery that doesn't fit a more specific category.
-    elif not is_activity and not title_signals_breach and any(keyword in text for keyword in [
-        "malware",
-        "trojan",
-        "infostealer",
-        "backdoor",
-        "loader",
-        "spyware",
-        "wiper",
-        "malicious executables",
-        "payload",
-        "payloads",
-        "deployed payloads",
-        "used to deploy malware",
-        "abused to deploy",
-        "deployed malware",
-        "deploy scripts",
-        "running with system privileges",
-        "disabled antivirus protections",
+
+    # --- Malware (VERIS: Malware non-ransomware | DBIR: Crimeware / System Intrusion) ---
+    elif not is_activity and not title_signals_breach and any(p in text for p in [
+        "malware", "trojan", "infostealer", "backdoor", "loader",
+        "spyware", "wiper", "rootkit", "keylogger", "rat ",
+        "remote access trojan", "malicious executables",
+        "payload", "payloads", "deployed payloads",
+        "used to deploy malware", "abused to deploy", "deployed malware",
+        "running with system privileges", "disabled antivirus",
         "killing scripts",
     ]):
         attack_type = "Malware"
+
+    # --- Exploitation (VERIS: Hacking | DBIR: Basic Web App / System Intrusion) ---
+    # Catches technical vulnerability exploitation AND serves as the catch-all for any
+    # confirmed intrusion described with generic language (hacked, cyberattack, etc.)
+    # where no more specific type was identified above.
     elif _has_exploitation_signal(text):
         attack_type = "Exploitation"
+
+    # --- Disruption (VERIS: any action | DBIR: Everything Else) ---
+    # Availability impact confirmed but no specific mechanism identified. Checked last
+    # among incident types so more specific labels (Ransomware, Malware, Exploitation)
+    # always win when both mechanism and impact are described.
+    elif not is_activity and any(p in text for p in [
+        "service disruption", "services disrupted", "systems disrupted",
+        "knocked offline", "taken offline", "forced offline",
+        "systems offline", "systems down", "services down",
+        "operations disrupted", "operations halted", "operations suspended",
+        "temporarily offline", "website defaced", "defaced",
+        "disrupted operations", "disrupting operations",
+    ]):
+        attack_type = "Disruption"
 
     short_event_summary = _build_short_event_summary(article)
 
