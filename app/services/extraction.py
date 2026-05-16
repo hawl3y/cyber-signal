@@ -169,9 +169,35 @@ _GENERIC_ORG_TERMINAL_WORDS = {
     "school", "service", "university", "vendor",
 }
 
+# First-word prefixes that signal a generic description rather than a named org.
+# "cybersecurity firm" → generic; "Popular Bank" → named org (popular not here).
+# Only words that can never plausibly open a real organization's proper name belong here.
+_GENERIC_DESCRIPTOR_PREFIXES = frozenset({
+    # Industry/category — describe what the org does, not its name
+    "cybersecurity", "security", "technology", "tech", "software", "it",
+    "cloud", "digital", "online", "internet", "financial", "healthcare",
+    "medical", "pharmaceutical", "managed",
+    # Scope/geography — describe coverage, not a proper name
+    "local", "regional", "global", "international", "federal", "state",
+    "municipal", "public", "government",
+    # Status — the org is anonymous or unknown
+    "unnamed", "unknown",
+    # Articles/determiners that survive the "the"-strip in _clean_org_name
+    "a", "an",
+})
+
+
 def _is_generic_org_descriptor(value):
     tokens = value.lower().split()
-    return bool(tokens) and len(tokens) <= 3 and tokens[-1] in _GENERIC_ORG_TERMINAL_WORDS
+    if not tokens or tokens[-1] not in _GENERIC_ORG_TERMINAL_WORDS:
+        return False
+    if len(tokens) == 1:
+        return True
+    # For 2–3 token strings, only treat as generic when the first token is a known
+    # category/scope descriptor. This lets named orgs like "Popular Bank" or
+    # "First National Bank" through while still blocking "cybersecurity firm",
+    # "local hospital", "government agency", etc.
+    return len(tokens) <= 3 and tokens[0] in _GENERIC_DESCRIPTOR_PREFIXES
 
 
 ORG_CLAUSE_BOUNDARY_RE = re.compile(
@@ -267,6 +293,18 @@ def _clean_org_name(value):
         "we",
         "them",
         "their",
+        # Standalone words that can prefix real org names ("Popular Bank", "Local Motors")
+        # but are never org names on their own. Mirrors _GENERIC_DESCRIPTOR_PREFIXES —
+        # when _clean_org_name strips the trailing terminal word (e.g. "hospital" from
+        # "Local hospital"), the prefix would otherwise pass as a valid victim.
+        "popular", "major", "widely", "commonly", "newly", "recently",
+        "legitimate", "notorious",
+        "local", "regional", "global", "international",
+        "federal", "state", "municipal", "public", "government",
+        "unnamed", "unknown",
+        "cybersecurity", "security", "technology", "tech", "software",
+        "cloud", "digital", "online", "internet",
+        "financial", "healthcare", "medical", "pharmaceutical", "managed",
     }
 
     if not cleaned or lowered in blocked_exact:
