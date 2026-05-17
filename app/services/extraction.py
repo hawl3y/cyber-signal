@@ -1292,6 +1292,32 @@ def _extract_geography(text, fallback_text=None):
             region = mapped_region
             break
 
+    # Fallback: scan article body for company-nationality descriptions.
+    # "West Pharma is a publicly traded American manufacturing company" → United States.
+    # Guard against actor descriptions ("LockBit is a Russian ransomware firm") by
+    # skipping spans that contain threat actor terminology.
+    if country is None:
+        _actor_terms = frozenset([
+            "cybercrime", "ransomware", "malware", "hacking", "espionage",
+            "extortion", "criminal", "threat actor", "hacker",
+        ])
+        for match in re.finditer(
+            r"\bis\s+an?\s+([^.;:]+?)\s+(?:company|corporation|corp|firm|manufacturer|"
+            r"organisation|organization|enterprise|conglomerate|subsidiary)\b",
+            text,
+            re.IGNORECASE,
+        ):
+            span = match.group(1).strip()
+            if any(term in span for term in _actor_terms):
+                continue
+            for keywords, mapped_country, mapped_region in geography_map:
+                if any(keyword in span for keyword in keywords):
+                    country = mapped_country
+                    region = mapped_region
+                    break
+            if country:
+                break
+
     if country is None:
         region_map = [
             (["north america"], "North America"),
