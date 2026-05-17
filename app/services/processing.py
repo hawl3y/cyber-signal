@@ -351,6 +351,21 @@ def is_relevant_incident(article):
     victim_org_name = _extract_victim_org_name(article)
     has_exploitation_subject = _has_exploitation_signal(text)
 
+    # Plugin/package/library vulnerability exploitation with no named victim is an
+    # activity signal (advisory noise), not a named-victim incident. The concrete
+    # impact signals (malware payload, "compromised sites") refer to unnamed downstream
+    # victims, so has_concrete_impact alone is not enough to admit these articles.
+    if not victim_org_name and re.search(
+        r"\b(?:plugin|package|library|module|extension)\b",
+        title_and_summary,
+        flags=re.IGNORECASE,
+    ) and re.search(
+        r"\b(?:actively exploited|under active exploitation|active exploitation|exploited in the wild)\b",
+        title_and_summary,
+        flags=re.IGNORECASE,
+    ):
+        return False
+
     has_reporting_frame = bool(
         re.search(
             r"\b(?:according to|researchers find|report finds|study shows|analysis reveals|researchers say)\b",
