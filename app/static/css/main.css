@@ -49,7 +49,7 @@ body {
 
 .app-logo {
     display: block;
-    height: 40px;
+    height: 60px;
     width: auto;
     color: var(--header-text);
 }
@@ -971,7 +971,7 @@ select option:disabled {
     }
 
     .app-logo {
-        height: 32px;
+        height: 52px;
     }
 
     .sticky-context-inner {
