@@ -11,6 +11,7 @@ from flask import current_app
 
 from app.extensions import db
 from app.models import RawArticle
+from app.utils.sources import get_source_config
 
 
 def _clean_html_text(value):
@@ -647,6 +648,98 @@ def fetch_source_items(source):
 _ARTICLE_FETCH_TIMEOUT = 10
 _ARTICLE_MAX_CHARS = 5000
 _FETCH_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; CyberBLUF/1.0)"}
+
+# Domain allowlist for manual URL ingestion. Only domains that map to a
+# registered SOURCE_REGISTRY entry are accepted — this enforces source trust
+# and prevents SSRF against arbitrary hosts.
+_ARTICLE_DOMAIN_TO_SOURCE = {
+    "bleepingcomputer.com": "bleepingcomputer",
+    "krebsonsecurity.com": "krebsonsecurity",
+    "therecord.media": "the-record-cybercrime",
+    "thehackernews.com": "the-hacker-news",
+    "ncsc.gov.uk": "ncsc-uk",
+}
+
+
+def _source_name_for_url(url):
+    """Return the SOURCE_REGISTRY name for a URL's domain, or None if not allowed."""
+    domain = re.sub(r"^www\.", "", _normalized_domain_from_url(url))
+    return _ARTICLE_DOMAIN_TO_SOURCE.get(domain)
+
+
+def ingest_article_from_url(url):
+    """
+    Fetch a single article by URL, extract content, and save as a RawArticle.
+
+    Returns (article, status) where status is one of:
+      "ok"                  — ingested successfully
+      "already_exists"      — URL already in the database
+      "domain_not_allowed"  — domain not in the source allowlist
+      "fetch_failed"        — HTTP error or network failure
+      "insufficient_content"— could not extract a title or meaningful body
+    """
+    existing = RawArticle.query.filter_by(article_url=url).first()
+    if existing:
+        return existing, "already_exists"
+
+    source_name = _source_name_for_url(url)
+    if not source_name:
+        return None, "domain_not_allowed"
+    source = get_source_config(source_name)
+
+    try:
+        resp = requests.get(
+            url,
+            timeout=_ARTICLE_FETCH_TIMEOUT,
+            headers=_FETCH_HEADERS,
+            allow_redirects=True,
+        )
+        if resp.status_code != 200:
+            return None, "fetch_failed"
+        html = resp.text
+    except Exception:
+        return None, "fetch_failed"
+
+    metadata = trafilatura.extract_metadata(html, default_url=url)
+    title = (metadata.title if metadata else None) or ""
+    description = (metadata.description if metadata else None) or ""
+
+    published_at = None
+    raw_date = metadata.date if metadata else None
+    if raw_date:
+        try:
+            published_at = datetime.strptime(raw_date[:10], "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    content = (
+        trafilatura.extract(html, include_comments=False, include_tables=False) or ""
+    )
+
+    if not description and content:
+        sentences = re.split(r"(?<=[.!?])\s+", content, maxsplit=2)
+        description = " ".join(sentences[:2])
+
+    title = title.strip()
+    if not title or len(content) < 100:
+        return None, "insufficient_content"
+
+    fetched_at = datetime.utcnow()
+    payload = _build_raw_article_payload(
+        source=source,
+        article_url=url,
+        title=title,
+        summary=description[:500] if description else "",
+        content=content[:_ARTICLE_MAX_CHARS],
+        published_at=published_at or fetched_at,
+        fetched_at=fetched_at,
+        ingestion_batch_id=f"manual_{fetched_at.strftime('%Y%m%d%H%M%S')}",
+        publisher=source.get("display_label"),
+    )
+    payload["content_enriched"] = True
+
+    article = save_raw_article(payload)
+    return article, "ok"
 
 
 def _fetch_article_body(url):
