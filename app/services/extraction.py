@@ -436,6 +436,9 @@ def _extract_victim_org_name(article):
         # Handles org names containing periods (e.g. "Schulte-Lindhorst GmbH & Co.") where
         # [^,.;:] would stop at the embedded period before reaching "hit by"/"was hit by".
         r"^(.+?)\s+(?:was\s+)?hit\s+by\s+(?:a\s+)?ransomware\s+attack\b",
+        # Recovery/aftermath headline: "[Org] [recovery state] after [attack type]"
+        # e.g. "Medtech giant Stryker fully operational after data-wiping attack"
+        r"^\s*([^,.;:]+?)\s+(?:fully\s+)?(?:operational|restored|back\s+online|back\s+up|recovers?|recovered|resuming?|resumed?)\s+after\b",
     ]
 
     # Captures ending in audience nouns (e.g. "Armenian users", "Russian citizens")
@@ -1582,6 +1585,14 @@ def run_rule_extraction(article):
         "data stolen",
     ])
 
+    # Title-level wiper/destructive signals prevent "sensitive data" negations in article body
+    # ("no sensitive data was accessed") from incorrectly classifying as Data Breach.
+    # "Medtech giant Stryker fully operational after data-wiping attack" → Malware, not Data Breach.
+    title_signals_wiper = any(kw in title_lower for kw in [
+        "data-wiping", "data wiping", "wiping attack", "wiper attack",
+        "wiper malware", "disk wiper", "disk wiping", "wiping malware",
+    ])
+
     # Attack type detection — ordered most-specific first per VERIS hierarchy.
     # See taxonomy.py for VERIS/DBIR provenance of each type.
     attack_type = "Unknown"
@@ -1664,7 +1675,7 @@ def run_rule_extraction(article):
         attack_type = "Phishing"
 
     # --- Data Breach (VERIS: Hacking + Exfiltrate | DBIR: System Intrusion / Web App) ---
-    elif not is_activity and any(p in text for p in [
+    elif not is_activity and not title_signals_wiper and any(p in text for p in [
         "data breach", "security breach", "source code breach",
         "breached", "breaching systems", "breach of",
         "hack at", "hack of",
@@ -1725,6 +1736,8 @@ def run_rule_extraction(article):
         "used to deploy malware", "abused to deploy", "deployed malware",
         "running with system privileges", "disabled antivirus",
         "killing scripts",
+        "data-wiping", "data wiping", "wiping attack", "wiper attack",
+        "disk wiping", "disk wiper",
     ]):
         attack_type = "Malware"
 

@@ -560,7 +560,7 @@ def _fetch_sec_edgar_cyber_items(source):
         except (ValueError, TypeError):
             published_at = fetched_at
 
-        if (fetched_at - published_at).days > 60:
+        if (fetched_at - published_at).days > 90:
             continue
 
         title = f"{company_name} discloses breach in SEC 8-K filing"
