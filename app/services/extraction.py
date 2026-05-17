@@ -40,7 +40,7 @@ def _trim_to_complete_sentence(text):
         last_sent_end = m.end()
     if last_sent_end:
         return text[:last_sent_end].strip()
-    return text
+    return None
 
 
 def _clean_summary_text(value):
@@ -49,6 +49,7 @@ def _clean_summary_text(value):
 
     cleaned = value.strip()
     cleaned = re.sub(r"\s*\[\.\.\.\]\s*$", "", cleaned).strip()
+    cleaned = re.sub(r"\s*(?:\.{2,}|…)\s*$", "", cleaned).strip()
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
 
     return _trim_to_complete_sentence(cleaned) or None
@@ -58,10 +59,6 @@ def _build_short_event_summary(article):
     summary = _clean_summary_text(article.summary)
     if summary:
         return summary
-
-    title = _clean_summary_text(article.title)
-    if title:
-        return title
 
     content = _clean_summary_text(article.content)
     if not content:
