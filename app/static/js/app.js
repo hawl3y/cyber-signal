@@ -900,7 +900,12 @@ if (stickyBar && summaryStrip && typeof IntersectionObserver !== "undefined") {
             stickyBar.classList.toggle("visible", shouldShow);
             stickyBar.setAttribute("aria-hidden", String(!shouldShow));
         },
-        { threshold: 0 }
+        // rootMargin shrinks the effective viewport top by 64px so the bar only
+        // appears once the summary strip has scrolled well past the top edge.
+        // Without this buffer, the bar appearing (display:none → block) shifts
+        // layout by ~40px, which can bounce the strip back into view and cause
+        // the bar to oscillate rapidly (the scroll-jump bug on mobile/desktop).
+        { threshold: 0, rootMargin: "-64px 0px 0px 0px" }
     );
     observer.observe(summaryStrip);
 }
