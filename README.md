@@ -1,6 +1,6 @@
-# Cyber BLUF
+# The Cyber Incident
 
-Cyber BLUF is a single-page cyber event intelligence application that provides a clean, structured view of high-signal cyber activity.
+The Cyber Incident organizes and correlates meaningful cyber events involving named organizations into a structured operational view built from reporting, disclosures, attribution, and contextual signals.
 
 It ingests reporting from curated sources, extracts structured signals, clusters related activity into unified events, and presents a fast, filterable view of what matters now.
 

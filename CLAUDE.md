@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Product Purpose
 
-Cyber BLUF answers "What confirmed cyber incidents involving named organizations happened recently, and who is behind them?" — in under 10 seconds, without reading anything. **The unit of value is the structured, deduplicated event, not the article.**
+**The Cyber Incident** organizes and correlates meaningful cyber events involving named organizations into a structured operational view built from reporting, disclosures, attribution, and contextual signals. **The unit of value is the structured, deduplicated event, not the article.**
 
 **What it is**: a curated incident intelligence surface for named-victim cyber events. Every event shown has a named victim — no structureless noise. Differentiators: multi-source deduplication, deterministic confidence scoring, SEC EDGAR primary-disclosure integration, actor attribution against a maintained knowledge base.
 
@@ -96,7 +96,7 @@ Avoid: guessing, over-engineering, one-off fixes.
 
 ## Overview
 
-**Cyber BLUF** is a single-page cyber event intelligence application that ingests cyber security news and alerts, extracts structured signals, clusters related activity into unified events, and presents a filterable feed. The MVP focuses on live incident data with no historical dataset.
+**The Cyber Incident** is a single-page cyber event intelligence application that ingests cyber security news and alerts, extracts structured signals, clusters related activity into unified events, and presents a filterable feed. The MVP focuses on live incident data with no historical dataset.
 
 ## Tech Stack
 
@@ -191,7 +191,7 @@ Requires `.env` with:
 ```
 SECRET_KEY=<random-string>
 DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<dbname>
-SEC_USER_AGENT="Cyber BLUF contact@yourdomain" (required for SEC EDGAR ingestion, per their fair-use policy)
+SEC_USER_AGENT="The Cyber Incident contact@yourdomain" (required for SEC EDGAR ingestion, per their fair-use policy)
 ```
 
 ### Running the App

@@ -47,14 +47,14 @@ def _scheduled_pipeline_run(app):
 
     try:
         with app.app_context():
-            logger.info("Starting scheduled Cyber BLUF pipeline run")
+            logger.info("Starting scheduled The Cyber Incident pipeline run")
             result = run_full_pipeline(force_extract=False)
-            logger.info("Completed scheduled Cyber BLUF pipeline run: %s", result)
+            logger.info("Completed scheduled The Cyber Incident pipeline run: %s", result)
 
         automation_status["last_run_success"] = True
         automation_status["last_run_result"] = result
     except Exception as exc:
-        logger.exception("Scheduled Cyber BLUF pipeline run failed")
+        logger.exception("Scheduled The Cyber Incident pipeline run failed")
         automation_status["last_run_success"] = False
         automation_status["last_run_error"] = str(exc)
     finally:
